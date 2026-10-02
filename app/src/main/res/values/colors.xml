@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <color name="tr_bg">#0E0E11</color>
+    <color name="tr_surface">#17171C</color>
+    <color name="tr_surface_high">#202027</color>
+    <color name="tr_stroke">#2A2A33</color>
+
+    <color name="tr_accent">#FFCC00</color>
+    <color name="tr_on_accent">#141414</color>
+    <color name="tr_accent_container">#3A3214</color>
+    <color name="tr_on_accent_container">#FFE27A</color>
+
+    <color name="tr_text">#F4F4F6</color>
+    <color name="tr_text_secondary">#9A9AA5</color>
+    <color name="tr_text_muted">#6B6B76</color>
+
+    <color name="tr_success">#22C55E</color>
+    <color name="tr_warning">#F5B301</color>
+    <color name="tr_danger">#EF4444</color>
+    <color name="tr_surge">#C084FC</color>
+    <color name="tr_yandex">#FC3F1D</color>
+    <color name="tr_nav_bg">#121216</color>
+    <color name="tr_nav_item">#E4E4EA</color>
+    <color name="tr_danger_container">#3A1717</color>
+    <color name="tr_success_container">#12301E</color>
+    <!-- Разноцветные иконки плиток -->
+    <color name="ic_blue">#60A5FA</color>
+    <color name="ic_blue_bg">#16263D</color>
+    <color name="ic_purple">#C084FC</color>
+    <color name="ic_purple_bg">#2A1C3F</color>
+    <color name="ic_green">#4ADE80</color>
+    <color name="ic_green_bg">#132E1F</color>
+    <color name="ic_teal">#2DD4BF</color>
+    <color name="ic_teal_bg">#0F302C</color>
+    <color name="ic_orange">#FB923C</color>
+    <color name="ic_orange_bg">#3A2213</color>
+    <color name="ic_pink">#F472B6</color>
+    <color name="ic_pink_bg">#3A172C</color>
+    <color name="ic_slate">#CBD5E1</color>
+    <color name="ic_slate_bg">#262B33</color>
+</resources>

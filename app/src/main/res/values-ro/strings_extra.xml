@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bell_desc">Notificări</string>
+    <string name="bell_update_title">Versiune nouă disponibilă: %1$s</string>
+    <string name="bell_update_text">Apăsați «Descarcă» — se va deschide Telegram cu noua versiune Taxi Radar. Instalați-o peste cea actuală, setările se păstrează.</string>
+    <string name="bell_update_go">Descarcă</string>
+    <string name="bell_later">Mai târziu</string>
+    <string name="bell_sub_ending">Abonamentul se termină: au rămas %1$d zile. Prelungiți din timp, ca radarul să nu se oprească.</string>
+    <string name="bell_sub_over">Accesul este închis. Alegeți tariful și plătiți abonamentul — durează un minut.</string>
+    <string name="bell_sub_go">Abonament</string>
+    <string name="bell_empty_title">Notificări</string>
+    <string name="bell_empty_text">Nu sunt notificări noi. Aveți ultima versiune — %1$s.</string>
+
+    <string name="sub_title">Abonament</string>
+    <string name="sub_open">Abonament</string>
+    <string name="sub_buy">Cumpără abonament</string>
+    <string name="sub_choose">Alegeți tariful</string>
+    <string name="sub_days">%1$d zile</string>
+    <string name="sub_price">%1$d %2$s</string>
+    <string name="sub_per_day">≈ %1$s %2$s pe zi</string>
+    <string name="sub_promo_hint">Cod promoțional (dacă aveți)</string>
+    <string name="sub_pay">Plătește %1$d %2$s</string>
+    <string name="sub_pay_note">Se va deschide Telegram cu un mesaj gata: tariful, codul promoțional și ID-ul dvs. După plată veți primi cheia — introduceți-o mai jos.</string>
+    <string name="sub_pay_message">Bună ziua! Vreau să plătesc abonamentul Taxi Radar.\nTarif: %1$s — %2$s\nCod promoțional: %3$s\nID-ul meu: %4$s</string>
+    <string name="sub_no_promo">nu</string>
+    <string name="sub_have_key">Aveți deja o cheie?</string>
+    <string name="sub_device_id">ID-ul dvs.: %1$s</string>
+    <string name="sub_id_copied">ID copiat</string>
+    <string name="sub_status_none">Abonamentul nu este activ</string>
+    <string name="sub_features">Prețul comenzii peste Yandex Pro · harta cererii · călători · aeroport · clienți</string>
+
+    <string name="widget_size_title">Mărimea widgetului</string>
+    <string name="widget_size_value">%1$d%%</string>
+    <string name="widget_size_hint">Faceți bula radarului mai mare sau mai mică. Dacă radarul rulează, schimbarea se vede imediat.</string>
+    <string name="widget_bonus">supliment +%1$d</string>
+</resources>

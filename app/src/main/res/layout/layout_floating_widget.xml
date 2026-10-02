@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WidgetPillLayout = LinearLayout + долгое нажатие открывает Taxi Radar -->
+<com.example.taxiradar.WidgetPillLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_widget_pill"
+    android:gravity="center"
+    android:minWidth="72dp"
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="10dp">
+
+    <TextView
+        android:id="@+id/tvWidgetSurge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:lineSpacingExtra="3dp"
+        android:text="…"
+        android:textColor="@color/tr_accent"
+        android:textSize="19sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvWidgetSub"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:maxWidth="220dp"
+        android:textColor="@color/tr_text_secondary"
+        android:textSize="11sp"
+        android:visibility="gone" />
+</com.example.taxiradar.WidgetPillLayout>

@@ -1,0 +1,74 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Приложение всегда тёмное: им пользуются в машине, в том числе ночью. -->
+    <style name="Base.Theme.TaxiRadar" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/tr_accent</item>
+        <item name="colorOnPrimary">@color/tr_on_accent</item>
+        <item name="colorPrimaryContainer">@color/tr_accent_container</item>
+        <item name="colorOnPrimaryContainer">@color/tr_on_accent_container</item>
+        <item name="colorSecondaryContainer">@color/tr_accent_container</item>
+        <item name="colorOnSecondaryContainer">@color/tr_on_accent_container</item>
+        <item name="colorSurface">@color/tr_surface</item>
+        <item name="colorOnSurface">@color/tr_text</item>
+        <item name="colorOnSurfaceVariant">@color/tr_text_secondary</item>
+        <item name="colorOutline">@color/tr_stroke</item>
+        <item name="colorError">@color/tr_danger</item>
+        <item name="android:colorBackground">@color/tr_bg</item>
+        <item name="android:statusBarColor">@color/tr_bg</item>
+        <item name="android:navigationBarColor">@color/tr_bg</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+
+    <style name="Theme.TaxiRadar" parent="Base.Theme.TaxiRadar" />
+
+    <style name="TaxiRadar.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardBackgroundColor">@color/tr_surface</item>
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/tr_stroke</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="contentPadding">18dp</item>
+    </style>
+
+    <style name="TaxiRadar.CardTitle" parent="">
+        <item name="android:textColor">@color/tr_text</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TaxiRadar.Caption" parent="">
+        <item name="android:textColor">@color/tr_text_secondary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:lineSpacingExtra">2dp</item>
+    </style>
+
+    <style name="TaxiRadar.Button" parent="Widget.Material3.Button">
+        <item name="cornerRadius">16dp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+
+    <style name="TaxiRadar.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="cornerRadius">16dp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+
+    <!-- Второстепенная кнопка: мягкий фон вместо тонкой обводки -->
+    <style name="TaxiRadar.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="backgroundTint">@color/tr_surface_high</item>
+        <item name="cornerRadius">16dp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">@color/tr_text</item>
+        <item name="strokeColor">@color/tr_stroke</item>
+        <item name="iconTint">@color/tr_text</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+
+    <style name="TaxiRadar.NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/tr_surface_high</item>
+    </style>
+</resources>

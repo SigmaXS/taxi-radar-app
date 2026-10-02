@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rides_title">Călători</string>
+    <string name="tile_rides">Călători</string>
+    <string name="tile_rides_sub">Cereri din grupurile Telegram și Viber: cine caută mașină, de unde și unde</string>
+    <string name="rides_kind_passengers">Caută mașină</string>
+    <string name="rides_kind_cars">Mașini libere</string>
+    <string name="rides_from_hint">De unde (oraș sau sat)</string>
+    <string name="rides_to_hint">Unde (gol — oriunde)</string>
+    <string name="rides_hint">Se potrivesc și locurile apropiate: Chișinău înseamnă și Ialoveni, Durlești, aeroportul.</string>
+    <string name="rides_search">Caută</string>
+    <string name="rides_swap">⇄</string>
+    <string name="rides_loading">Se încarcă…</string>
+    <string name="rides_error">Nu s-a putut încărca. Verificați internetul și apăsați «Caută».</string>
+    <string name="rides_empty">Acum nu sunt %1$s actuale · %2$s</string>
+    <string name="rides_found">Găsite %1$d %2$s · %3$s. Cele mai apropiate în timp primele.</string>
+    <string name="rides_what_passengers">cereri de pasageri</string>
+    <string name="rides_what_cars">mașini libere</string>
+    <string name="rides_more">Mai mult (%1$d)</string>
+    <string name="rides_head_passenger">🙋 Caută mașină</string>
+    <string name="rides_head_car">🚗 Mașină liberă</string>
+    <string name="rides_head_carrier">🚗 Transportator</string>
+    <string name="rides_many_directions">diferite direcții</string>
+    <string name="rides_call">Sună</string>
+    <string name="rides_write">Scrie</string>
+    <string name="rides_open">Deschide</string>
+    <string name="rides_to_pmr">În Transnistria</string>
+    <string name="rides_to_md">Prin Moldova</string>
+    <string name="rides_to_ua">În Ucraina</string>
+    <string name="rides_to_eu">În Europa</string>
+    <string name="rides_group_viber">Grupul în Viber</string>
+    <string name="rides_group_telegram">Mesajul în grup</string>
+    <string name="rides_group_site">Anunțul pe site</string>
+</resources>

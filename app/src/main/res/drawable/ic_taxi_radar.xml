@@ -1,0 +1,67 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 1. Основной темный круглый диск радара (радиус 50, углы прозрачные) -->
+    <path
+        android:fillColor="#1F1F24"
+        android:pathData="M54,4 A50,50 0 1,1 53.9,4 Z" />
+
+    <!-- 2. Внешняя светящаяся рамка радара -->
+    <path
+        android:strokeColor="#FFCC00"
+        android:strokeWidth="2.5"
+        android:pathData="M54,4 A50,50 0 1,1 53.9,4 Z" />
+
+    <!-- 3. Внутренние кольца радара -->
+    <path
+        android:strokeColor="#3D3820"
+        android:strokeWidth="1.5"
+        android:pathData="M54,20 A34,34 0 1,1 53.9,20 Z" />
+    <path
+        android:strokeColor="#4D421A"
+        android:strokeWidth="1.5"
+        android:pathData="M54,36 A18,18 0 1,1 53.9,36 Z" />
+
+    <!-- 4. Сетка перекрестия радара (оси X и Y) -->
+    <path
+        android:strokeColor="#3D3820"
+        android:strokeWidth="1.2"
+        android:pathData="M54,4 L54,104 M4,54 L104,54" />
+
+    <!-- 5. Сектор сканирующего луча (радарная волна) -->
+    <path
+        android:fillColor="#33FFCC00"
+        android:pathData="M54,54 L104,54 A50,50 0 0,0 54,4 Z" />
+
+    <!-- 6. Центральная точка радара (маяк) -->
+    <path
+        android:fillColor="#FFCC00"
+        android:pathData="M54,50 A4,4 0 1,1 53.9,50 Z" />
+
+    <!-- 7. Аккуратные шашечки такси внизу (2 ряда контрастных квадратов) -->
+    <!-- Верхний ряд шашечек -->
+    <path
+        android:fillColor="#FFCC00"
+        android:pathData="M39,76 h6 v5 h-6 z M51,76 h6 v5 h-5 z M63,76 h6 v5 h-6 z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M45,76 h6 v5 h-6 z M57,76 h6 v5 h-6 z" />
+
+    <!-- Нижний ряд шашечек -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M39,81 h6 v5 h-6 z M51,81 h6 v5 h-5 z M63,81 h6 v5 h-6 z" />
+    <path
+        android:fillColor="#FFCC00"
+        android:pathData="M45,81 h6 v5 h-6 z M57,81 h6 v5 h-6 z" />
+
+    <!-- Тонкая рамка вокруг полосы шашечек -->
+    <path
+        android:strokeColor="#66FFCC00"
+        android:strokeWidth="1"
+        android:pathData="M38,75 h32 v12 h-32 z" />
+
+</vector>

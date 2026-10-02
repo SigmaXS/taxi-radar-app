@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Интернет и сеть -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Геолокация -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Плавающий виджет и фоновые службы -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- Оптимизация батареи -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="Taxi Radar"
+        android:localeConfig="@xml/locales_config"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.TaxiRadar"
+        android:usesCleartextTraffic="true">
+
+        <!-- Главная активность -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".SetupCheckActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".SetupWizardActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".YandexKeyActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ClientsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".HelpActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".RidesActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".SubscriptionActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AirportActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AirportBoardActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Кнопки отметок в уведомлении о клиенте -->
+        <receiver
+            android:name=".ClientTagReceiver"
+            android:exported="false" />
+
+        <!-- «Ещё здесь / Уже нет» в уведомлении о метке на дороге -->
+        <receiver
+            android:name=".ReportVoteReceiver"
+            android:exported="false" />
+
+        <!-- Хранит выбранный язык приложения до Android 13 (AppCompat) -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
+
+        <!-- Сервис плавающего виджета оверлея. «location» — только когда водитель
+             включил GPS; без разрешения на местоположение Android 14+ убивает
+             службу этого типа, поэтому по умолчанию она «specialUse» (кружок поверх Яндекс Про). -->
+        <service
+            android:name=".FloatingWidgetService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Overlay bubble with the estimated fare over the taxi driver app" />
+        </service>
+
+        <!-- Служба чтения экрана Яндекс Про (Accessibility) -->
+        <service
+            android:name=".OrderAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+    </application>
+</manifest>

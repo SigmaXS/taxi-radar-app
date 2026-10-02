@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- Тёмный капсульный фон -->
+    <solid android:color="#E618181C" />
+
+    <!-- Закруглённые края капсулы -->
+    <corners android:radius="22dp" />
+
+    <!-- Тонкая аккуратная обводка -->
+    <stroke
+        android:width="1.5dp"
+        android:color="#33FFFFFF" />
+</shape>

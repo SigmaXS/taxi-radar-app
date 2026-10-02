@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rides_title">Попутчики</string>
+    <string name="tile_rides">Попутчики</string>
+    <string name="tile_rides_sub">Заявки из групп Telegram и Viber: кто ищет машину, откуда и куда</string>
+    <string name="rides_kind_passengers">Ищут машину</string>
+    <string name="rides_kind_cars">Свободные машины</string>
+    <string name="rides_from_hint">Откуда (город или село)</string>
+    <string name="rides_to_hint">Куда (пусто — куда угодно)</string>
+    <string name="rides_hint">Близкие места тоже подходят: Кишинёв — это ещё Яловены, Дурлешты, аэропорт.</string>
+    <string name="rides_search">Найти</string>
+    <string name="rides_swap">⇄</string>
+    <string name="rides_loading">Загружаю…</string>
+    <string name="rides_error">Не удалось загрузить. Проверьте интернет и нажмите «Найти».</string>
+    <string name="rides_empty">Сейчас нет актуальных %1$s · %2$s</string>
+    <string name="rides_found">Найдено %1$d %2$s · %3$s. Сначала ближайшие по времени.</string>
+    <string name="rides_what_passengers">заявок пассажиров</string>
+    <string name="rides_what_cars">свободных машин</string>
+    <string name="rides_more">Ещё (%1$d)</string>
+    <string name="rides_head_passenger">🙋 Ищут машину</string>
+    <string name="rides_head_car">🚗 Свободная машина</string>
+    <string name="rides_head_carrier">🚗 Перевозчик</string>
+    <string name="rides_many_directions">разные направления</string>
+    <string name="rides_call">Позвонить</string>
+    <string name="rides_write">Написать</string>
+    <string name="rides_open">Открыть</string>
+    <string name="rides_to_pmr">В ПМР</string>
+    <string name="rides_to_md">По Молдове</string>
+    <string name="rides_to_ua">В Украину</string>
+    <string name="rides_to_eu">В Европу</string>
+    <string name="rides_group_viber">Группа в Viber</string>
+    <string name="rides_group_telegram">Сообщение в группе</string>
+    <string name="rides_group_site">Объявление на сайте</string>
+</resources>
