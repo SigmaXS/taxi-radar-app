@@ -99,9 +99,9 @@ class _UsefulTabState extends State<UsefulTab> {
 
         const SizedBox(height: 12),
 
-        // Калькулятор поездок
+        // Попутчики
         _buildTile(
-          icon: Icons.calculate_rounded,
+          icon: Icons.alt_route_rounded,
           iconColor: Colors.greenAccent,
           title: AppStrings.tileRides,
           subtitle: AppStrings.tileRidesSub,

@@ -12,6 +12,11 @@
 	<string>Геолокация нужна для отображения вашей позиции на карте спроса и определения надбавки.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Геолокация нужна для предупреждений о радарах и дорожных событиях в пути.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

@@ -47,8 +47,8 @@ class AppStrings {
   static String get tileClientsSub => isRu ? 'Проверка номера и отметки' : 'Verificare număr și recenzii';
   static String get tileAirport => isRu ? 'Аэропорт' : 'Aeroport';
   static String get tileAirportSub => isRu ? 'Прилёты и очередь такси' : 'Sosiri și rând taxi';
-  static String get tileRides => isRu ? 'Калькулятор поездок' : 'Calculator curse';
-  static String get tileRidesSub => isRu ? 'Расчёт чистой прибыли и тарифа' : 'Calcul profit net și tarif';
+  static String get tileRides => isRu ? 'Попутчики' : 'Curse și pasageri';
+  static String get tileRidesSub => isRu ? 'Лента заявок из групп и поиск' : 'Cereri pasageri și mașini din grupuri';
 
   // Аэропорт
   static String get airportQueueCaption => isRu ? 'водителей Taxi Radar в очереди' : 'șoferi Taxi Radar în rând';
