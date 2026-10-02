@@ -471,4 +471,17 @@
     <string name="place_voted_up">👍 Советую ✓</string>
     <string name="place_voted_down">👎 Не советую ✓</string>
     <string name="place_delete">Удалить моё место</string>
+    <string name="bell_hint">🔔 Есть уведомление — прочтите</string>
+    <string name="bell_hint_open">Открыть</string>
+    <string name="update_required_status">⚠️ Обновите приложение — вышла новая версия</string>
+    <string name="update_required_pill">⚠️ Обновите приложение</string>
+    <string name="update_required_title">Обновите Taxi Radar %1$s</string>
+    <string name="update_required_text">Ваша версия устарела. Скачайте новую в группе радара и установите поверх — подписка и настройки сохранятся.</string>
+    <string name="traffic_shared_now">Сейчас — общая поправка по поездкам всех водителей: ×%1$s.\nСвоих поездок: %2$d. Когда в этот час их будет 3+, радар перейдёт на свои.</string>
+    <plurals name="chat_new_messages">
+        <item quantity="one">%d новое сообщение</item>
+        <item quantity="few">%d новых сообщения</item>
+        <item quantity="many">%d новых сообщений</item>
+        <item quantity="other">%d новых сообщения</item>
+    </plurals>
 </resources>

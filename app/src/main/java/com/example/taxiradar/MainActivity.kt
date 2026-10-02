@@ -38,6 +38,7 @@ import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import java.net.URLEncoder
 
 class MainActivity : AppCompatActivity() {
@@ -402,6 +403,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        chatJob?.cancel()
         mapController?.onHide()
         super.onPause()
     }
@@ -453,6 +455,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderTraffic() {
         val s = TrafficModel.stats(this)
+        val now = TrafficModel.factor(this)
+        if (now.shared) {
+            findViewById<TextView>(R.id.tvTrafficStats).text = getString(
+                R.string.traffic_shared_now, String.format(java.util.Locale.US, "%.2f", now.value), s.count
+            )
+            return
+        }
         val factor = String.format(java.util.Locale.US, "%.2f", s.factorNow.value)
         val lines = mutableListOf(
             if (s.count > 0) getString(R.string.traffic_stats, s.count, factor)
@@ -586,6 +595,7 @@ class MainActivity : AppCompatActivity() {
                 renderContacts()
                 renderYandexState()
                 renderBell()
+                renderUpdateRequired()
             }
         }
     }
@@ -951,6 +961,35 @@ class MainActivity : AppCompatActivity() {
         checkPendingKeys()
         syncWithServer()
         refreshAppConfig()
+        chatJob?.cancel()
+        chatJob = lifecycleScope.launch {
+            while (true) {
+                renderChatUnread()
+                kotlinx.coroutines.delay(60_000)
+            }
+        }
+    }
+
+    // ---------- новые сообщения в чате ----------
+
+    private var chatJob: kotlinx.coroutines.Job? = null
+
+    private suspend fun renderChatUnread() {
+        val prefs = getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE)
+        val json = CommunityApi.post(this, "/api/chat/unread", org.json.JSONObject().put("after", prefs.getLong("chat_last_read", 0L)))
+        val n = if (json?.optBoolean("ok") == true) json.optInt("count") else 0
+        val badge = findViewById<TextView>(R.id.tvChatBadge)
+        val sub = findViewById<TextView>(R.id.tvChatSub)
+        if (n > 0) {
+            badge.text = if (n > 99) "99+" else n.toString()
+            badge.visibility = View.VISIBLE
+            sub.text = resources.getQuantityString(R.plurals.chat_new_messages, n, n)
+            sub.setTextColor(color(R.color.tr_danger))
+        } else {
+            badge.visibility = View.GONE
+            sub.setText(R.string.tile_chat_sub)
+            sub.setTextColor(color(R.color.tr_text_secondary))
+        }
     }
 
     private fun updateWidgetButtonState() {
@@ -1101,6 +1140,7 @@ class MainActivity : AppCompatActivity() {
             updateWidgetButtonState()
             loadReferral()
             renderBell()
+            renderUpdateRequired()
         }
     }
 
@@ -1148,10 +1188,71 @@ class MainActivity : AppCompatActivity() {
         return licenseManager.trialAlreadyUsed && days <= 2
     }
 
+    private var bellPulse: android.animation.Animator? = null
+    private var bellHintShown = false
+
+    /**
+     * Есть уведомление — красная точка пульсирует, колокольчик красный, а при
+     * открытии приложения снизу всплывает «Есть уведомление — прочтите».
+     */
     private fun renderBell() {
         val cfg = AppConfig.load(this)
-        findViewById<View>(R.id.viewBellBadge).visibility =
-            if (updateAvailable(cfg) || subscriptionAlert()) View.VISIBLE else View.GONE
+        val alert = updateAvailable(cfg) || subscriptionAlert()
+        val badge = findViewById<View>(R.id.viewBellBadge)
+        badge.visibility = if (alert) View.VISIBLE else View.GONE
+        findViewById<android.widget.ImageView>(R.id.ivBell).imageTintList =
+            ColorStateList.valueOf(color(if (alert) R.color.tr_danger else R.color.tr_text))
+        if (alert && bellPulse == null) {
+            bellPulse = android.animation.AnimatorSet().apply {
+                val sx = android.animation.ObjectAnimator.ofFloat(badge, View.SCALE_X, 1f, 1.5f, 1f)
+                val sy = android.animation.ObjectAnimator.ofFloat(badge, View.SCALE_Y, 1f, 1.5f, 1f)
+                listOf(sx, sy).forEach { it.repeatCount = android.animation.ValueAnimator.INFINITE; it.duration = 1100 }
+                playTogether(sx, sy)
+                start()
+            }
+        } else if (!alert) {
+            bellPulse?.cancel()
+            bellPulse = null
+        }
+        if (alert && !bellHintShown) {
+            bellHintShown = true
+            com.google.android.material.snackbar.Snackbar
+                .make(findViewById(android.R.id.content), R.string.bell_hint, com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
+                .setAction(R.string.bell_hint_open) { showNotifications() }
+                .setAnchorView(bottomNav)
+                .show()
+        }
+    }
+
+    // ---------- «Обновите приложение» ----------
+
+    private var updateDialogShown = false
+
+    /** Версия ниже минимальной с сервера — пишем вместо срока подписки и раз за запуск показываем окно. */
+    private fun renderUpdateRequired() {
+        val cfg = AppConfig.load(this)
+        if (cfg.minVersionCode <= 0 || currentVersionCode() >= cfg.minVersionCode) return
+        tvLicenseStatus.text = getString(R.string.update_required_status)
+        viewLicenseDot.backgroundTintList = ColorStateList.valueOf(color(R.color.tr_danger))
+        findViewById<TextView>(R.id.tvHeaderDays).apply {
+            visibility = View.VISIBLE
+            text = getString(R.string.update_required_pill)
+            setTextColor(color(R.color.tr_danger))
+            setOnClickListener { showUpdateRequired(cfg) }
+        }
+        if (!updateDialogShown) {
+            updateDialogShown = true
+            showUpdateRequired(cfg)
+        }
+    }
+
+    private fun showUpdateRequired(cfg: AppConfig) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.update_required_title, cfg.latestVersionName.ifBlank { "" }))
+            .setMessage(listOf(cfg.updateNotes.trim(), getString(R.string.update_required_text)).filter { it.isNotEmpty() }.joinToString("\n\n"))
+            .setPositiveButton(R.string.bell_update_go) { _, _ -> openUrl(cfg.updateUrl.ifBlank { cfg.groupUrl }) }
+            .setNegativeButton(R.string.bell_later, null)
+            .show()
     }
 
     private fun showNotifications() {

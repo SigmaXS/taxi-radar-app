@@ -44,7 +44,8 @@ object TrafficModel {
         val ratio: Double get() = yandexMin / osrmMin
     }
 
-    data class Factor(val value: Double, val fromDrivers: Boolean)
+    /** fromDrivers — поправка выучена (своими поездками или общими), shared — взята общая. */
+    data class Factor(val value: Double, val fromDrivers: Boolean, val shared: Boolean = false)
 
     data class Stats(
         val count: Int,
@@ -76,6 +77,7 @@ object TrafficModel {
     }
 
     fun add(context: Context, sample: Sample) {
+        shareSample(context.applicationContext, sample)
         val all = (load(context) + sample).takeLast(MAX_SAMPLES)
         val arr = JSONArray()
         all.forEach {
@@ -89,8 +91,31 @@ object TrafficModel {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, arr.toString()).apply()
     }
 
-    fun factor(context: Context, at: Calendar = Calendar.getInstance()): Factor =
-        factorFor(usable(load(context)), at.get(Calendar.HOUR_OF_DAY), isWeekend(at))
+    /**
+     * Своя поправка, если в этот час уже есть 3+ своих поездки; иначе — общая
+     * по поездкам всех водителей (с сервера); иначе — без поправки.
+     */
+    fun factor(context: Context, at: Calendar = Calendar.getInstance()): Factor {
+        val hour = at.get(Calendar.HOUR_OF_DAY)
+        val weekend = isWeekend(at)
+        val own = factorFor(usable(load(context)), hour, weekend)
+        if (own.fromDrivers) return own
+        val cfg = AppConfig.load(context)
+        val shared = (if (weekend) cfg.trafficWeekend else cfg.trafficWeekday).getOrNull(hour)
+        return if (shared != null) Factor(shared.coerceIn(0.8, 2.2), fromDrivers = true, shared = true) else own
+    }
+
+    /** Пример поездки — и на сервер, в общее обучение (без привязки к адресам). */
+    private fun shareSample(context: Context, s: Sample) {
+        if (s.osrmMin < MIN_OSRM_MIN || s.ratio !in 0.5..3.0) return
+        Thread {
+            CommunityApi.postBlocking(
+                context, "/api/traffic/sample",
+                org.json.JSONObject().put("hour", s.hour).put("weekend", s.weekend)
+                    .put("osrm_min", s.osrmMin).put("yandex_min", s.yandexMin).put("km", s.yandexKm)
+            )
+        }.start()
+    }
 
     fun stats(context: Context): Stats {
         val samples = usable(load(context))

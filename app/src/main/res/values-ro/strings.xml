@@ -467,4 +467,16 @@
     <string name="place_voted_up">👍 Recomand ✓</string>
     <string name="place_voted_down">👎 Nu recomand ✓</string>
     <string name="place_delete">Șterge locul meu</string>
+    <string name="bell_hint">🔔 Aveți o notificare — citiți</string>
+    <string name="bell_hint_open">Deschide</string>
+    <string name="update_required_status">⚠️ Actualizați aplicația — a apărut o versiune nouă</string>
+    <string name="update_required_pill">⚠️ Actualizați aplicația</string>
+    <string name="update_required_title">Actualizați Taxi Radar %1$s</string>
+    <string name="update_required_text">Versiunea dvs. este învechită. Descărcați-o pe cea nouă din grupul radarului și instalați-o peste — abonamentul și setările se păstrează.</string>
+    <string name="traffic_shared_now">Acum — corecția comună din cursele tuturor șoferilor: ×%1$s.\nCursele dvs.: %2$d. Când vor fi 3+ la această oră, radarul trece la ale dvs.</string>
+    <plurals name="chat_new_messages">
+        <item quantity="one">%d mesaj nou</item>
+        <item quantity="few">%d mesaje noi</item>
+        <item quantity="other">%d de mesaje noi</item>
+    </plurals>
 </resources>

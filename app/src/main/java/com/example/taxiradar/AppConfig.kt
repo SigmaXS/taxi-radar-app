@@ -27,7 +27,12 @@ data class AppConfig(
     val tariffs: List<Tariff> = listOf(Tariff(30, 99)),
     val currency: String = "лей",
     /** Цена «от …» без спроса по тарифам — от неё считается надбавка. */
-    val surgeBase: Map<String, Int> = emptyMap()
+    val surgeBase: Map<String, Int> = emptyMap(),
+    /** Ниже этой версии — «⚠️ Обновите приложение». 0 — не напоминать. */
+    val minVersionCode: Int = 0,
+    /** Общие пробки по часам (все водители): будни / выходные, null — мало данных. */
+    val trafficWeekday: List<Double?> = emptyList(),
+    val trafficWeekend: List<Double?> = emptyList()
 ) {
     data class Tariff(val days: Int, val price: Int)
 
@@ -81,8 +86,14 @@ data class AppConfig(
             currency = j.optString("currency", "лей").ifBlank { "лей" },
             surgeBase = j.optJSONObject("surge_base")?.let { o ->
                 o.keys().asSequence().associateWith { o.optInt(it) }.filterValues { it > 0 }
-            } ?: emptyMap()
+            } ?: emptyMap(),
+            minVersionCode = j.optInt("min_version_code", 0),
+            trafficWeekday = hours(j.optJSONObject("traffic")?.optJSONArray("wd")),
+            trafficWeekend = hours(j.optJSONObject("traffic")?.optJSONArray("we"))
         )
+
+        private fun hours(a: org.json.JSONArray?): List<Double?> =
+            if (a == null) emptyList() else (0 until a.length()).map { i -> if (a.isNull(i)) null else a.optDouble(i).takeIf { !it.isNaN() } }
 
         private fun parseTariffs(j: JSONObject): List<Tariff> {
             val arr = j.optJSONArray("tariffs") ?: return listOf(Tariff(30, 99))

@@ -95,6 +95,7 @@
                     android:foreground="?attr/selectableItemBackgroundBorderless">
 
                     <ImageView
+                        android:id="@+id/ivBell"
                         android:layout_width="24dp"
                         android:layout_height="24dp"
                         android:layout_gravity="center"
@@ -104,11 +105,11 @@
 
                     <View
                         android:id="@+id/viewBellBadge"
-                        android:layout_width="12dp"
-                        android:layout_height="12dp"
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
                         android:layout_gravity="top|end"
-                        android:layout_marginTop="9dp"
-                        android:layout_marginEnd="10dp"
+                        android:layout_marginTop="6dp"
+                        android:layout_marginEnd="7dp"
                         android:background="@drawable/bg_badge"
                         android:visibility="gone" />
                 </FrameLayout>
@@ -328,6 +329,21 @@
                             android:layout_marginTop="2dp"
                             android:text="@string/tile_chat_sub" />
                     </LinearLayout>
+
+                    <!-- Новые сообщения в чате -->
+                    <TextView
+                        android:id="@+id/tvChatBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="26dp"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_count_badge"
+                        android:gravity="center"
+                        android:minWidth="26dp"
+                        android:paddingHorizontal="8dp"
+                        android:textColor="@android:color/white"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
 
                     <ImageView
                         android:layout_width="24dp"

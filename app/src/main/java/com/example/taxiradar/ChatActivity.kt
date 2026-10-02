@@ -120,6 +120,14 @@ class ChatActivity : AppCompatActivity() {
         }
         adapter.notifyItemRangeInserted(start, messages.size - start)
         if (atBottom || start == 0) rv.scrollToPosition(messages.size - 1)
+        markRead()
+    }
+
+    /** Всё, что сейчас в чате, прочитано — красный кружок на главном гаснет. */
+    private fun markRead() {
+        val last = messages.lastOrNull()?.id ?: return
+        val prefs = getSharedPreferences("taxi_radar_prefs", MODE_PRIVATE)
+        if (last > prefs.getLong("chat_last_read", 0L)) prefs.edit().putLong("chat_last_read", last).apply()
     }
 
     private fun send() {
