@@ -60,6 +60,9 @@ extension_target.build_configurations.each do |config|
   config.build_settings['CURRENT_PROJECT_VERSION'] = '$(FLUTTER_BUILD_NUMBER)'
   config.build_settings['MARKETING_VERSION'] = '$(FLUTTER_BUILD_NAME)'
   config.build_settings['ENABLE_BITCODE'] = 'NO'
+  config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+  config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+  config.build_settings['CODE_SIGN_IDENTITY'] = ''
   config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = [
     '$(inherited)',
     '@executable_path/Frameworks',
@@ -77,12 +80,13 @@ runner_target.add_dependency(extension_target)
 
 # Add Embed Foundation Extensions build phase to copy .appex into PlugIns/
 embed_phase = runner_target.copy_files_build_phases.find do |phase|
-  phase.name == 'Embed Foundation Extensions' || phase.dst_subfolder_spec == 13
+  phase.name == 'Embed Foundation Extensions' || phase.dst_subfolder_spec.to_s == '13'
 end
 
 unless embed_phase
   embed_phase = runner_target.new_copy_files_build_phase('Embed Foundation Extensions')
-  embed_phase.dst_subfolder_spec = 13 # 13 corresponds to PlugIns
+  embed_phase.dst_subfolder_spec = '13' # String '13' corresponds to PlugIns in xcodeproj
+  embed_phase.dst_path = ''
 end
 
 build_file = embed_phase.add_file_reference(extension_target.product_reference)
