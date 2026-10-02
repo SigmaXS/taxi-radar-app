@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_strings.dart';
 import '../../models/app_config.dart';
 import '../../services/license_service.dart';
+import '../../services/live_activity_service.dart';
 
 class RadarTab extends StatefulWidget {
   final LicenseStatus? license;
@@ -54,18 +55,25 @@ class _RadarTabState extends State<RadarTab> {
   }
 
   Future<void> _toggleMonitoring() async {
-    final prefs = await SharedPreferences.getInstance();
+    final nextState = !_isMonitoring;
     setState(() {
-      _isMonitoring = !_isMonitoring;
+      _isMonitoring = nextState;
     });
-    await prefs.setBool('is_monitoring', _isMonitoring);
+
+    if (nextState) {
+      await LiveActivityService.startMonitoring();
+    } else {
+      await LiveActivityService.stopMonitoring();
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_isMonitoring ? AppStrings.radarRunning : AppStrings.radarStop),
+          content: Text(_isMonitoring
+              ? 'Мониторинг активен! Спрос и радары отображаются в Динамическом острове.'
+              : AppStrings.radarStop),
           backgroundColor: _isMonitoring ? Colors.green.shade700 : Colors.grey.shade800,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
         ),
       );
     }
