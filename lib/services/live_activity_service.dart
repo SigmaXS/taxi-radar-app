@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'community_service.dart';
 import 'yandex_surge_service.dart';
 
+import 'order_parser_service.dart';
+
 class LiveActivityService {
   static const String appGroupId = 'group.com.example.taxiradar.taxiRadarApp';
 
@@ -15,15 +17,71 @@ class LiveActivityService {
   static String? _currentActivityId;
   static Timer? _monitorTimer;
   static bool _isMonitoring = false;
+  static StreamSubscription? _urlSubscription;
+  static final ValueNotifier<ParsedOrder?> latestOrderNotifier = ValueNotifier<ParsedOrder?>(null);
 
   static bool get isMonitoring => _isMonitoring;
 
   static Future<void> init() async {
     if (!Platform.isIOS) return;
     try {
-      await _liveActivities.init(appGroupId: appGroupId);
+      await _liveActivities.init(appGroupId: appGroupId, urlScheme: 'taxiradar');
+      _urlSubscription?.cancel();
+      _urlSubscription = _liveActivities.urlSchemeStream().listen((data) {
+        if (data.url != null) handleIncomingUrl(data.url!);
+      });
     } catch (e) {
       if (kDebugMode) print('LiveActivities init error: $e');
+    }
+  }
+
+  /// Обработка входящего URL от быстрой команды или AssistiveTouch (taxiradar://order?text=...)
+  static void handleIncomingUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      String text = uri.queryParameters['text'] ?? '';
+      if (text.isEmpty && uri.queryParameters['data'] != null) {
+        text = uri.queryParameters['data']!;
+      }
+      if (text.isEmpty && uri.path.isNotEmpty) {
+        text = Uri.decodeComponent(uri.path);
+      }
+      if (text.isNotEmpty) {
+        final order = OrderParserService.parse(text);
+        processScannedOrder(order);
+      }
+    } catch (e) {
+      if (kDebugMode) print('handleIncomingUrl error: $e');
+    }
+  }
+
+  /// Обновление виджета на Dynamic Island при сканировании заказа
+  static Future<void> processScannedOrder(ParsedOrder order) async {
+    latestOrderNotifier.value = order;
+    final nowTime = DateFormat('HH:mm').format(DateTime.now());
+
+    final Map<String, dynamic> activityData = {
+      'surge': '💰 ${order.netPrice.round()} L',
+      'zone': order.pointA.isNotEmpty ? order.pointA : 'Новый заказ',
+      'econom': 'Чистыми: ${order.netPrice.round()} L',
+      'comfort': 'Комиссия: -${order.commissionAmount.round()} L',
+      'comfortPlus': 'Клиент: ${order.grossPrice.round()} L',
+      'alert': 'Куда: ${order.pointB}',
+      'updatedAt': nowTime,
+      'hasSurge': true,
+    };
+
+    if (Platform.isIOS) {
+      try {
+        if (_currentActivityId == null) {
+          _currentActivityId =
+              await _liveActivities.createActivity('taxiradar_surge', activityData);
+        } else {
+          await _liveActivities.updateActivity(_currentActivityId!, activityData);
+        }
+      } catch (e) {
+        if (kDebugMode) print('processScannedOrder error: $e');
+      }
     }
   }
 

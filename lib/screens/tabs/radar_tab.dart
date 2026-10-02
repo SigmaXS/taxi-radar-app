@@ -5,6 +5,8 @@ import '../../l10n/app_strings.dart';
 import '../../models/app_config.dart';
 import '../../services/license_service.dart';
 import '../../services/live_activity_service.dart';
+import '../../services/order_parser_service.dart';
+import '../assistive_touch_guide_screen.dart';
 
 class RadarTab extends StatefulWidget {
   final LicenseStatus? license;
@@ -216,7 +218,84 @@ class _RadarTabState extends State<RadarTab> {
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+
+          // Карточка AssistiveTouch / Плавающая кнопка
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            color: const Color(0xFF1E2638),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.touch_app, color: Colors.amber, size: 24),
+              ),
+              title: const Text(
+                'Плавающая кнопка (AssistiveTouch)',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              subtitle: const Text(
+                'Считывание цены и точек А/Б в 1 касание поверх Яндекс Про',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AssistiveTouchGuideScreen()),
+                );
+              },
+            ),
+          ),
+
+          // Карточка последнего распознанного заказа (если был скан)
+          ValueListenableBuilder<ParsedOrder?>(
+            valueListenable: LiveActivityService.latestOrderNotifier,
+            builder: (context, order, _) {
+              if (order == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  color: const Color(0xFF162521),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '🎯 Последний заказ (${order.tariff})',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontSize: 13),
+                            ),
+                            Text(
+                              'Чистыми: ${order.netPrice.round()} MDL',
+                              style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 15),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text('📍 Подача: ${order.pointA}', style: const TextStyle(fontSize: 12)),
+                        Text('🏁 Куда: ${order.pointB}', style: const TextStyle(fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Клиент: ${order.grossPrice.round()} MDL • Комиссия (28.5%): -${order.commissionAmount.round()} MDL',
+                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 16),
 
           // Настройка тарифов
           Card(
