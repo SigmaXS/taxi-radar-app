@@ -94,8 +94,8 @@ build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 
 # Reorder build phases: Embed Foundation Extensions MUST be BEFORE Embed Frameworks and Thin Binary
 # Otherwise Xcode creates a dependency cycle: Copy PlugIns -> Thin Binary -> Info.plist -> Copy PlugIns
-embed_frameworks_idx = runner_target.build_phases.index { |p| p.name == 'Embed Frameworks' }
-thin_binary_idx = runner_target.build_phases.index { |p| p.name == 'Thin Binary' }
+embed_frameworks_idx = runner_target.build_phases.index { |p| p.respond_to?(:name) && p.name == 'Embed Frameworks' }
+thin_binary_idx = runner_target.build_phases.index { |p| p.respond_to?(:name) && p.name == 'Thin Binary' }
 
 insert_target_idx = embed_frameworks_idx || thin_binary_idx
 if insert_target_idx

@@ -257,19 +257,21 @@ class _AssistiveTouchGuideScreenState extends State<AssistiveTouchGuideScreen> {
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber),
               ),
               Text(
-                'Чистыми: ${order.netPrice.round()} MDL',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.greenAccent),
+                '${order.price.round()} MDL',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.greenAccent),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text('📍 Подача: ${order.pointA}', style: const TextStyle(fontSize: 12)),
           Text('🏁 Куда: ${order.pointB}', style: const TextStyle(fontSize: 12)),
-          const SizedBox(height: 6),
-          Text(
-            'Клиент: ${order.grossPrice.round()} MDL • Комиссия (28.5%): -${order.commissionAmount.round()} MDL',
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
-          ),
+          if (order.distanceTime.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '⏱ Маршрут: ${order.distanceTime}',
+              style: const TextStyle(fontSize: 11, color: Colors.cyanAccent),
+            ),
+          ],
         ],
       ),
     );

@@ -60,12 +60,13 @@ class LiveActivityService {
     latestOrderNotifier.value = order;
     final nowTime = DateFormat('HH:mm').format(DateTime.now());
 
+    final distTime = order.distanceTime.isNotEmpty ? order.distanceTime : order.tariff;
     final Map<String, dynamic> activityData = {
-      'surge': '💰 ${order.netPrice.round()} L',
-      'zone': order.pointA.isNotEmpty ? order.pointA : 'Новый заказ',
-      'econom': 'Чистыми: ${order.netPrice.round()} L',
-      'comfort': 'Комиссия: -${order.commissionAmount.round()} L',
-      'comfortPlus': 'Клиент: ${order.grossPrice.round()} L',
+      'surge': '${order.price.round()} MDL',
+      'zone': order.pointA.isNotEmpty ? order.pointA : 'Заказ',
+      'econom': '${order.price.round()} MDL',
+      'comfort': distTime,
+      'comfortPlus': order.tariff,
       'alert': 'Куда: ${order.pointB}',
       'updatedAt': nowTime,
       'hasSurge': true,

@@ -270,23 +270,25 @@ class _RadarTabState extends State<RadarTab> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '🎯 Последний заказ (${order.tariff})',
+                              '🎯 Заказ (${order.tariff})',
                               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontSize: 13),
                             ),
                             Text(
-                              'Чистыми: ${order.netPrice.round()} MDL',
-                              style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 15),
+                              '${order.price.round()} MDL',
+                              style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 16),
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
                         Text('📍 Подача: ${order.pointA}', style: const TextStyle(fontSize: 12)),
                         Text('🏁 Куда: ${order.pointB}', style: const TextStyle(fontSize: 12)),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Клиент: ${order.grossPrice.round()} MDL • Комиссия (28.5%): -${order.commissionAmount.round()} MDL',
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
-                        ),
+                        if (order.distanceTime.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '⏱ Маршрут: ${order.distanceTime}',
+                            style: const TextStyle(fontSize: 11, color: Colors.cyanAccent),
+                          ),
+                        ],
                       ],
                     ),
                   ),

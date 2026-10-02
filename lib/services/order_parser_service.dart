@@ -1,34 +1,23 @@
 class ParsedOrder {
-  final double grossPrice;
-  final double netPrice;
-  final double commissionAmount;
-  final double totalCommissionPercent;
+  final double price;
   final String pointA;
   final String pointB;
   final String tariff;
+  final String distanceTime;
   final String rawText;
 
   ParsedOrder({
-    required this.grossPrice,
-    required this.netPrice,
-    required this.commissionAmount,
-    required this.totalCommissionPercent,
+    required this.price,
     required this.pointA,
     required this.pointB,
     required this.tariff,
+    this.distanceTime = '',
     required this.rawText,
   });
 }
 
 class OrderParserService {
-  // Стандартные комиссии в Кишинёве (Яндекс ~ 18.5%, Парк ~ 10%)
-  static double yandexCommissionPercent = 18.5;
-  static double parkCommissionPercent = 10.0;
-
-  static double get totalCommissionPercent =>
-      yandexCommissionPercent + parkCommissionPercent;
-
-  /// Парсинг текста скриншота заказа Яндекс Про
+  /// Парсинг текста скриншота заказа Яндекс Про (без вычета комиссий - чистая цена поездки)
   static ParsedOrder parse(String rawText) {
     final lines = rawText
         .split('\n')
@@ -36,10 +25,11 @@ class OrderParserService {
         .filter((l) => l.isNotEmpty)
         .toList();
 
-    double grossPrice = 0.0;
+    double price = 0.0;
     String tariff = 'Эконом';
     String pointA = '';
     String pointB = '';
+    String distanceTime = '';
 
     // 1. Поиск тарифа
     for (var l in lines) {
@@ -59,8 +49,8 @@ class OrderParserService {
       }
     }
 
-    // 2. Поиск цены заказа
-    // Ищем конструкции типа "85 лей", "85 L", "85 MDL", "~ 85", "85.00"
+    // 2. Поиск цены поездки из Яндекс
+    // Ищем конструкции вида "85 лей", "85 L", "85 MDL", "~ 85", "85.00"
     final priceRegex = RegExp(
       r'(?:~|\b)?\s*(\d{2,4})\s*(?:лей|lei|mdl|l|л|\$|€)?\b',
       caseSensitive: false,
@@ -71,16 +61,29 @@ class OrderParserService {
       for (var m in matches) {
         final val = double.tryParse(m.group(1) ?? '');
         if (val != null && val >= 30 && val <= 1500) {
-          // Исключаем совпадения похожие на время/год
+          // Исключаем года
           if (val == 1989 || val == 2024 || val == 2025 || val == 2026) continue;
-          grossPrice = val;
+          price = val;
           break;
         }
       }
-      if (grossPrice > 0) break;
+      if (price > 0) break;
     }
 
-    // 3. Поиск точек маршрута
+    // 3. Поиск дистанции и времени
+    final distRegex = RegExp(
+      r'(\d+(?:[.,]\d+)?\s*(?:км|km)\s*[•·,]\s*\d+\s*(?:мин|min)|\d+\s*(?:мин|min)|\d+(?:[.,]\d+)?\s*(?:км|km))',
+      caseSensitive: false,
+    );
+    for (var l in lines) {
+      final m = distRegex.firstMatch(l);
+      if (m != null) {
+        distanceTime = m.group(0)!;
+        break;
+      }
+    }
+
+    // 4. Поиск точек маршрута
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i];
       final lower = line.toLowerCase();
@@ -133,23 +136,16 @@ class OrderParserService {
     if (pointA.isEmpty) pointA = 'Точка подачи';
     if (pointB.isEmpty) pointB = 'Точка назначения';
 
-    // Если цена не распозналась со скриншота, ставим ориентир по умолчанию
-    if (grossPrice <= 0) {
-      grossPrice = 65.0;
+    if (price <= 0) {
+      price = 65.0;
     }
 
-    final commRate = totalCommissionPercent / 100.0;
-    final commissionAmount = grossPrice * commRate;
-    final netPrice = grossPrice - commissionAmount;
-
     return ParsedOrder(
-      grossPrice: grossPrice,
-      netPrice: netPrice,
-      commissionAmount: commissionAmount,
-      totalCommissionPercent: totalCommissionPercent,
+      price: price,
       pointA: pointA,
       pointB: pointB,
       tariff: tariff,
+      distanceTime: distanceTime,
       rawText: rawText,
     );
   }
