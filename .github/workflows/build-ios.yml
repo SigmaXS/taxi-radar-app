@@ -2,9 +2,9 @@ name: Build iOS IPA
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, flutter, flutter-ios ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, flutter, flutter-ios ]
   workflow_dispatch:
 
 jobs:
