@@ -92,5 +92,16 @@ end
 build_file = embed_phase.add_file_reference(extension_target.product_reference)
 build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 
+# Reorder build phases: Embed Foundation Extensions MUST be BEFORE Embed Frameworks and Thin Binary
+# Otherwise Xcode creates a dependency cycle: Copy PlugIns -> Thin Binary -> Info.plist -> Copy PlugIns
+embed_frameworks_idx = runner_target.build_phases.index { |p| p.name == 'Embed Frameworks' }
+thin_binary_idx = runner_target.build_phases.index { |p| p.name == 'Thin Binary' }
+
+insert_target_idx = embed_frameworks_idx || thin_binary_idx
+if insert_target_idx
+  runner_target.build_phases.delete(embed_phase)
+  runner_target.build_phases.insert(insert_target_idx, embed_phase)
+end
+
 project.save
-puts "==> Successfully configured #{target_name} and saved Xcode project!"
+puts "==> Successfully configured #{target_name} and saved Xcode project (build phase reordered)!"
