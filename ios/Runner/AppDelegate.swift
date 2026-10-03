@@ -8,7 +8,7 @@ import ActivityKit
 
     public static func handleIncomingUrl(_ url: URL) {
         DispatchQueue.main.async {
-            channel?.invokeMethod("onUrl", url.absoluteString)
+            channel?.invokeMethod("onUrl", arguments: url.absoluteString)
         }
     }
 
@@ -78,7 +78,11 @@ import ActivityKit
             // Завершаем старые активности перед запуском новой
             for act in Activity<TaxiRadarAttributes>.activities {
                 Task {
-                    await act.end(nil, dismissalPolicy: .immediate)
+                    if #available(iOS 16.2, *) {
+                        await act.end(nil, dismissalPolicy: .immediate)
+                    } else {
+                        await act.end(using: nil, dismissalPolicy: .immediate)
+                    }
                 }
             }
 
@@ -155,7 +159,11 @@ import ActivityKit
         case "stop":
             for act in Activity<TaxiRadarAttributes>.activities {
                 Task {
-                    await act.end(nil, dismissalPolicy: .immediate)
+                    if #available(iOS 16.2, *) {
+                        await act.end(nil, dismissalPolicy: .immediate)
+                    } else {
+                        await act.end(using: nil, dismissalPolicy: .immediate)
+                    }
                 }
             }
             result(true)
