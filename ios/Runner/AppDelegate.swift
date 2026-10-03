@@ -76,15 +76,17 @@ import ActivityKit
                     updatedAt: args["updatedAt"] as? String ?? ""
                 )
 
-                // Завершаем старые активности перед запуском новой
-                for act in Activity<TaxiRadarAttributes>.activities {
+                let activities = Activity<TaxiRadarAttributes>.activities
+                if let existingActivity = activities.first {
                     Task {
                         if #available(iOS 16.2, *) {
-                            await act.end(nil, dismissalPolicy: .immediate)
+                            await existingActivity.update(ActivityContent(state: state, staleDate: nil))
                         } else {
-                            await act.end(using: nil, dismissalPolicy: .immediate)
+                            await existingActivity.update(using: state)
                         }
                     }
+                    result(existingActivity.id)
+                    return
                 }
 
                 do {
