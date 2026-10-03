@@ -60,7 +60,21 @@ class _RadarTabState extends State<RadarTab> {
     final nextState = !_isMonitoring;
 
     if (nextState) {
-      final res = await LiveActivityService.startMonitoring();
+      LiveActivityResult res;
+      try {
+        res = await LiveActivityService.startMonitoring();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Ошибка запуска: $e'),
+              backgroundColor: Colors.red.shade800,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+        return;
+      }
       if (!res.success) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

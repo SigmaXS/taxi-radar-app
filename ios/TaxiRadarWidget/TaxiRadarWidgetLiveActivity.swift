@@ -2,7 +2,6 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
-@available(iOS 16.1, *)
 struct TaxiRadarLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TaxiRadarAttributes.self) { context in
