@@ -139,7 +139,7 @@ class _MapTabState extends State<MapTab> {
                         AppStrings.isRu ? type.labelRu : type.labelRo,
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                       ),
-                      backgroundColor: type.color.withOpacity(0.85),
+                      backgroundColor: type.color.withValues(alpha: 0.85),
                       onPressed: () async {
                         Navigator.pop(ctx);
                         final res = await CommunityService.addReport(type.key, target.latitude, target.longitude);
@@ -227,7 +227,7 @@ class _MapTabState extends State<MapTab> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.85),
+                            color: Colors.black.withValues(alpha: 0.85),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.amberAccent, width: 1.5),
                           ),
@@ -285,7 +285,7 @@ class _MapTabState extends State<MapTab> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E2638).withOpacity(0.92),
+                  color: const Color(0xFF1E2638).withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(

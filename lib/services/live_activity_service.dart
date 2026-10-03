@@ -1,41 +1,40 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
-import 'package:live_activities/live_activities.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'community_service.dart';
+import 'order_parser_service.dart';
 import 'yandex_surge_service.dart';
 
-import 'order_parser_service.dart';
+class LiveActivityResult {
+  final bool success;
+  final String? errorMessage;
+  LiveActivityResult({required this.success, this.errorMessage});
+}
 
 class LiveActivityService {
-  static const String appGroupId = 'group.com.example.taxiradar.taxiRadarApp';
+  static const MethodChannel _channel = MethodChannel('taxiradar/live_activity');
 
-  static final LiveActivities _liveActivities = LiveActivities();
-  static String? _currentActivityId;
   static Timer? _monitorTimer;
   static bool _isMonitoring = false;
-  static StreamSubscription? _urlSubscription;
   static final ValueNotifier<ParsedOrder?> latestOrderNotifier = ValueNotifier<ParsedOrder?>(null);
 
   static bool get isMonitoring => _isMonitoring;
 
   static Future<void> init() async {
     if (!Platform.isIOS) return;
-    try {
-      await _liveActivities.init(appGroupId: appGroupId, urlScheme: 'taxiradar');
-      _urlSubscription?.cancel();
-      _urlSubscription = _liveActivities.urlSchemeStream().listen((data) {
-        if (data.url != null) handleIncomingUrl(data.url!);
-      });
-    } catch (e) {
-      if (kDebugMode) print('LiveActivities init error: $e');
-    }
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'onUrl') {
+        final url = call.arguments as String?;
+        if (url != null) handleIncomingUrl(url);
+      }
+    });
   }
 
-  /// Обработка входящего URL от быстрой команды или AssistiveTouch (taxiradar://order?text=...)
+  /// Обработка входящего URL (taxiradar://order?text=...)
   static void handleIncomingUrl(String url) {
     try {
       final uri = Uri.parse(url);
@@ -60,28 +59,96 @@ class LiveActivityService {
     latestOrderNotifier.value = order;
     final nowTime = DateFormat('HH:mm').format(DateTime.now());
 
-    final distTime = order.distanceTime.isNotEmpty ? order.distanceTime : order.tariff;
-    final Map<String, dynamic> activityData = {
-      'surge': '${order.price.round()} MDL',
-      'zone': order.pointA.isNotEmpty ? order.pointA : 'Заказ',
-      'econom': '${order.price.round()} MDL',
-      'comfort': distTime,
-      'comfortPlus': order.tariff,
-      'alert': 'Куда: ${order.pointB}',
+    final priceStr = '${order.price.round()} MDL';
+    final pointAstr = order.pointA.isNotEmpty ? order.pointA : 'Заказ';
+    final pointBstr = order.pointB.isNotEmpty ? 'Куда: ${order.pointB}' : '';
+
+    final Map<String, dynamic> data = {
+      'surge': priceStr,
+      'zone': pointAstr,
+      'price': priceStr,
+      'alert': pointBstr,
       'updatedAt': nowTime,
-      'hasSurge': true,
     };
 
     if (Platform.isIOS) {
       try {
-        if (_currentActivityId == null) {
-          _currentActivityId =
-              await _liveActivities.createActivity('taxiradar_surge', activityData);
-        } else {
-          await _liveActivities.updateActivity(_currentActivityId!, activityData);
-        }
+        await _channel.invokeMethod('update', data);
       } catch (e) {
-        if (kDebugMode) print('processScannedOrder error: $e');
+        if (kDebugMode) print('processScannedOrder native error: $e');
+      }
+    }
+  }
+
+  /// Проверка доступности Live Activities в iOS
+  static Future<bool> areActivitiesEnabled() async {
+    if (!Platform.isIOS) return false;
+    try {
+      final bool? enabled = await _channel.invokeMethod<bool>('areActivitiesEnabled');
+      return enabled ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Запуск фонового мониторинга с отображением в Dynamic Island
+  static Future<LiveActivityResult> startMonitoring({Function(String status)? onStatus}) async {
+    if (!Platform.isIOS) {
+      _isMonitoring = true;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_monitoring', true);
+      return LiveActivityResult(success: true);
+    }
+
+    try {
+      final enabled = await areActivitiesEnabled();
+      if (!enabled) {
+        return LiveActivityResult(
+          success: false,
+          errorMessage: 'Эфир активности выключен. Включите: Настройки -> Taxi Radar -> Эфир активности.',
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print('Check enabled error: $e');
+    }
+
+    _isMonitoring = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_monitoring', true);
+
+    // Первичное обновление и старт Dynamic Island
+    final startRes = await _refreshSurgeAndPushActivity(isStart: true);
+    if (!startRes.success) {
+      return startRes;
+    }
+
+    // Запуск периодического обновления каждые 25 секунд
+    _monitorTimer?.cancel();
+    _monitorTimer = Timer.periodic(const Duration(seconds: 25), (timer) async {
+      if (!_isMonitoring) {
+        timer.cancel();
+        return;
+      }
+      await _refreshSurgeAndPushActivity(isStart: false);
+    });
+
+    return LiveActivityResult(success: true);
+  }
+
+  /// Остановка мониторинга
+  static Future<void> stopMonitoring() async {
+    _isMonitoring = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_monitoring', false);
+
+    _monitorTimer?.cancel();
+    _monitorTimer = null;
+
+    if (Platform.isIOS) {
+      try {
+        await _channel.invokeMethod('stop');
+      } catch (e) {
+        if (kDebugMode) print('Error stopping activity: $e');
       }
     }
   }
@@ -100,66 +167,8 @@ class LiveActivityService {
     return 'Кишинёв';
   }
 
-  /// Запуск фонового мониторинга с отображением в Dynamic Island
-  static Future<bool> startMonitoring({Function(String status)? onStatus}) async {
-    if (!Platform.isIOS) {
-      _isMonitoring = true;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_monitoring', true);
-      return true;
-    }
-
-    try {
-      final supported = await _liveActivities.areActivitiesEnabled();
-      if (!supported) {
-        if (kDebugMode) print('Live activities are disabled in iOS Settings');
-      }
-    } catch (_) {}
-
-    _isMonitoring = true;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_monitoring', true);
-
-    // Первичное обновление данных
-    await _refreshSurgeAndPushActivity();
-
-    // Запуск периодического обновления каждые 25 секунд
-    _monitorTimer?.cancel();
-    _monitorTimer = Timer.periodic(const Duration(seconds: 25), (timer) async {
-      if (!_isMonitoring) {
-        timer.cancel();
-        return;
-      }
-      await _refreshSurgeAndPushActivity();
-    });
-
-    return true;
-  }
-
-  /// Остановка мониторинга
-  static Future<void> stopMonitoring() async {
-    _isMonitoring = false;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_monitoring', false);
-
-    _monitorTimer?.cancel();
-    _monitorTimer = null;
-
-    if (Platform.isIOS) {
-      try {
-        if (_currentActivityId != null) {
-          await _liveActivities.endActivity(_currentActivityId!);
-          _currentActivityId = null;
-        }
-        await _liveActivities.endAllActivities();
-      } catch (e) {
-        if (kDebugMode) print('Error ending activity: $e');
-      }
-    }
-  }
-
   /// Получение геопозиции, данных Яндекс и радаров, отправка в Dynamic Island
-  static Future<void> _refreshSurgeAndPushActivity() async {
+  static Future<LiveActivityResult> _refreshSurgeAndPushActivity({bool isStart = false}) async {
     double lat = 47.0245;
     double lon = 28.8353;
 
@@ -184,12 +193,7 @@ class LiveActivityService {
     final surge = await YandexSurgeService.getSurgeAll(lon, lat);
 
     int econSurge = surge?.econom ?? 0;
-    int comfSurge = surge?.comfort ?? 0;
-    int plusSurge = surge?.comfortPlus ?? 0;
-
     final baseEcon = YandexSurgeService.basePrices['econom'] ?? 30;
-    final baseComf = YandexSurgeService.basePrices['comfort'] ?? 45;
-    final basePlus = YandexSurgeService.basePrices['comfortplus'] ?? 65;
 
     // Проверка ближайших предупреждений о радарах/полиции
     String nearestAlert = '';
@@ -217,32 +221,39 @@ class LiveActivityService {
 
     final surgeDisplay = econSurge > 0 ? '+$econSurge L' : '+0 L';
     final nowTime = DateFormat('HH:mm').format(DateTime.now());
+    final priceDisplay = '${baseEcon + econSurge} MDL';
 
-    final Map<String, dynamic> activityData = {
+    final Map<String, dynamic> data = {
       'surge': surgeDisplay,
       'zone': sector,
-      'econom': '${baseEcon + econSurge} L',
-      'comfort': '${baseComf + comfSurge} L',
-      'comfortPlus': '${basePlus + plusSurge} L',
+      'price': priceDisplay,
       'alert': nearestAlert,
       'updatedAt': nowTime,
-      'hasSurge': econSurge > 0 || comfSurge > 0,
     };
 
     if (Platform.isIOS) {
       try {
-        if (_currentActivityId == null) {
-          _currentActivityId = await _liveActivities.createActivity('taxiradar_surge', activityData);
+        if (isStart) {
+          await _channel.invokeMethod('start', data);
         } else {
-          await _liveActivities.updateActivity(_currentActivityId!, activityData);
+          await _channel.invokeMethod('update', data);
         }
+        return LiveActivityResult(success: true);
+      } on PlatformException catch (pe) {
+        if (kDebugMode) print('LiveActivity PlatformException: ${pe.code} - ${pe.message}');
+        return LiveActivityResult(
+          success: false,
+          errorMessage: 'Ошибка Dynamic Island: ${pe.message ?? pe.code}',
+        );
       } catch (e) {
-        if (kDebugMode) print('LiveActivity update error: $e');
-        // Если активность устарела или была закрыта системой, пересоздаем
-        try {
-          _currentActivityId = await _liveActivities.createActivity('taxiradar_surge', activityData);
-        } catch (_) {}
+        if (kDebugMode) print('LiveActivity error: $e');
+        return LiveActivityResult(
+          success: false,
+          errorMessage: 'Ошибка: $e',
+        );
       }
     }
+
+    return LiveActivityResult(success: true);
   }
 }

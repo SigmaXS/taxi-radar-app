@@ -206,7 +206,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                   const SizedBox(height: 2),
                                   Text(
                                     timeStr,
-                                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 10),
+                                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10),
                                   ),
                                 ],
                               ),

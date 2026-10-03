@@ -58,26 +58,50 @@ class _RadarTabState extends State<RadarTab> {
 
   Future<void> _toggleMonitoring() async {
     final nextState = !_isMonitoring;
-    setState(() {
-      _isMonitoring = nextState;
-    });
 
     if (nextState) {
-      await LiveActivityService.startMonitoring();
+      final res = await LiveActivityService.startMonitoring();
+      if (!res.success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(res.errorMessage ?? 'Не удалось запустить Dynamic Island'),
+              backgroundColor: Colors.red.shade800,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _isMonitoring = true;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Мониторинг активен! Спрос и радары отображаются в Динамическом острове.'),
+            backgroundColor: Colors.green.shade700,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } else {
       await LiveActivityService.stopMonitoring();
-    }
+      setState(() {
+        _isMonitoring = false;
+      });
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isMonitoring
-              ? 'Мониторинг активен! Спрос и радары отображаются в Динамическом острове.'
-              : AppStrings.radarStop),
-          backgroundColor: _isMonitoring ? Colors.green.shade700 : Colors.grey.shade800,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppStrings.radarStop),
+            backgroundColor: Colors.grey.shade800,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 

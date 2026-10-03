@@ -406,7 +406,7 @@ class _RidesScreenState extends State<RidesScreen> {
             if (r.source != null || r.author != null)
               Text(
                 [r.source, r.author].where((s) => s != null && s.isNotEmpty).join(' · '),
-                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
               ),
 
             const Divider(color: Colors.white10, height: 20),

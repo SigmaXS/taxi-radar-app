@@ -2,46 +2,16 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
-// Struct MUST match LiveActivitiesAppAttributes required by live_activities plugin
-struct LiveActivitiesAppAttributes: ActivityAttributes, Identifiable {
-    public typealias LiveDeliveryData = ContentState
-    public struct ContentState: Codable, Hashable {}
-    var id = UUID()
-}
-
-extension LiveActivitiesAppAttributes {
-    func prefixedKey(_ key: String) -> String {
-        return "\(id)_\(key)"
-    }
-}
-
-let sharedDefault = UserDefaults(suiteName: "group.com.example.taxiradar.taxiRadarApp")
-
-private func readSharedString(forKey key: String, context: ActivityViewContext<LiveActivitiesAppAttributes>, defaultVal: String = "") -> String {
-    let prefKey = context.attributes.prefixedKey(key)
-    if let val = sharedDefault?.string(forKey: prefKey), !val.isEmpty {
-        return val
-    }
-    return defaultVal
-}
-
-private func readSharedBool(forKey key: String, context: ActivityViewContext<LiveActivitiesAppAttributes>, defaultVal: Bool = false) -> Bool {
-    let prefKey = context.attributes.prefixedKey(key)
-    return sharedDefault?.bool(forKey: prefKey) ?? defaultVal
-}
-
-@available(iOSApplicationExtension 16.1, *)
+@available(iOS 16.1, *)
 struct TaxiRadarLiveActivity: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: LiveActivitiesAppAttributes.self) { context in
+        ActivityConfiguration(for: TaxiRadarAttributes.self) { context in
             // Lock Screen / Notification Banner View
-            let surge = readSharedString(forKey: "surge", context: context, defaultVal: "+0 L")
-            let zone = readSharedString(forKey: "zone", context: context, defaultVal: "Кишинёв")
-            let econom = readSharedString(forKey: "econom", context: context, defaultVal: "--")
-            let comfort = readSharedString(forKey: "comfort", context: context, defaultVal: "--")
-            let comfortPlus = readSharedString(forKey: "comfortPlus", context: context, defaultVal: "--")
-            let alert = readSharedString(forKey: "alert", context: context, defaultVal: "")
-            let updatedAt = readSharedString(forKey: "updatedAt", context: context, defaultVal: "")
+            let surge = context.state.surge
+            let zone = context.state.zone
+            let price = context.state.price
+            let alert = context.state.alert
+            let updatedAt = context.state.updatedAt
             let hasSurge = surge != "+0 L" && !surge.isEmpty && surge != "0"
 
             VStack(alignment: .leading, spacing: 8) {
@@ -71,7 +41,7 @@ struct TaxiRadarLiveActivity: Widget {
                     .background(Color.white.opacity(0.12), in: Capsule())
                 }
 
-                // Main Surge Banner
+                // Main Info Banner
                 HStack(alignment: .center, spacing: 12) {
                     HStack(spacing: 6) {
                         Image(systemName: hasSurge ? "flame.fill" : "chart.line.uptrend.xyaxis")
@@ -79,7 +49,7 @@ struct TaxiRadarLiveActivity: Widget {
                             .foregroundColor(hasSurge ? .orange : .green)
 
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(hasSurge ? "Надбавка к тарифу" : "Спрос в норме")
+                            Text(hasSurge ? "Надбавка Яндекс" : "Спрос в норме")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(.gray)
                             Text(surge)
@@ -90,24 +60,22 @@ struct TaxiRadarLiveActivity: Widget {
 
                     Spacer()
 
-                    if !updatedAt.isEmpty {
-                        Text("Обновлено \(updatedAt)")
-                            .font(.system(size: 10))
-                            .foregroundColor(.gray)
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(price)
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
+                        if !updatedAt.isEmpty {
+                            Text("Обновлено \(updatedAt)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.gray)
+                        }
                     }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
 
-                // Tariff Columns
-                HStack(spacing: 6) {
-                    TariffPill(title: "Эконом", price: econom, icon: "car")
-                    TariffPill(title: "Комфорт", price: comfort, icon: "car.side")
-                    TariffPill(title: "Комфорт+", price: comfortPlus, icon: "sparkles")
-                }
-
-                // Road Alert Banner (if radar / police is detected nearby)
+                // Road Alert Banner (if radar / police)
                 if !alert.isEmpty {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -129,13 +97,11 @@ struct TaxiRadarLiveActivity: Widget {
             .widgetURL(URL(string: "taxiradar://open"))
 
         } dynamicIsland: { context in
-            let surge = readSharedString(forKey: "surge", context: context, defaultVal: "+0 L")
-            let zone = readSharedString(forKey: "zone", context: context, defaultVal: "Кишинёв")
-            let econom = readSharedString(forKey: "econom", context: context, defaultVal: "--")
-            let comfort = readSharedString(forKey: "comfort", context: context, defaultVal: "--")
-            let comfortPlus = readSharedString(forKey: "comfortPlus", context: context, defaultVal: "--")
-            let alert = readSharedString(forKey: "alert", context: context, defaultVal: "")
-            let updatedAt = readSharedString(forKey: "updatedAt", context: context, defaultVal: "")
+            let surge = context.state.surge
+            let zone = context.state.zone
+            let price = context.state.price
+            let alert = context.state.alert
+            let updatedAt = context.state.updatedAt
             let hasSurge = surge != "+0 L" && !surge.isEmpty && surge != "0"
 
             return DynamicIsland {
@@ -160,9 +126,9 @@ struct TaxiRadarLiveActivity: Widget {
 
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("TaxiRadar")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.yellow)
+                        Text(price)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
                         if !updatedAt.isEmpty {
                             Text(updatedAt)
                                 .font(.system(size: 10))
@@ -173,26 +139,18 @@ struct TaxiRadarLiveActivity: Widget {
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 6) {
-                        HStack(spacing: 8) {
-                            ExpandedTariffItem(title: "Эконом", price: econom)
-                            ExpandedTariffItem(title: "Комфорт", price: comfort)
-                            ExpandedTariffItem(title: "Комфорт+", price: comfortPlus)
+                    if !alert.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.shield.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.yellow)
+                            Text(alert)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.yellow)
+                                .lineLimit(1)
                         }
-
-                        if !alert.isEmpty {
-                            HStack(spacing: 4) {
-                                Image(systemName: "exclamationmark.shield.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.yellow)
-                                Text(alert)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(.yellow)
-                                    .lineLimit(1)
-                            }
-                        }
+                        .padding(.top, 4)
                     }
-                    .padding(.top, 4)
                 }
             } compactLeading: {
                 // Left Pill: Taxi icon + Surge
@@ -206,8 +164,8 @@ struct TaxiRadarLiveActivity: Widget {
                 }
                 .padding(.leading, 2)
             } compactTrailing: {
-                // Right Pill: Sector name
-                Text(zone)
+                // Right Pill: Price or Sector name
+                Text(price != "-- MDL" && !price.isEmpty ? price : zone)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white.opacity(0.85))
                     .lineLimit(1)
@@ -220,45 +178,5 @@ struct TaxiRadarLiveActivity: Widget {
             }
             .widgetURL(URL(string: "taxiradar://open"))
         }
-    }
-}
-
-// Helper Views
-private struct TariffPill: View {
-    let title: String
-    let price: String
-    let icon: String
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(title)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.gray)
-            Text(price)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.white)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 5)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-private struct ExpandedTariffItem: View {
-    let title: String
-    let price: String
-
-    var body: some View {
-        VStack(spacing: 1) {
-            Text(title)
-                .font(.system(size: 9))
-                .foregroundColor(.gray)
-            Text(price)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.white)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 3)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
     }
 }

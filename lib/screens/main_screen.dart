@@ -185,7 +185,7 @@ class _MainScreenState extends State<MainScreen> {
       ),
       bottomNavigationBar: NavigationBar(
         backgroundColor: const Color(0xFF1E2638),
-        indicatorColor: Colors.amber.shade700.withOpacity(0.3),
+        indicatorColor: Colors.amber.shade700.withValues(alpha: 0.3),
         selectedIndex: _currentIndex,
         onDestinationSelected: (idx) {
           setState(() => _currentIndex = idx);
