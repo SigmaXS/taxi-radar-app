@@ -9,28 +9,32 @@ runner_target = project.targets.find { |t| t.name == 'Runner' }
 
 raise "Runner target not found in #{project_path}" unless runner_target
 
+runner_group = project.main_group.find_subpath('Runner', false) || project.main_group['Runner']
+
+# 1. Ensure TaxiRadarAttributes.swift is in Runner group
+runner_attr_ref = runner_group.files.find { |f| f.path == 'TaxiRadarAttributes.swift' }
+runner_attr_ref ||= runner_group.new_file('TaxiRadarAttributes.swift')
+unless runner_target.source_build_phase.files.any? { |bf| bf.file_ref == runner_attr_ref }
+  runner_target.source_build_phase.add_file_reference(runner_attr_ref)
+  puts "==> Added TaxiRadarAttributes.swift to Runner compile sources."
+end
+
+# 2. Ensure NSExceptionCatcher.m is in Runner group and compiled
+catcher_ref = runner_group.files.find { |f| f.path == 'NSExceptionCatcher.m' }
+catcher_ref ||= runner_group.new_file('NSExceptionCatcher.m')
+unless runner_target.source_build_phase.files.any? { |bf| bf.file_ref == catcher_ref }
+  runner_target.source_build_phase.add_file_reference(catcher_ref)
+  puts "==> Added NSExceptionCatcher.m to Runner compile sources."
+end
+
 existing_target = project.targets.find { |t| t.name == target_name }
 if existing_target
   puts "Target #{target_name} already exists in project."
-  
-  # Ensure TaxiRadarAttributes.swift is in Runner
-  runner_group = project.main_group.find_subpath('Runner', false) || project.main_group['Runner']
-  if runner_group
-    runner_attr_ref = runner_group.files.find { |f| f.path == 'TaxiRadarAttributes.swift' }
-    runner_attr_ref ||= runner_group.new_file('TaxiRadarAttributes.swift')
-    unless runner_target.source_build_phase.files.any? { |bf| bf.file_ref == runner_attr_ref }
-      runner_target.source_build_phase.add_file_reference(runner_attr_ref)
-    end
-  end
 
-  # Ensure TaxiRadarAttributes.swift is in extension
-  widget_group = project.main_group.find_subpath(target_name, false) || project.main_group[target_name]
-  if widget_group
-    widget_attr_ref = widget_group.files.find { |f| f.path == 'TaxiRadarAttributes.swift' }
-    widget_attr_ref ||= widget_group.new_file('TaxiRadarAttributes.swift')
-    unless existing_target.source_build_phase.files.any? { |bf| bf.file_ref == widget_attr_ref }
-      existing_target.source_build_phase.add_file_reference(widget_attr_ref)
-    end
+  # Ensure the shared TaxiRadarAttributes.swift is linked to the extension target as well
+  unless existing_target.source_build_phase.files.any? { |bf| bf.file_ref == runner_attr_ref }
+    existing_target.source_build_phase.add_file_reference(runner_attr_ref)
+    puts "==> Linked shared TaxiRadarAttributes.swift to existing #{target_name}."
   end
 
   project.save
@@ -47,13 +51,16 @@ widget_group = project.main_group.find_subpath(target_name, true)
 widget_group.set_source_tree('<group>')
 widget_group.set_path(target_name)
 
-files_to_compile = [
-  'TaxiRadarAttributes.swift',
+# Link the SHARED TaxiRadarAttributes.swift so both Runner and Widget share the exact same type definition
+extension_target.source_build_phase.add_file_reference(runner_attr_ref)
+puts "==> Linked shared TaxiRadarAttributes.swift to #{target_name} compile sources."
+
+widget_files = [
   'TaxiRadarWidgetBundle.swift',
   'TaxiRadarWidgetLiveActivity.swift'
 ]
 
-files_to_compile.each do |filename|
+widget_files.each do |filename|
   file_ref = widget_group.new_file(filename)
   extension_target.source_build_phase.add_file_reference(file_ref)
 end
@@ -98,17 +105,6 @@ runner_target.build_configurations.each do |config|
   config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
 end
 
-# Ensure TaxiRadarAttributes.swift is in Runner
-runner_group = project.main_group.find_subpath('Runner', false) || project.main_group['Runner']
-if runner_group
-  runner_attr_ref = runner_group.files.find { |f| f.path == 'TaxiRadarAttributes.swift' }
-  runner_attr_ref ||= runner_group.new_file('TaxiRadarAttributes.swift')
-  unless runner_target.source_build_phase.files.any? { |bf| bf.file_ref == runner_attr_ref }
-    runner_target.source_build_phase.add_file_reference(runner_attr_ref)
-    puts "==> Added TaxiRadarAttributes.swift to Runner compile sources."
-  end
-end
-
 # Add dependency so building Runner builds extension
 runner_target.add_dependency(extension_target)
 
@@ -124,7 +120,7 @@ unless embed_phase
 end
 
 build_file = embed_phase.add_file_reference(extension_target.product_reference)
-build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+build_file.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy', 'CodeSignOnCopy'] }
 
 # Reorder build phases: Embed Foundation Extensions MUST be BEFORE Embed Frameworks and Thin Binary
 # Otherwise Xcode creates a dependency cycle: Copy PlugIns -> Thin Binary -> Info.plist -> Copy PlugIns
