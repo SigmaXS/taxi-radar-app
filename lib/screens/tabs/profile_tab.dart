@@ -23,42 +23,12 @@ class ProfileTab extends StatefulWidget {
 }
 
 class _ProfileTabState extends State<ProfileTab> {
-  final TextEditingController _consumptionController = TextEditingController();
-  final TextEditingController _fuelPriceController = TextEditingController();
-  final TextEditingController _commissionController = TextEditingController();
   final TextEditingController _friendCodeController = TextEditingController();
 
 
   @override
   void initState() {
     super.initState();
-    _loadNetPrefs();
-  }
-
-  Future<void> _loadNetPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _consumptionController.text = (prefs.getDouble('fuel_consumption') ?? 8.5).toString();
-      _fuelPriceController.text = (prefs.getDouble('fuel_price') ?? 24.5).toString();
-      _commissionController.text = (prefs.getDouble('commission_percent') ?? 16.0).toString();
-    });
-  }
-
-  Future<void> _saveNetPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final c = double.tryParse(_consumptionController.text) ?? 8.5;
-    final fp = double.tryParse(_fuelPriceController.text) ?? 24.5;
-    final com = double.tryParse(_commissionController.text) ?? 16.0;
-
-    await prefs.setDouble('fuel_consumption', c);
-    await prefs.setDouble('fuel_price', fp);
-    await prefs.setDouble('commission_percent', com);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Параметры сохранены'), duration: Duration(seconds: 1)),
-      );
-    }
   }
 
   void _openUrl(String url) async {
@@ -135,93 +105,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 widget.onLanguageChanged(set.first);
                 setState(() {});
               },
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Настройки чистой прибыли
-        Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: const Color(0xFF1E2638),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.netTitle,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Вычет комиссии и топлива из стоимости поездки',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _consumptionController,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: 'Расход л/100км',
-                          labelStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                          filled: true,
-                          fillColor: const Color(0xFF2A364F),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _fuelPriceController,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: 'Цена топлива L',
-                          labelStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                          filled: true,
-                          fillColor: const Color(0xFF2A364F),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _commissionController,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: 'Комиссия %',
-                          labelStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                          filled: true,
-                          fillColor: const Color(0xFF2A364F),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent.shade700,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: _saveNetPrefs,
-                    child: const Text('Сохранить параметры'),
-                  ),
-                ),
-              ],
             ),
           ),
         ),

@@ -51,78 +51,42 @@ import ActivityKit
     }
 
     private func handleLiveActivityCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.1, *) else {
-            result(FlutterError(code: "UNSUPPORTED_IOS", message: "Требуется iOS 16.1+ для работы Dynamic Island", details: nil))
-            return
-        }
-
-        switch call.method {
-        case "areActivitiesEnabled":
-            let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
-            result(enabled)
-
-        case "start":
-            guard let args = call.arguments as? [String: Any] else {
-                result(FlutterError(code: "INVALID_ARGS", message: "Данные не переданы", details: nil))
+        DispatchQueue.main.async {
+            guard #available(iOS 16.1, *) else {
+                result(FlutterError(code: "UNSUPPORTED_IOS", message: "Требуется iOS 16.1+ для работы Dynamic Island", details: nil))
                 return
             }
 
-            let state = TaxiRadarAttributes.ContentState(
-                surge: args["surge"] as? String ?? "+0 L",
-                zone: args["zone"] as? String ?? "Кишинёв",
-                price: args["price"] as? String ?? "-- MDL",
-                alert: args["alert"] as? String ?? "",
-                updatedAt: args["updatedAt"] as? String ?? ""
-            )
+            switch call.method {
+            case "areActivitiesEnabled":
+                let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
+                result(enabled)
 
-            // Завершаем старые активности перед запуском новой
-            for act in Activity<TaxiRadarAttributes>.activities {
-                Task {
-                    if #available(iOS 16.2, *) {
-                        await act.end(nil, dismissalPolicy: .immediate)
-                    } else {
-                        await act.end(using: nil, dismissalPolicy: .immediate)
+            case "start":
+                guard let args = call.arguments as? [String: Any] else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Данные не переданы", details: nil))
+                    return
+                }
+
+                let state = TaxiRadarAttributes.ContentState(
+                    surge: args["surge"] as? String ?? "+0 L",
+                    zone: args["zone"] as? String ?? "Кишинёв",
+                    price: args["price"] as? String ?? "-- MDL",
+                    alert: args["alert"] as? String ?? "",
+                    updatedAt: args["updatedAt"] as? String ?? ""
+                )
+
+                // Завершаем старые активности перед запуском новой
+                for act in Activity<TaxiRadarAttributes>.activities {
+                    Task {
+                        if #available(iOS 16.2, *) {
+                            await act.end(nil, dismissalPolicy: .immediate)
+                        } else {
+                            await act.end(using: nil, dismissalPolicy: .immediate)
+                        }
                     }
                 }
-            }
 
-            do {
-                if #available(iOS 16.2, *) {
-                    let activity = try Activity<TaxiRadarAttributes>.request(
-                        attributes: TaxiRadarAttributes(),
-                        content: ActivityContent(state: state, staleDate: nil),
-                        pushType: nil
-                    )
-                    result(activity.id)
-                } else {
-                    let activity = try Activity<TaxiRadarAttributes>.request(
-                        attributes: TaxiRadarAttributes(),
-                        contentState: state,
-                        pushType: nil
-                    )
-                    result(activity.id)
-                }
-            } catch {
-                result(FlutterError(code: "START_FAILED", message: error.localizedDescription, details: "\(error)"))
-            }
-
-        case "update":
-            guard let args = call.arguments as? [String: Any] else {
-                result(FlutterError(code: "INVALID_ARGS", message: "Данные не переданы", details: nil))
-                return
-            }
-
-            let state = TaxiRadarAttributes.ContentState(
-                surge: args["surge"] as? String ?? "+0 L",
-                zone: args["zone"] as? String ?? "Кишинёв",
-                price: args["price"] as? String ?? "-- MDL",
-                alert: args["alert"] as? String ?? "",
-                updatedAt: args["updatedAt"] as? String ?? ""
-            )
-
-            let activities = Activity<TaxiRadarAttributes>.activities
-            if activities.isEmpty {
-                // Если активности не было, автоматически стартуем
                 do {
                     if #available(iOS 16.2, *) {
                         let activity = try Activity<TaxiRadarAttributes>.request(
@@ -140,36 +104,74 @@ import ActivityKit
                         result(activity.id)
                     }
                 } catch {
-                    result(FlutterError(code: "UPDATE_START_FAILED", message: error.localizedDescription, details: "\(error)"))
+                    result(FlutterError(code: "START_FAILED", message: error.localizedDescription, details: "\(error)"))
                 }
-                return
-            }
 
-            for act in activities {
-                Task {
-                    if #available(iOS 16.2, *) {
-                        await act.update(ActivityContent(state: state, staleDate: nil))
-                    } else {
-                        await act.update(using: state)
+            case "update":
+                guard let args = call.arguments as? [String: Any] else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Данные не переданы", details: nil))
+                    return
+                }
+
+                let state = TaxiRadarAttributes.ContentState(
+                    surge: args["surge"] as? String ?? "+0 L",
+                    zone: args["zone"] as? String ?? "Кишинёв",
+                    price: args["price"] as? String ?? "-- MDL",
+                    alert: args["alert"] as? String ?? "",
+                    updatedAt: args["updatedAt"] as? String ?? ""
+                )
+
+                let activities = Activity<TaxiRadarAttributes>.activities
+                if activities.isEmpty {
+                    // Если активности не было, автоматически стартуем
+                    do {
+                        if #available(iOS 16.2, *) {
+                            let activity = try Activity<TaxiRadarAttributes>.request(
+                                attributes: TaxiRadarAttributes(),
+                                content: ActivityContent(state: state, staleDate: nil),
+                                pushType: nil
+                            )
+                            result(activity.id)
+                        } else {
+                            let activity = try Activity<TaxiRadarAttributes>.request(
+                                attributes: TaxiRadarAttributes(),
+                                contentState: state,
+                                pushType: nil
+                            )
+                            result(activity.id)
+                        }
+                    } catch {
+                        result(FlutterError(code: "UPDATE_START_FAILED", message: error.localizedDescription, details: "\(error)"))
+                    }
+                    return
+                }
+
+                for act in activities {
+                    Task {
+                        if #available(iOS 16.2, *) {
+                            await act.update(ActivityContent(state: state, staleDate: nil))
+                        } else {
+                            await act.update(using: state)
+                        }
                     }
                 }
-            }
-            result(true)
+                result(true)
 
-        case "stop":
-            for act in Activity<TaxiRadarAttributes>.activities {
-                Task {
-                    if #available(iOS 16.2, *) {
-                        await act.end(nil, dismissalPolicy: .immediate)
-                    } else {
-                        await act.end(using: nil, dismissalPolicy: .immediate)
+            case "stop":
+                for act in Activity<TaxiRadarAttributes>.activities {
+                    Task {
+                        if #available(iOS 16.2, *) {
+                            await act.end(nil, dismissalPolicy: .immediate)
+                        } else {
+                            await act.end(using: nil, dismissalPolicy: .immediate)
+                        }
                     }
                 }
-            }
-            result(true)
+                result(true)
 
-        default:
-            result(FlutterMethodNotImplemented)
+            default:
+                result(FlutterMethodNotImplemented)
+            }
         }
     }
 }
