@@ -4,7 +4,7 @@ project_path = File.expand_path('Runner.xcodeproj', __dir__)
 project = Xcodeproj::Project.open(project_path)
 
 target_name = 'TaxiRadarWidget'
-bundle_id = 'com.example.taxiradar.taxiRadarApp.TaxiRadarWidget'
+bundle_id = 'md.sigmars.taxiradar.TaxiRadarWidget'
 runner_target = project.targets.find { |t| t.name == 'Runner' }
 
 raise "Runner target not found in #{project_path}" unless runner_target

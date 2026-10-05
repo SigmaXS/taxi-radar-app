@@ -25,7 +25,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.example.taxiradar.taxiRadarApp</string>
+			<string>md.sigmars.taxiradar</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>taxiradar</string>

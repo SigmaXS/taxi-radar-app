@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BUNDLE_ID: com.example.taxiradar.taxiRadarApp
+  BUNDLE_ID: md.sigmars.taxiradar
   IPK_NAME: TaxiRadar
 
 jobs:
