@@ -164,6 +164,23 @@ class LiveActivityService {
     }
   }
 
+  /// Состояние нативной части: зарегистрирован ли MethodChannel, вызван ли
+  /// FlutterImplicitEngineDelegate, разрешены ли Live Activities и сколько
+  /// активностей сейчас живо. Это однозначно отделяет проблему канала от
+  /// проблемы рендеринга виджета.
+  static Future<Map<String, dynamic>> nativeInfo() async {
+    if (!Platform.isIOS) return <String, dynamic>{};
+    try {
+      final Map<Object?, Object?>? info =
+          await _channel.invokeMethod<Map<Object?, Object?>>('nativeInfo');
+      return info?.map((key, value) => MapEntry(key.toString(), value)) ??
+          <String, dynamic>{};
+    } catch (e) {
+      _diag('nativeInfo недоступен: $e');
+      return <String, dynamic>{};
+    }
+  }
+
   /// Запуск фонового мониторинга с отображением в Dynamic Island
   static Future<LiveActivityResult> startMonitoring({Function(String status)? onStatus}) async {
     if (!Platform.isIOS) {
@@ -175,7 +192,12 @@ class LiveActivityService {
 
     try {
       final enabled = await areActivitiesEnabled();
-      _diag('Система: Live Activities $enabled');
+      final info = await nativeInfo();
+      _diag(
+        'Система: Live Activities $enabled | '
+        'канал=${info['channelReady']} движок=${info['engineInitialized']} '
+        'активностей=${info['activityCount']} iOS ${info['iosVersion']}',
+      );
       if (!enabled) {
         _diag('ОШИБКА: эфир активности выключен в настройках iOS');
         return LiveActivityResult(

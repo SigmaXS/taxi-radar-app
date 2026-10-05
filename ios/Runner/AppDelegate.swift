@@ -5,6 +5,8 @@ import ActivityKit
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     private static var channel: FlutterMethodChannel?
+    private static var channelReady = false
+    private static var engineInitialized = false
 
     public static func handleIncomingUrl(_ url: URL) {
         DispatchQueue.main.async {
@@ -16,15 +18,14 @@ import ActivityKit
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        if let controller = window?.rootViewController as? FlutterViewController {
-            GeneratedPluginRegistrant.register(with: self)
-            setupLiveActivityChannel(binaryMessenger: controller.binaryMessenger)
-        }
-
+        // Проект использует UIScene lifecycle (SceneDelegate + Main.storyboard),
+        // поэтому здесь `window` всегда nil и rootViewController недоступен.
+        // Регистрация плагинов и канала выполняется в didInitializeImplicitFlutterEngine.
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 
     func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+        AppDelegate.engineInitialized = true
         GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
         setupLiveActivityChannel(binaryMessenger: engineBridge.applicationRegistrar.messenger())
     }
@@ -38,6 +39,8 @@ import ActivityKit
         ch.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
             self?.handleLiveActivityCall(call, result: result)
         }
+        AppDelegate.channelReady = true
+        print("[TaxiRadar] Live Activity channel registered (engine=\(AppDelegate.engineInitialized))")
     }
 
     override func application(
@@ -95,6 +98,22 @@ import ActivityKit
                 result(false)
             }
 
+        case "nativeInfo":
+            var enabled = false
+            var count = 0
+            if #available(iOS 16.1, *) {
+                enabled = ActivityAuthorizationInfo().areActivitiesEnabled
+                count = Activity<TaxiRadarAttributes>.activities.count
+            }
+            print("[TaxiRadar] nativeInfo channelReady=\(AppDelegate.channelReady) engine=\(AppDelegate.engineInitialized) enabled=\(enabled) activities=\(count)")
+            result([
+                "channelReady": AppDelegate.channelReady,
+                "engineInitialized": AppDelegate.engineInitialized,
+                "areActivitiesEnabled": enabled,
+                "activityCount": count,
+                "iosVersion": UIDevice.current.systemVersion
+            ])
+
         case "start":
             guard let args = call.arguments as? [String: Any] else {
                 result(FlutterError(code: "INVALID_ARGS", message: "Данные не переданы", details: nil))
@@ -111,18 +130,19 @@ import ActivityKit
 
             if let existing = existingActivity {
                 Task {
-                    try? NSExceptionCatcher.catchException {
-                        Task {
-                            if #available(iOS 16.2, *) {
-                                await existing.update(ActivityContent(state: state, staleDate: nil))
-                            } else {
-                                await existing.update(using: state)
-                            }
+                    do {
+                        if #available(iOS 16.2, *) {
+                            try await existing.update(ActivityContent(state: state, staleDate: nil))
+                        } else {
+                            try await existing.update(using: state)
                         }
+                        print("[TaxiRadar] start: reused + updated \(existing.id)")
+                        result(existing.id)
+                    } catch {
+                        print("[TaxiRadar] start: reuse update failed: \(error)")
+                        result(FlutterError(code: "START_UPDATE_FAILED", message: "Активность есть, обновление не удалось: \(error.localizedDescription)", details: nil))
                     }
                 }
-                result(existing.id)
-                print("[TaxiRadar] start: reused existing activity \(existing.id)")
                 return
             }
 
@@ -212,21 +232,28 @@ import ActivityKit
                 return
             }
 
-            for act in currentActivities {
-                Task {
-                    try? NSExceptionCatcher.catchException {
-                        Task {
-                            if #available(iOS 16.2, *) {
-                                await act.update(ActivityContent(state: state, staleDate: nil))
-                            } else {
-                                await act.update(using: state)
-                            }
+            let total = currentActivities.count
+            Task {
+                var okCount = 0
+                for act in currentActivities {
+                    do {
+                        if #available(iOS 16.2, *) {
+                            try await act.update(ActivityContent(state: state, staleDate: nil))
+                        } else {
+                            try await act.update(using: state)
                         }
+                        okCount += 1
+                    } catch {
+                        print("[TaxiRadar] update error on \(act.id): \(error)")
                     }
                 }
+                print("[TaxiRadar] update: \(okCount)/\(total) ok")
+                if okCount == total {
+                    result(true)
+                } else {
+                    result(FlutterError(code: "UPDATE_FAILED", message: "Обновлено \(okCount) из \(total)", details: nil))
+                }
             }
-            print("[TaxiRadar] update: applied to \(currentActivities.count) activit(y/ies)")
-            result(true)
 
         case "stop":
             var activitiesToEnd: [Activity<TaxiRadarAttributes>] = []
@@ -234,20 +261,29 @@ import ActivityKit
                 activitiesToEnd = Activity<TaxiRadarAttributes>.activities
             }
 
-            for act in activitiesToEnd {
-                Task {
-                    try? NSExceptionCatcher.catchException {
-                        Task {
-                            if #available(iOS 16.2, *) {
-                                await act.end(nil, dismissalPolicy: .immediate)
-                            } else {
-                                await act.end(using: nil, dismissalPolicy: .immediate)
-                            }
+            let total = activitiesToEnd.count
+            if total == 0 {
+                print("[TaxiRadar] stop: no activities")
+                result(true)
+                return
+            }
+            Task {
+                var okCount = 0
+                for act in activitiesToEnd {
+                    do {
+                        if #available(iOS 16.2, *) {
+                            try await act.end(nil, dismissalPolicy: .immediate)
+                        } else {
+                            try await act.end(using: nil, dismissalPolicy: .immediate)
                         }
+                        okCount += 1
+                    } catch {
+                        print("[TaxiRadar] stop error on \(act.id): \(error)")
                     }
                 }
+                print("[TaxiRadar] stop: \(okCount)/\(total) ended")
+                result(okCount)
             }
-            result(true)
 
         default:
             result(FlutterMethodNotImplemented)
