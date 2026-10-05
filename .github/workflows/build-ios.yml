@@ -7,10 +7,15 @@ on:
     branches: [ main, master, flutter, flutter-ios ]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-ios:
     name: Build iOS App (.ipa) with Dynamic Island
     runs-on: macos-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout Repository
@@ -25,22 +30,15 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Install xcodeproj gem
-        run: sudo gem install xcodeproj --no-document
-
-      - name: Configure iOS Dynamic Island Extension Target
-        run: ruby ios/add_widget_extension.rb
-
       - name: Build iOS Application (Release)
-        run: |
-          flutter build ios --no-codesign --release
+        run: flutter build ios --no-codesign --release
 
       - name: Create IPA Package
         run: |
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
-          echo "Checking PlugIns directory for Widget Extension:"
-          ls -la Payload/Runner.app/PlugIns || echo "No PlugIns found"
+          echo "Verifying Widget Extension in PlugIns:"
+          ls -la Payload/Runner.app/PlugIns/TaxiRadarWidget.appex
           zip -r TaxiRadar-1.16.ipa Payload
           rm -rf Payload
 
@@ -50,3 +48,12 @@ jobs:
           name: TaxiRadar-iOS-1.16
           path: TaxiRadar-1.16.ipa
           retention-days: 14
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/flutter' || github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.0-${{ github.run_number }}
+          name: TaxiRadar iOS Build #${{ github.run_number }}
+          files: TaxiRadar-1.16.ipa
+        continue-on-error: true
