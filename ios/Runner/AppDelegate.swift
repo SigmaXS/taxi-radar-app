@@ -49,6 +49,20 @@ import ActivityKit
         return super.application(app, open: url, options: options)
     }
 
+    @available(iOS 16.1, *)
+    private static func makeContentState(from args: [String: Any]) -> TaxiRadarAttributes.ContentState {
+        let price = args["price"] as? String ?? ""
+        return TaxiRadarAttributes.ContentState(
+            surge: args["surge"] as? String ?? "+0",
+            price: price,
+            pointA: args["pointA"] as? String ?? "",
+            pointB: args["pointB"] as? String ?? "",
+            alert: args["alert"] as? String ?? "",
+            hasOrder: args["hasOrder"] as? Bool ?? !price.isEmpty,
+            updatedAt: args["updatedAt"] as? String ?? ""
+        )
+    }
+
     private func handleLiveActivityCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         DispatchQueue.main.async {
             if #available(iOS 16.1, *) {
@@ -80,13 +94,7 @@ import ActivityKit
                 return
             }
 
-            let state = TaxiRadarAttributes.ContentState(
-                surge: args["surge"] as? String ?? "+0 L",
-                zone: args["zone"] as? String ?? "Кишинёв",
-                price: args["price"] as? String ?? "-- MDL",
-                alert: args["alert"] as? String ?? "",
-                updatedAt: args["updatedAt"] as? String ?? ""
-            )
+            let state = AppDelegate.makeContentState(from: args)
 
             // Проверяем существующие активности
             var existingActivity: Activity<TaxiRadarAttributes>?
@@ -150,13 +158,7 @@ import ActivityKit
                 return
             }
 
-            let state = TaxiRadarAttributes.ContentState(
-                surge: args["surge"] as? String ?? "+0 L",
-                zone: args["zone"] as? String ?? "Кишинёв",
-                price: args["price"] as? String ?? "-- MDL",
-                alert: args["alert"] as? String ?? "",
-                updatedAt: args["updatedAt"] as? String ?? ""
-            )
+            let state = AppDelegate.makeContentState(from: args)
 
             var currentActivities: [Activity<TaxiRadarAttributes>] = []
             try? NSExceptionCatcher.catchException {

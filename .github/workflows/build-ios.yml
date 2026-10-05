@@ -11,11 +11,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  BUNDLE_ID: com.example.taxiradar.taxiRadarApp
+  IPK_NAME: TaxiRadar
+
 jobs:
   build-ios:
     name: Build iOS App (.ipa) with Dynamic Island
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: write
 
@@ -23,11 +27,51 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Read Version from pubspec
+        id: ver
+        run: |
+          set -euo pipefail
+          RAW="$(grep -E '^version:' pubspec.yaml | head -n1 | sed -E 's/^version:[[:space:]]*//')"
+          if [ -z "$RAW" ]; then
+            echo "::error::Не удалось прочитать version из pubspec.yaml"
+            exit 1
+          fi
+          APP_VERSION="${RAW%%+*}"
+          BUILD_NUMBER="${RAW##*+}"
+          RELEASE_TAG="v${APP_VERSION}-${GITHUB_RUN_NUMBER}"
+          IPA_NAME="${IPK_NAME}-${APP_VERSION}-${BUILD_NUMBER}.ipa"
+          echo "app_version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "ipa_name=${IPA_NAME}" >> "$GITHUB_OUTPUT"
+          {
+            echo "APP_VERSION=${APP_VERSION}"
+            echo "BUILD_NUMBER=${BUILD_NUMBER}"
+            echo "RELEASE_TAG=${RELEASE_TAG}"
+            echo "IPA_NAME=${IPA_NAME}"
+          } >> "$GITHUB_ENV"
+          echo "Версия: $APP_VERSION ($BUILD_NUMBER), тег: $RELEASE_TAG"
+
+      - name: Runner Diagnostics
+        run: |
+          echo "OS: $(uname -a)"
+          sw_vers || true
+          xcodebuild -version || true
+          xcodebuild -showsdks || true
+          echo "--- disk ---"
+          df -h . || true
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
+
+      - name: Flutter Diagnostics and iOS Precache
+        run: |
+          flutter --version
+          flutter doctor -v || true
+          flutter precache --ios || true
 
       - name: Install Dependencies
         run: flutter pub get
@@ -35,27 +79,72 @@ jobs:
       - name: Build iOS Application (Release)
         run: flutter build ios --no-codesign --release
 
-      - name: Create IPA Package
+      - name: Verify Widget Extension
         run: |
-          mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
-          echo "Verifying Widget Extension in PlugIns:"
-          ls -la Payload/Runner.app/PlugIns/TaxiRadarWidget.appex
-          zip -r TaxiRadar-1.16.ipa Payload
-          rm -rf Payload
+          set -euo pipefail
+          APPEX="build/ios/iphoneos/Runner.app/PlugIns/TaxiRadarWidget.appex"
+          if [ ! -d "$APPEX" ]; then
+            echo "::error::Виджет не встроен: $APPEX не найден. Dynamic Island работать не будет."
+            exit 1
+          fi
+          echo "Виджет на месте:"
+          ls -la "$APPEX"
 
-      - name: Upload IPA Artifact
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/Runner.app
+          zip -qry "${IPA_NAME}" Payload
+          rm -rf Payload
+          ls -lh "${IPA_NAME}"
+
+      - name: Generate AltStore Source
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          cat > altstore-source.json <<EOF
+          {
+            "sourceURL": "https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${IPA_NAME}",
+            "appIDs": ["${BUNDLE_ID}"],
+            "betaIDs": ["${BUNDLE_ID}"],
+            "apps": [],
+            "versions": [
+              {
+                "version": "${APP_VERSION}",
+                "buildID": "${GITHUB_RUN_NUMBER}",
+                "appID": "${BUNDLE_ID}",
+                "bundleID": "${BUNDLE_ID}",
+                "bundleShortVersionString": "${APP_VERSION}",
+                "bundleVersion": "${BUILD_NUMBER}",
+                "displayVersion": "${APP_VERSION}",
+                "minimumOSVersion": "15.0",
+                "releaseNotes": "Сборка ${RELEASE_TAG} из коммита ${GITHUB_SHA}."
+              }
+            ]
+          }
+          EOF
+          echo "AltStore source:"
+          cat altstore-source.json
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: TaxiRadar-iOS-1.16
-          path: TaxiRadar-1.16.ipa
+          name: TaxiRadar-iOS-${{ steps.ver.outputs.app_version }}
+          path: |
+            ${{ steps.ver.outputs.ipa_name }}
+            altstore-source.json
           retention-days: 14
+          if-no-files-found: error
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/flutter' || github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         with:
-          tag_name: v1.0.0-${{ github.run_number }}
-          name: TaxiRadar iOS Build #${{ github.run_number }}
-          files: TaxiRadar-1.16.ipa
+          tag_name: ${{ steps.ver.outputs.release_tag }}
+          name: TaxiRadar iOS ${{ steps.ver.outputs.release_tag }}
+          files: |
+            ${{ steps.ver.outputs.ipa_name }}
+            altstore-source.json
         continue-on-error: true

@@ -18,11 +18,28 @@ class LiveActivityResult {
 class LiveActivityService {
   static const MethodChannel _channel = MethodChannel('taxiradar/live_activity');
 
+  static const Duration _orderTtl = Duration(seconds: 15);
+
   static Timer? _monitorTimer;
+  static Timer? _orderTtlTimer;
   static bool _isMonitoring = false;
   static final ValueNotifier<ParsedOrder?> latestOrderNotifier = ValueNotifier<ParsedOrder?>(null);
   static final ValueNotifier<String> currentSurgeNotifier = ValueNotifier<String>('+0');
-  static DateTime? _latestOrderTime;
+
+  static String _radarAlert = '';
+  static double? _radarOriginLat;
+  static double? _radarOriginLon;
+
+  /// Точка, выбранная водителем на карте: надбавка и радар считаются от неё.
+  static void setRadarOrigin(double lat, double lon) {
+    _radarOriginLat = lat;
+    _radarOriginLon = lon;
+  }
+
+  static void clearRadarOrigin() {
+    _radarOriginLat = null;
+    _radarOriginLon = null;
+  }
 
   static bool get isMonitoring => _isMonitoring;
 
@@ -63,20 +80,35 @@ class LiveActivityService {
     }
   }
 
+  /// Чистая цена поездки вместе с километрами и минутами: «85 MDL (5.2 км · 12 мин)»
+  static String _buildPriceLabel(ParsedOrder order) {
+    final fare = '${order.price.round()} MDL';
+    final distanceTime = order.distanceTime.trim();
+    return distanceTime.isEmpty ? fare : '$fare ($distanceTime)';
+  }
+
+  static const Set<String> _pointPlaceholders = {'точка подачи', 'точка назначения'};
+
+  /// Адрес точки маршрута; служебные заглушки в виджет не передаём.
+  static String _routePoint(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return '';
+    return _pointPlaceholders.contains(trimmed.toLowerCase()) ? '' : trimmed;
+  }
+
   /// Обновление виджета на Dynamic Island при сканировании заказа
   static Future<void> processScannedOrder(ParsedOrder order) async {
     latestOrderNotifier.value = order;
-    _latestOrderTime = DateTime.now();
+
     final nowTime = DateFormat('HH:mm').format(DateTime.now());
 
-    final priceStr = '${order.price.round()} MDL';
-    final distTimeStr = order.distanceTime.isNotEmpty ? order.distanceTime : '';
-
-    final Map<String, dynamic> data = {
-      'surge': distTimeStr.isNotEmpty ? distTimeStr : priceStr,
-      'zone': order.pointA,
-      'price': priceStr,
-      'alert': order.pointB,
+    final data = <String, dynamic>{
+      'surge': currentSurgeNotifier.value.isEmpty ? '+0' : currentSurgeNotifier.value,
+      'price': _buildPriceLabel(order),
+      'pointA': _routePoint(order.pointA),
+      'pointB': _routePoint(order.pointB),
+      'alert': _radarAlert,
+      'hasOrder': true,
       'updatedAt': nowTime,
     };
 
@@ -87,12 +119,28 @@ class LiveActivityService {
         if (kDebugMode) print('processScannedOrder native error: $e');
       }
     }
+
+    _startOrderTtl();
+  }
+
+  /// Цена и адреса заказа живут 15 секунд, затем остаётся одна надбавка
+  static void _startOrderTtl() {
+    _orderTtlTimer?.cancel();
+    _orderTtlTimer = Timer(_orderTtl, _expireOrder);
+  }
+
+  static void _expireOrder() {
+    _orderTtlTimer = null;
+    if (latestOrderNotifier.value == null) return;
+    latestOrderNotifier.value = null;
+    _refreshSurgeAndPushActivity(isStart: false);
   }
 
   /// Сброс текущего заказа для возврата к режиму радара надбавки
   static void clearCurrentOrder() {
+    _orderTtlTimer?.cancel();
+    _orderTtlTimer = null;
     latestOrderNotifier.value = null;
-    _latestOrderTime = null;
     _refreshSurgeAndPushActivity(isStart: false);
   }
 
@@ -159,6 +207,9 @@ class LiveActivityService {
 
     _monitorTimer?.cancel();
     _monitorTimer = null;
+    _orderTtlTimer?.cancel();
+    _orderTtlTimer = null;
+    latestOrderNotifier.value = null;
 
     if (Platform.isIOS) {
       try {
@@ -167,20 +218,6 @@ class LiveActivityService {
         if (kDebugMode) print('Error stopping activity: $e');
       }
     }
-  }
-
-  /// Определение района Кишинёва по координатам
-  static String getSectorName(double lat, double lon) {
-    if (lat < 46.96 && lon > 28.90) return 'Аэропорт';
-    if (lat < 47.005 && lon > 28.835) return 'Ботаника';
-    if (lat < 47.015 && lon < 28.83) return 'Телецентр';
-    if (lat >= 47.015 && lat <= 47.035 && lon >= 28.815 && lon <= 28.865) return 'Центр';
-    if (lat > 47.035 && lon < 28.825) return 'Буюканы';
-    if (lat > 47.035 && lon >= 28.825 && lon <= 28.875) return 'Рышкановка';
-    if (lat > 47.025 && lon > 28.875) return 'Чеканы';
-    if (lat > 47.06) return 'Ставчены';
-    if (lat < 47.01 && lon < 47.80) return 'Дурлешты';
-    return 'Кишинёв';
   }
 
   /// Получение геопозиции, данных Яндекс и радаров, отправка в Dynamic Island
@@ -205,14 +242,11 @@ class LiveActivityService {
       }
     } catch (_) {}
 
-    // Если недавно был распознан заказ (в течение 5 минут), сохраняем его на экране
-    if (_latestOrderTime != null &&
-        DateTime.now().difference(_latestOrderTime!).inMinutes < 5 &&
-        latestOrderNotifier.value != null) {
-      return LiveActivityResult(success: true);
-    }
+    // Если водитель выбрал точку на карте, надбавка и радар считаются от неё
+    final originLat = _radarOriginLat ?? lat;
+    final originLon = _radarOriginLon ?? lon;
 
-    final surge = await YandexSurgeService.getSurgeAll(lon, lat);
+    final surge = await YandexSurgeService.getSurgeAll(originLon, originLat);
 
     // Определяем текущую единую надбавку (+15, +35, +55 или +0)
     int maxSurge = 0;
@@ -222,38 +256,39 @@ class LiveActivityService {
     final surgeDisplay = maxSurge > 0 ? '+$maxSurge' : '+0';
     currentSurgeNotifier.value = surgeDisplay;
 
-    // Проверка ближайших предупреждений о радарах/полиции
+    // Ближайшие предупреждения о радарах / полиции / ДТП
     String nearestAlert = '';
     try {
-      final reports = await CommunityService.getReports(lat, lon);
-      if (reports.isNotEmpty) {
-        for (var r in reports) {
-          final dist = Geolocator.distanceBetween(lat, lon, r.lat, r.lon);
-          if (dist <= 1500) {
-            final distStr = '${dist.round()}м';
-            if (r.type == 'radar') {
-              nearestAlert = '📸 Радар ($distStr)';
-              break;
-            } else if (r.type == 'police') {
-              nearestAlert = '🚓 Полиция ($distStr)';
-              break;
-            } else if (r.type == 'accident') {
-              nearestAlert = '💥 ДТП ($distStr)';
-              break;
-            }
-          }
+      final reports = await CommunityService.getReports(originLat, originLon);
+      for (var r in reports) {
+        final dist = Geolocator.distanceBetween(originLat, originLon, r.lat, r.lon);
+        if (dist > 1500) continue;
+        final distStr = '${dist.round()}м';
+        if (r.type == 'radar') {
+          nearestAlert = '📸 Радар ($distStr)';
+          break;
+        } else if (r.type == 'police') {
+          nearestAlert = '🚓 Полиция ($distStr)';
+          break;
+        } else if (r.type == 'accident') {
+          nearestAlert = '💥 ДТП ($distStr)';
+          break;
         }
       }
     } catch (_) {}
+    _radarAlert = nearestAlert;
 
     final nowTime = DateFormat('HH:mm').format(DateTime.now());
 
-    // В режиме ожидания (нет заказа): передаем только надбавку и дорожные радары
+    // Надбавка и радар обновляются всегда, поля заказа — пока заказ активен
+    final order = latestOrderNotifier.value;
     final Map<String, dynamic> data = {
       'surge': surgeDisplay,
-      'zone': '',
-      'price': '',
+      'price': order != null ? _buildPriceLabel(order) : '',
+      'pointA': order != null ? _routePoint(order.pointA) : '',
+      'pointB': order != null ? _routePoint(order.pointB) : '',
       'alert': nearestAlert,
+      'hasOrder': order != null,
       'updatedAt': nowTime,
     };
 

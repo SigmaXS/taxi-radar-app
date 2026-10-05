@@ -387,7 +387,7 @@ class _RadarTabState extends State<RadarTab> {
                   const SizedBox(height: 10),
                   Text(
                     _isMonitoring
-                        ? '🟢 Радар активен · Значение надбавки передаётся в Dynamic Island и обновляется каждые 25 сек.'
+                        ? '🟢 Радар активен · Надбавка обновляется каждые 25 сек, цена отсканированного заказа держится 15 сек.'
                         : '⚪ Радар выключен · Нажмите «Запустить радар», чтобы включить отображение на Dynamic Island.',
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
                   ),

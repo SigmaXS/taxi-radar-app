@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../l10n/app_strings.dart';
 import '../../models/report.dart';
 import '../../services/community_service.dart';
+import '../../services/live_activity_service.dart';
 import '../../services/yandex_surge_service.dart';
 
 class MapTab extends StatefulWidget {
@@ -76,6 +77,9 @@ class _MapTabState extends State<MapTab> {
       _isCheckingSurge = true;
       _selectedSurge = null;
     });
+
+    // Выбранная точка становится источником надбавки и радара в Dynamic Island
+    LiveActivityService.setRadarOrigin(point.latitude, point.longitude);
 
     final res = await YandexSurgeService.getSurgeAll(point.longitude, point.latitude);
     if (mounted) {
