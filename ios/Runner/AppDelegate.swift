@@ -50,15 +50,21 @@ import ActivityKit
     }
 
     @available(iOS 16.1, *)
-    private static func makeContentState(from args: [String: Any]) -> TaxiRadarAttributes.ContentState {
+    private static func makeContentState(from args: [String: Any], method: String) -> TaxiRadarAttributes.ContentState {
         let price = args["price"] as? String ?? ""
+        let surge = args["surge"] as? String ?? "+0"
+        let pointA = args["pointA"] as? String ?? ""
+        let pointB = args["pointB"] as? String ?? ""
+        let alert = args["alert"] as? String ?? ""
+        let hasOrder = args["hasOrder"] as? Bool ?? !price.isEmpty
+        print("[TaxiRadar] \(method) state <- surge=\(surge) price=\(price.isEmpty ? "-" : price) A=\(pointA.isEmpty ? "-" : pointA) B=\(pointB.isEmpty ? "-" : pointB) alert=\(alert.isEmpty ? "-" : alert) hasOrder=\(hasOrder)")
         return TaxiRadarAttributes.ContentState(
-            surge: args["surge"] as? String ?? "+0",
+            surge: surge,
             price: price,
-            pointA: args["pointA"] as? String ?? "",
-            pointB: args["pointB"] as? String ?? "",
-            alert: args["alert"] as? String ?? "",
-            hasOrder: args["hasOrder"] as? Bool ?? !price.isEmpty,
+            pointA: pointA,
+            pointB: pointB,
+            alert: alert,
+            hasOrder: hasOrder,
             updatedAt: args["updatedAt"] as? String ?? ""
         )
     }
@@ -83,6 +89,7 @@ import ActivityKit
                     isEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
                 }
                 result(isEnabled)
+                print("[TaxiRadar] areActivitiesEnabled = \(isEnabled)")
             } catch {
                 print("[TaxiRadar] areActivitiesEnabled error: \(error)")
                 result(false)
@@ -94,7 +101,7 @@ import ActivityKit
                 return
             }
 
-            let state = AppDelegate.makeContentState(from: args)
+            let state = AppDelegate.makeContentState(from: args, method: call.method)
 
             // Проверяем существующие активности
             var existingActivity: Activity<TaxiRadarAttributes>?
@@ -115,6 +122,7 @@ import ActivityKit
                     }
                 }
                 result(existing.id)
+                print("[TaxiRadar] start: reused existing activity \(existing.id)")
                 return
             }
 
@@ -147,8 +155,10 @@ import ActivityKit
             }
 
             if let id = activityId {
+                print("[TaxiRadar] start: NEW activity created id=\(id)")
                 result(id)
             } else {
+                print("[TaxiRadar] start FAILED: Activity.request returned nil (areActivitiesEnabled=false or system refused)")
                 result(FlutterError(code: "START_FAILED", message: "Не удалось запустить Dynamic Island", details: nil))
             }
 
@@ -158,7 +168,7 @@ import ActivityKit
                 return
             }
 
-            let state = AppDelegate.makeContentState(from: args)
+            let state = AppDelegate.makeContentState(from: args, method: call.method)
 
             var currentActivities: [Activity<TaxiRadarAttributes>] = []
             try? NSExceptionCatcher.catchException {
@@ -193,8 +203,10 @@ import ActivityKit
                 }
 
                 if let id = newId {
+                    print("[TaxiRadar] update: no activity found, created \(id)")
                     result(id)
                 } else {
+                    print("[TaxiRadar] update FAILED: no activity and request returned nil")
                     result(FlutterError(code: "UPDATE_START_FAILED", message: "Активность не найдена", details: nil))
                 }
                 return
@@ -213,6 +225,7 @@ import ActivityKit
                     }
                 }
             }
+            print("[TaxiRadar] update: applied to \(currentActivities.count) activit(y/ies)")
             result(true)
 
         case "stop":

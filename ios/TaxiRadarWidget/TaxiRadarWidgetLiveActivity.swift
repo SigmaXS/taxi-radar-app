@@ -249,7 +249,9 @@ struct TaxiRadarLiveActivity: Widget {
                         .lineLimit(1)
                         .padding(.trailing, 2)
                 } else {
-                    EmptyView()
+                    // Не EmptyView(): пустой view в compact-регионе Dynamic Island
+                    // на части версий iOS приводит к полностью пустому острову.
+                    Color.clear.frame(width: 0, height: 0)
                 }
             } minimal: {
                 if hasOrder {

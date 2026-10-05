@@ -26,6 +26,15 @@ class LiveActivityService {
   static final ValueNotifier<ParsedOrder?> latestOrderNotifier = ValueNotifier<ParsedOrder?>(null);
   static final ValueNotifier<String> currentSurgeNotifier = ValueNotifier<String>('+0');
 
+  /// Последний результат обмена с нативной частью — виден в интерфейсе,
+  /// потому что в установленном IPA логи консоли недоступны.
+  static final ValueNotifier<String> diagnosticsNotifier = ValueNotifier<String>('ожидание…');
+
+  static void _diag(String message) {
+    diagnosticsNotifier.value = message;
+    if (kDebugMode) print('[LiveActivity] $message');
+  }
+
   static String _radarAlert = '';
   static double? _radarOriginLat;
   static double? _radarOriginLon;
@@ -166,7 +175,9 @@ class LiveActivityService {
 
     try {
       final enabled = await areActivitiesEnabled();
+      _diag('Система: Live Activities $enabled');
       if (!enabled) {
+        _diag('ОШИБКА: эфир активности выключен в настройках iOS');
         return LiveActivityResult(
           success: false,
           errorMessage: 'Эфир активности выключен. Включите: Настройки -> Taxi Radar -> Эфир активности.',
@@ -183,8 +194,10 @@ class LiveActivityService {
     // Первичное обновление и старт Dynamic Island
     final startRes = await _refreshSurgeAndPushActivity(isStart: true);
     if (!startRes.success) {
+      _diag('ОШИБКА запуска: ${startRes.errorMessage}');
       return startRes;
     }
+    _diag('Активность запущена, таймер опроса 25 сек');
 
     // Запуск периодического обновления каждые 25 секунд
     _monitorTimer?.cancel();
@@ -295,18 +308,22 @@ class LiveActivityService {
     if (Platform.isIOS) {
       try {
         if (isStart) {
-          await _channel.invokeMethod('start', data);
+          final id = await _channel.invokeMethod('start', data);
+          _diag('start -> id=$id | ${data.entries.map((e) => '${e.key}=${e.value}').join(' ')}');
         } else {
-          await _channel.invokeMethod('update', data);
+          final ok = await _channel.invokeMethod('update', data);
+          _diag('update -> $ok | надбавка ${data['surge']}, радар ${data['alert']}');
         }
         return LiveActivityResult(success: true);
       } on PlatformException catch (pe) {
+        _diag('ОШИБКА ${pe.code}: ${pe.message}');
         if (kDebugMode) print('LiveActivity PlatformException: ${pe.code} - ${pe.message}');
         return LiveActivityResult(
           success: false,
           errorMessage: 'Ошибка Dynamic Island: ${pe.message ?? pe.code}',
         );
       } catch (e) {
+        _diag('ОШИБКА: $e');
         if (kDebugMode) print('LiveActivity error: $e');
         return LiveActivityResult(
           success: false,

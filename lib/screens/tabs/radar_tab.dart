@@ -391,6 +391,26 @@ class _RadarTabState extends State<RadarTab> {
                         : '⚪ Радар выключен · Нажмите «Запустить радар», чтобы включить отображение на Dynamic Island.',
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
                   ),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<String>(
+                    valueListenable: LiveActivityService.diagnosticsNotifier,
+                    builder: (context, diag, _) => Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: diag.startsWith('ОШИБКА') ? Colors.red.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Диагностика: $diag',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          color: diag.startsWith('ОШИБКА') ? Colors.redAccent : Colors.grey.shade500,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
