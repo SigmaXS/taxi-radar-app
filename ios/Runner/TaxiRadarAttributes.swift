@@ -1,6 +1,7 @@
 import ActivityKit
 import Foundation
 
+@available(iOS 16.1, *)
 public struct TaxiRadarAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
         public var surge: String
