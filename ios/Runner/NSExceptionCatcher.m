@@ -2,7 +2,7 @@
 
 @implementation NSExceptionCatcher
 
-+ (BOOL)catchException:(void(NS_NOESCAPE ^)(void))tryBlock error:(__autoreleasing NSError * _Nullable * _Nullable)error {
++ (BOOL)catchException:(TryBlock)tryBlock error:(NSError * _Nullable * _Nullable)error {
     @try {
         tryBlock();
         return YES;

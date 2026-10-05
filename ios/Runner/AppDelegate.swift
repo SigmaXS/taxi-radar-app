@@ -16,9 +16,8 @@ import ActivityKit
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        GeneratedPluginRegistrant.register(with: self)
-
-        if AppDelegate.channel == nil, let controller = window?.rootViewController as? FlutterViewController {
+        if let controller = window?.rootViewController as? FlutterViewController {
+            GeneratedPluginRegistrant.register(with: self)
             setupLiveActivityChannel(binaryMessenger: controller.binaryMessenger)
         }
 

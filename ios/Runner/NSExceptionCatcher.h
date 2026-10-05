@@ -2,9 +2,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef void (^TryBlock)(void);
+
 @interface NSExceptionCatcher : NSObject
 
-+ (BOOL)catchException:(void(NS_NOESCAPE ^)(void))tryBlock error:(__autoreleasing NSError * _Nullable * _Nullable)error;
++ (BOOL)catchException:(TryBlock)tryBlock error:(NSError * _Nullable * _Nullable)error;
 
 @end
 
