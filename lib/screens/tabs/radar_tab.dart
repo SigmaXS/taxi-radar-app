@@ -29,31 +29,17 @@ class _RadarTabState extends State<RadarTab> {
   bool _isActivating = false;
   bool _isMonitoring = false;
 
-  bool _econom = true;
-  bool _comfort = true;
-  bool _comfortPlus = true;
-
   @override
   void initState() {
     super.initState();
-    _loadTariffPrefs();
+    _loadMonitoringState();
   }
 
-  Future<void> _loadTariffPrefs() async {
+  Future<void> _loadMonitoringState() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _econom = prefs.getBool('show_econom') ?? true;
-      _comfort = prefs.getBool('show_comfort') ?? true;
-      _comfortPlus = prefs.getBool('show_comfortplus') ?? true;
       _isMonitoring = prefs.getBool('is_monitoring') ?? false;
     });
-  }
-
-  Future<void> _saveTariffPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('show_econom', _econom);
-    await prefs.setBool('show_comfort', _comfort);
-    await prefs.setBool('show_comfortplus', _comfortPlus);
   }
 
   Future<void> _toggleMonitoring() async {
@@ -307,26 +293,38 @@ class _RadarTabState extends State<RadarTab> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              '🎯 Заказ (${order.tariff})',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontSize: 13),
+                            const Text(
+                              '🎯 Заказ со скриншота',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontSize: 14),
                             ),
-                            Text(
-                              '${order.price.round()} MDL',
-                              style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 16),
+                            Row(
+                              children: [
+                                Text(
+                                  '${order.price.round()} MDL',
+                                  style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 18),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white54),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: 'Сбросить и вернуться к радару',
+                                  onPressed: () => LiveActivityService.clearCurrentOrder(),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        Text('📍 Подача: ${order.pointA}', style: const TextStyle(fontSize: 12)),
-                        Text('🏁 Куда: ${order.pointB}', style: const TextStyle(fontSize: 12)),
                         if (order.distanceTime.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(
-                            '⏱ Маршрут: ${order.distanceTime}',
-                            style: const TextStyle(fontSize: 11, color: Colors.cyanAccent),
+                            '⏱ ${order.distanceTime}',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.cyanAccent),
                           ),
                         ],
+                        const SizedBox(height: 6),
+                        Text('📍 Подача: ${order.pointA}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                        Text('🏁 Куда: ${order.pointB}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
                       ],
                     ),
                   ),
@@ -337,7 +335,7 @@ class _RadarTabState extends State<RadarTab> {
 
           const SizedBox(height: 16),
 
-          // Настройка тарифов
+          // Единый радар спроса (без лишних тарифов)
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             color: const Color(0xFF1E2638),
@@ -346,50 +344,58 @@ class _RadarTabState extends State<RadarTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    AppStrings.tariffsTitle,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.radar_rounded, color: Colors.amber.shade400, size: 22),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Радар надбавки',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                      ValueListenableBuilder<String>(
+                        valueListenable: LiveActivityService.currentSurgeNotifier,
+                        builder: (context, surge, _) {
+                          final isHigh = surge != '+0' && surge.isNotEmpty;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isHigh ? Colors.orange.withValues(alpha: 0.2) : Colors.white10,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isHigh ? Colors.orangeAccent : Colors.white24,
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              surge,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: isHigh ? Colors.orangeAccent : Colors.white70,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 10),
                   Text(
-                    AppStrings.tariffsCaption,
+                    _isMonitoring
+                        ? '🟢 Радар активен · Значение надбавки передаётся в Dynamic Island и обновляется каждые 25 сек.'
+                        : '⚪ Радар выключен · Нажмите «Запустить радар», чтобы включить отображение на Dynamic Island.',
                     style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                  ),
-                  const Divider(color: Colors.white10, height: 20),
-                  CheckboxListTile(
-                    title: const Text('Эконом', style: TextStyle(color: Colors.white)),
-                    value: _econom,
-                    activeColor: Colors.amber.shade700,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) {
-                      setState(() => _econom = val ?? true);
-                      _saveTariffPrefs();
-                    },
-                  ),
-                  CheckboxListTile(
-                    title: const Text('Комфорт', style: TextStyle(color: Colors.white)),
-                    value: _comfort,
-                    activeColor: Colors.amber.shade700,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) {
-                      setState(() => _comfort = val ?? true);
-                      _saveTariffPrefs();
-                    },
-                  ),
-                  CheckboxListTile(
-                    title: const Text('Комфорт+', style: TextStyle(color: Colors.white)),
-                    value: _comfortPlus,
-                    activeColor: Colors.amber.shade700,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) {
-                      setState(() => _comfortPlus = val ?? true);
-                      _saveTariffPrefs();
-                    },
                   ),
                 ],
               ),
             ),
           ),
+
 
           const SizedBox(height: 16),
 

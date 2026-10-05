@@ -21,6 +21,8 @@ class LiveActivityService {
   static Timer? _monitorTimer;
   static bool _isMonitoring = false;
   static final ValueNotifier<ParsedOrder?> latestOrderNotifier = ValueNotifier<ParsedOrder?>(null);
+  static final ValueNotifier<String> currentSurgeNotifier = ValueNotifier<String>('+0');
+  static DateTime? _latestOrderTime;
 
   static bool get isMonitoring => _isMonitoring;
 
@@ -48,6 +50,13 @@ class LiveActivityService {
       if (text.isNotEmpty) {
         final order = OrderParserService.parse(text);
         processScannedOrder(order);
+
+        // Асинхронно обогащаем через геокодер Яндекс API на бэкенде Railway
+        OrderParserService.enrich(order).then((enriched) {
+          if (enriched.distanceTime != order.distanceTime || enriched.price != order.price) {
+            processScannedOrder(enriched);
+          }
+        });
       }
     } catch (e) {
       if (kDebugMode) print('handleIncomingUrl error: $e');
@@ -57,17 +66,17 @@ class LiveActivityService {
   /// Обновление виджета на Dynamic Island при сканировании заказа
   static Future<void> processScannedOrder(ParsedOrder order) async {
     latestOrderNotifier.value = order;
+    _latestOrderTime = DateTime.now();
     final nowTime = DateFormat('HH:mm').format(DateTime.now());
 
     final priceStr = '${order.price.round()} MDL';
-    final pointAstr = order.pointA.isNotEmpty ? order.pointA : 'Заказ';
-    final pointBstr = order.pointB.isNotEmpty ? 'Куда: ${order.pointB}' : '';
+    final distTimeStr = order.distanceTime.isNotEmpty ? order.distanceTime : '';
 
     final Map<String, dynamic> data = {
-      'surge': priceStr,
-      'zone': pointAstr,
+      'surge': distTimeStr.isNotEmpty ? distTimeStr : priceStr,
+      'zone': order.pointA,
       'price': priceStr,
-      'alert': pointBstr,
+      'alert': order.pointB,
       'updatedAt': nowTime,
     };
 
@@ -78,6 +87,13 @@ class LiveActivityService {
         if (kDebugMode) print('processScannedOrder native error: $e');
       }
     }
+  }
+
+  /// Сброс текущего заказа для возврата к режиму радара надбавки
+  static void clearCurrentOrder() {
+    latestOrderNotifier.value = null;
+    _latestOrderTime = null;
+    _refreshSurgeAndPushActivity(isStart: false);
   }
 
   /// Проверка доступности Live Activities в iOS
@@ -189,11 +205,22 @@ class LiveActivityService {
       }
     } catch (_) {}
 
-    final sector = getSectorName(lat, lon);
+    // Если недавно был распознан заказ (в течение 5 минут), сохраняем его на экране
+    if (_latestOrderTime != null &&
+        DateTime.now().difference(_latestOrderTime!).inMinutes < 5 &&
+        latestOrderNotifier.value != null) {
+      return LiveActivityResult(success: true);
+    }
+
     final surge = await YandexSurgeService.getSurgeAll(lon, lat);
 
-    int econSurge = surge?.econom ?? 0;
-    final baseEcon = YandexSurgeService.basePrices['econom'] ?? 30;
+    // Определяем текущую единую надбавку (+15, +35, +55 или +0)
+    int maxSurge = 0;
+    if (surge != null) {
+      maxSurge = [surge.econom, surge.comfort, surge.comfortPlus].reduce((a, b) => a > b ? a : b);
+    }
+    final surgeDisplay = maxSurge > 0 ? '+$maxSurge' : '+0';
+    currentSurgeNotifier.value = surgeDisplay;
 
     // Проверка ближайших предупреждений о радарах/полиции
     String nearestAlert = '';
@@ -219,14 +246,13 @@ class LiveActivityService {
       }
     } catch (_) {}
 
-    final surgeDisplay = econSurge > 0 ? '+$econSurge L' : '+0 L';
     final nowTime = DateFormat('HH:mm').format(DateTime.now());
-    final priceDisplay = '${baseEcon + econSurge} MDL';
 
+    // В режиме ожидания (нет заказа): передаем только надбавку и дорожные радары
     final Map<String, dynamic> data = {
       'surge': surgeDisplay,
-      'zone': sector,
-      'price': priceDisplay,
+      'zone': '',
+      'price': '',
       'alert': nearestAlert,
       'updatedAt': nowTime,
     };

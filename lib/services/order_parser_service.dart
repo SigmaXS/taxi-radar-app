@@ -1,3 +1,7 @@
+import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
+import 'api_service.dart';
+
 class ParsedOrder {
   final double price;
   final String pointA;
@@ -50,24 +54,40 @@ class OrderParserService {
     }
 
     // 2. Поиск цены поездки из Яндекс
-    // Ищем конструкции вида "85 лей", "85 L", "85 MDL", "~ 85", "85.00"
-    final priceRegex = RegExp(
-      r'(?:~|\b)?\s*(\d{2,4})\s*(?:лей|lei|mdl|l|л|\$|€)?\b',
+    // Сначала ищем четкие совпадения с валютой: "85 лей", "85 L", "85 MDL", "~ 85"
+    final currencyPriceRegex = RegExp(
+      r'(?:~|\b)?\s*(\d{2,4})\s*(?:лей|lei|mdl|l|л|леев)\b',
       caseSensitive: false,
     );
-
     for (var l in lines) {
-      final matches = priceRegex.allMatches(l);
-      for (var m in matches) {
+      final m = currencyPriceRegex.firstMatch(l);
+      if (m != null) {
         final val = double.tryParse(m.group(1) ?? '');
         if (val != null && val >= 30 && val <= 1500) {
-          // Исключаем года
-          if (val == 1989 || val == 2024 || val == 2025 || val == 2026) continue;
           price = val;
           break;
         }
       }
-      if (price > 0) break;
+    }
+
+    // Если точного совпадения с валютой нет, ищем любое число в диапазоне тарифа
+    if (price <= 0) {
+      final priceRegex = RegExp(
+        r'(?:~|\b)?\s*(\d{2,4})\b',
+        caseSensitive: false,
+      );
+      for (var l in lines) {
+        final matches = priceRegex.allMatches(l);
+        for (var m in matches) {
+          final val = double.tryParse(m.group(1) ?? '');
+          if (val != null && val >= 30 && val <= 1500) {
+            if (val == 1989 || val == 2024 || val == 2025 || val == 2026) continue;
+            price = val;
+            break;
+          }
+        }
+        if (price > 0) break;
+      }
     }
 
     // 3. Поиск дистанции и времени
@@ -136,10 +156,6 @@ class OrderParserService {
     if (pointA.isEmpty) pointA = 'Точка подачи';
     if (pointB.isEmpty) pointB = 'Точка назначения';
 
-    if (price <= 0) {
-      price = 65.0;
-    }
-
     return ParsedOrder(
       price: price,
       pointA: pointA,
@@ -149,8 +165,65 @@ class OrderParserService {
       rawText: rawText,
     );
   }
+
+  /// Обогащение заказа: геокодирование адресов через Railway (Яндекс API)
+  /// и расчет дистанции/времени/цены поездки, если они отсутствовали в тексте
+  static Future<ParsedOrder> enrich(ParsedOrder order) async {
+    String distanceTime = order.distanceTime;
+    double price = order.price;
+
+    final hasRealPointA = order.pointA.isNotEmpty && order.pointA != 'Точка подачи';
+    final hasRealPointB = order.pointB.isNotEmpty && order.pointB != 'Точка назначения';
+
+    if (hasRealPointA && hasRealPointB) {
+      try {
+        final futureA = ApiService.geocodeAddress(order.pointA);
+        final futureB = ApiService.geocodeAddress(order.pointB);
+        final coords = await Future.wait([futureA, futureB]);
+        final coordA = coords[0];
+        final coordB = coords[1];
+
+        if (coordA != null && coordB != null) {
+          final distMeters = Geolocator.distanceBetween(
+            coordA['lat']!,
+            coordA['lon']!,
+            coordB['lat']!,
+            coordB['lon']!,
+          );
+          // Коэффициент извилистости дорог в городе ~1.35
+          final distKm = (distMeters / 1000.0) * 1.35;
+          final durationMin = (distKm * 2.3).round().clamp(3, 120);
+
+          if (distanceTime.isEmpty) {
+            distanceTime = '${distKm.toStringAsFixed(1)} км · $durationMin мин';
+          }
+
+          if (price <= 0) {
+            // Базовый тариф без вычета комиссии: подача 30 + 3.5 за км + 1.0 за минуту
+            price = (30.0 + (distKm * 3.5) + durationMin).roundToDouble();
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) print('Order enrichment error: $e');
+      }
+    }
+
+    if (price <= 0) {
+      price = 65.0;
+    }
+
+    return ParsedOrder(
+      price: price,
+      pointA: order.pointA,
+      pointB: order.pointB,
+      tariff: order.tariff,
+      distanceTime: distanceTime,
+      rawText: order.rawText,
+    );
+  }
 }
 
 extension IterableExt<T> on Iterable<T> {
   Iterable<T> filter(bool Function(T) test) => where(test);
 }
+

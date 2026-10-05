@@ -100,4 +100,23 @@ class ApiService {
       return null;
     }
   }
+
+  /// Геокодирование адреса через Яндекс API на сервере Railway
+  static Future<Map<String, double>?> geocodeAddress(String address) async {
+    final query = address.trim();
+    if (query.isEmpty) return null;
+    try {
+      final res = await post('/api/geocode', {'q': query});
+      if (res != null && res['ok'] == true && res['found'] == true) {
+        final lat = (res['lat'] as num?)?.toDouble();
+        final lon = (res['lon'] as num?)?.toDouble();
+        if (lat != null && lon != null) {
+          return {'lat': lat, 'lon': lon};
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Geocode error for "$query": $e');
+    }
+    return null;
+  }
 }
