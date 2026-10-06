@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BUNDLE_ID: com.example.taxiradar.taxiRadarApp
+  BUNDLE_ID: md.sigmars.taxiradar
   IPK_NAME: TaxiRadar
 
 jobs:
@@ -77,7 +77,7 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS Application (Release)
-        run: flutter build ios --no-codesign --release
+        run: flutter build ios --no-codesign --release --build-number=${GITHUB_RUN_NUMBER}
 
       - name: Verify Widget Extension
         run: |
@@ -104,23 +104,35 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
+          IPA_URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${IPA_NAME}"
+          # Получаем размер IPA
+          SIZE_BYTES=$(stat -f%z "${IPA_NAME}" 2>/dev/null || stat -c%s "${IPA_NAME}")
+          BUILD_VER="${GITHUB_RUN_NUMBER}"
           cat > altstore-source.json <<EOF
           {
-            "sourceURL": "https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${IPA_NAME}",
-            "appIDs": ["${BUNDLE_ID}"],
-            "betaIDs": ["${BUNDLE_ID}"],
-            "apps": [],
-            "versions": [
+            "name": "Taxi Radar",
+            "subtitle": "Радар и Live Activity для таксистов",
+            "description": "TaxiRadar — мониторинг надбавки и радаров с Live Activities/Dynamic Island.",
+            "apps": [
               {
-                "version": "${APP_VERSION}",
-                "buildID": "${GITHUB_RUN_NUMBER}",
-                "appID": "${BUNDLE_ID}",
-                "bundleID": "${BUNDLE_ID}",
-                "bundleShortVersionString": "${APP_VERSION}",
-                "bundleVersion": "${BUILD_NUMBER}",
-                "displayVersion": "${APP_VERSION}",
-                "minimumOSVersion": "15.0",
-                "releaseNotes": "Сборка ${RELEASE_TAG} из коммита ${GITHUB_SHA}."
+                "name": "Taxi Radar",
+                "bundleIdentifier": "${BUNDLE_ID}",
+                "developerName": "TaxiRadar",
+                "localizedDescription": "Мониторинг надбавок и радаров с отображением в Dynamic Island.",
+                "iconURL": "https://raw.githubusercontent.com/${{ github.repository }}/flutter/assets/icon/app_icon.png",
+                "tintColor": "#1F2533",
+                "categories": ["navigation"],
+                "versions": [
+                  {
+                    "version": "${APP_VERSION}",
+                    "buildVersion": "${BUILD_VER}",
+                    "date": "$(date -u +%Y-%m-%d)",
+                    "localizedDescription": "Сборка ${RELEASE_TAG} (${GITHUB_SHA::7})",
+                    "downloadURL": "${IPA_URL}",
+                    "size": ${SIZE_BYTES},
+                    "minOSVersion": "15.0"
+                  }
+                ]
               }
             ]
           }
