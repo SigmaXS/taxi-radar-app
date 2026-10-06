@@ -4,33 +4,78 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_widget_pill"
-    android:gravity="center"
+    android:gravity="center_vertical"
     android:minWidth="72dp"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:paddingHorizontal="16dp"
     android:paddingVertical="10dp">
 
-    <TextView
-        android:id="@+id/tvWidgetSurge"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:includeFontPadding="false"
-        android:lineSpacingExtra="3dp"
-        android:text="…"
-        android:textColor="@color/tr_accent"
-        android:textSize="19sp"
-        android:textStyle="bold" />
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvWidgetSurge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="3dp"
+            android:text="…"
+            android:textColor="@color/tr_accent"
+            android:textSize="19sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvWidgetSub"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxWidth="220dp"
+            android:textColor="@color/tr_text_secondary"
+            android:textSize="11sp"
+            android:visibility="gone" />
+
+        <!-- «+»: отметить на дороге то, что видит водитель, — увидят все -->
+        <LinearLayout
+            android:id="@+id/layoutReportMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/btnRepRadar"
+                style="@style/WidgetReportButton"
+                android:text="📸" />
+
+            <TextView
+                android:id="@+id/btnRepPolice"
+                style="@style/WidgetReportButton"
+                android:text="🚓" />
+
+            <TextView
+                android:id="@+id/btnRepDanger"
+                style="@style/WidgetReportButton"
+                android:text="⚠️" />
+        </LinearLayout>
+    </LinearLayout>
 
     <TextView
-        android:id="@+id/tvWidgetSub"
+        android:id="@+id/btnWidgetPlus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
-        android:gravity="center"
+        android:layout_marginStart="8dp"
         android:includeFontPadding="false"
-        android:maxWidth="220dp"
-        android:textColor="@color/tr_text_secondary"
-        android:textSize="11sp"
-        android:visibility="gone" />
+        android:paddingVertical="4dp"
+        android:paddingStart="4dp"
+        android:text="+"
+        android:textColor="@color/tr_text_muted"
+        android:textSize="20sp"
+        android:textStyle="bold" />
 </com.example.taxiradar.WidgetPillLayout>

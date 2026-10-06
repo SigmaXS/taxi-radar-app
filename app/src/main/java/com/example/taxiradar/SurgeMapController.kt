@@ -108,6 +108,13 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
             }
         }))
 
+        setupRotation(root)
+        setupSearch(root)
+        val layers = root.findViewById<View>(R.id.layoutMapLayers)
+        root.findViewById<View>(R.id.btnMapLayers).setOnClickListener {
+            layers.visibility = if (layers.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }
+
         root.findViewById<View>(R.id.btnMapMyLocation).setOnClickListener { centerOnMe() }
         root.findViewById<View>(R.id.fabReport).setOnClickListener {
             showAddReport(myMarker?.position ?: GeoPoint(FloatingWidgetService.driverLat, FloatingWidgetService.driverLon))
@@ -137,6 +144,58 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
         chipDark.setOnCheckedChangeListener { _, on ->
             prefs.edit().putBoolean("map_dark", on).apply()
             applyNight(on)
+        }
+    }
+
+    /**
+     * Вращение двумя пальцами. Компас появляется, когда карта повёрнута:
+     * стрелка показывает на север, нажатие — север снова вверх.
+     */
+    private fun setupRotation(root: View) {
+        val compass = root.findViewById<View>(R.id.btnMapCompass)
+        map.overlays.add(org.osmdroid.views.overlay.gestures.RotationGestureOverlay(map).apply { isEnabled = true })
+        // Оверлей без рисования: на каждой перерисовке сверяем угол карты с компасом.
+        map.overlays.add(object : org.osmdroid.views.overlay.Overlay() {
+            override fun draw(c: Canvas?, osmv: MapView?, shadow: Boolean) {
+                if (shadow) return
+                val angle = map.mapOrientation
+                val rotated = angle % 360f != 0f
+                compass.rotation = angle
+                val want = if (rotated) View.VISIBLE else View.GONE
+                if (compass.visibility != want) compass.post { compass.visibility = want }
+            }
+        })
+        compass.setOnClickListener {
+            map.mapOrientation = 0f
+            map.invalidate()
+        }
+    }
+
+    /** Поиск адреса: флажок переезжает туда и показывает спрос в этом месте. */
+    private fun setupSearch(root: View) {
+        val input = root.findViewById<android.widget.EditText>(R.id.etMapSearch)
+        input.setOnEditorActionListener { v, actionId, event ->
+            val enter = event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN
+            if (actionId != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH && !enter) return@setOnEditorActionListener false
+            val query = v.text.toString().trim()
+            if (query.length < 3) return@setOnEditorActionListener true
+            activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                ?.hideSoftInputFromWindow(v.windowToken, 0)
+            v.clearFocus()
+            scope.launch {
+                val found = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    runCatching { RouteFareCalculator.locate(activity, query) }.getOrNull()
+                }
+                if (found == null) {
+                    android.widget.Toast.makeText(activity, R.string.map_search_not_found, android.widget.Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val point = GeoPoint(found.first, found.second)
+                map.controller.setZoom(16.0)
+                map.controller.animateTo(point)
+                probe(point)
+            }
+            true
         }
     }
 

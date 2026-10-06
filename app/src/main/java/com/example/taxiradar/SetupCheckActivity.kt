@@ -132,7 +132,9 @@ class SetupCheckActivity : AppCompatActivity() {
         val accEnabled = isAccessibilityEnabledInSettings()
         val accConnected = OrderAccessibilityService.isConnected
         list += when {
-            accConnected -> Check(getString(R.string.chk_acc), State.OK, getString(R.string.chk_acc_ok))
+            accConnected -> Check(getString(R.string.chk_acc), State.OK, getString(R.string.chk_acc_ok), getString(R.string.setup_open)) {
+                openAccessibilitySettings()
+            }
             accEnabled -> Check(
                 getString(R.string.chk_acc), State.FAIL,
                 getString(R.string.chk_acc_stuck),
@@ -149,7 +151,7 @@ class SetupCheckActivity : AppCompatActivity() {
                 getString(R.string.chk_acc_open)
             ) { openAccessibilitySettings() }
         }
-        if (!accEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list += Check(
                 getString(R.string.chk_restricted), State.MANUAL,
                 getString(R.string.chk_restricted_hint),
@@ -159,7 +161,12 @@ class SetupCheckActivity : AppCompatActivity() {
 
         // 2. Окно поверх Яндекс Про.
         list += if (Settings.canDrawOverlays(this)) {
-            Check(getString(R.string.chk_overlay), State.OK, getString(R.string.chk_overlay_ok))
+            Check(getString(R.string.chk_overlay), State.OK, getString(R.string.chk_overlay_ok), getString(R.string.setup_open)) {
+                openFirst(
+                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
+                    appDetailsIntent()
+                )
+            }
         } else {
             Check(getString(R.string.chk_overlay), State.FAIL, getString(R.string.chk_overlay_fail), getString(R.string.setup_allow)) {
                 openFirst(
@@ -172,7 +179,9 @@ class SetupCheckActivity : AppCompatActivity() {
         // 3. Батарея.
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         list += if (pm.isIgnoringBatteryOptimizations(packageName)) {
-            Check(getString(R.string.chk_battery), State.OK, getString(R.string.chk_battery_ok))
+            Check(getString(R.string.chk_battery), State.OK, getString(R.string.chk_battery_ok), getString(R.string.setup_open)) {
+                openFirst(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS), appDetailsIntent())
+            }
         } else {
             Check(getString(R.string.chk_battery), State.FAIL, getString(R.string.chk_battery_fail), getString(R.string.setup_allow)) {
                 requestIgnoreBattery()
@@ -183,7 +192,9 @@ class SetupCheckActivity : AppCompatActivity() {
         list += if (hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
             hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
         ) {
-            Check(getString(R.string.chk_location), State.OK, getString(R.string.chk_location_ok))
+            Check(getString(R.string.chk_location), State.OK, getString(R.string.chk_location_ok), getString(R.string.setup_open)) {
+                openAppDetails()
+            }
         } else {
             Check(getString(R.string.chk_location), State.MANUAL, getString(R.string.chk_location_optional), getString(R.string.setup_allow)) {
                 locationLauncher.launch(
@@ -192,13 +203,20 @@ class SetupCheckActivity : AppCompatActivity() {
             }
         }
 
-        // 5. Уведомления (Android 13+): без них фоновая служба радара хуже держится.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            list += if (hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
-                Check(getString(R.string.chk_notif), State.OK, getString(R.string.chk_notif_ok))
-            } else {
-                Check(getString(R.string.chk_notif), State.FAIL, getString(R.string.chk_notif_fail), getString(R.string.setup_allow)) {
+        // 5. Уведомления: «Ещё здесь?» у меток, клиенты, значок радара. На любой
+        // версии Android их можно выключить в настройках (Xiaomi — часто сам).
+        val notifOn = androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled() &&
+                (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasPermission(Manifest.permission.POST_NOTIFICATIONS))
+        list += if (notifOn) {
+            Check(getString(R.string.chk_notif), State.OK, getString(R.string.chk_notif_ok), getString(R.string.setup_open)) {
+                openNotificationSettings()
+            }
+        } else {
+            Check(getString(R.string.chk_notif), State.FAIL, getString(R.string.chk_notif_fail), getString(R.string.setup_allow)) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
                     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    openNotificationSettings()
                 }
             }
         }
@@ -211,7 +229,7 @@ class SetupCheckActivity : AppCompatActivity() {
 
         // 7. Подписка.
         list += if (LicenseManager(this).isLicensed()) {
-            Check(getString(R.string.chk_license), State.OK, getString(R.string.chk_license_ok))
+            Check(getString(R.string.chk_license), State.OK, getString(R.string.chk_license_ok), getString(R.string.chk_license_go)) { finish() }
         } else {
             Check(getString(R.string.chk_license), State.FAIL, getString(R.string.chk_license_fail), getString(R.string.chk_license_go)) { finish() }
         }

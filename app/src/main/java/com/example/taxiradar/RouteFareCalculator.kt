@@ -128,7 +128,9 @@ object RouteFareCalculator {
         val osrmMin: Double,
         /** Разбивка маршрута — чтобы пересчитать цену по данным навигатора Яндекса. */
         val cityKm: Double,
-        val outOfCityKm: Double
+        val outOfCityKm: Double,
+        /** Сколько заездов реально вошло в маршрут (сомнительные отброшены). */
+        val stops: Int = 0
     )
 
     /**
@@ -162,16 +164,26 @@ object RouteFareCalculator {
                 }.awaitAll()
             }
 
-            // Если не нашлась хоть одна точка — цена будет неверной, лучше не показывать.
+            // Не нашлись А или Б — цена будет неверной, лучше не показывать.
             points.forEachIndexed { i, p ->
                 if (p == null) {
                     Log.e("FARE_CALC", "Геокодирование не удалось: \"${addresses[i]}\"")
-                    return@withContext null
+                    if (i == 0 || i == points.lastIndex) return@withContext null
+                } else {
+                    Log.d("FARE_CALC", "Точка ${i + 1}: ${addresses[i]} -> ${p.lat},${p.lon}")
                 }
-                Log.d("FARE_CALC", "Точка ${i + 1}: ${addresses[i]} -> ${p.lat},${p.lon}")
+            }
+            val from = points.first()!!
+            val to = points.last()!!
+            // Заезд, который не нашёлся или стоит почти у А/Б (тот же дом,
+            // подъезд, дубль адреса), — не заезд: строим маршрут без него.
+            val stops = points.subList(1, points.size - 1).filterNotNull().filter { s ->
+                val near = distanceKm(s.lat, s.lon, from.lat, from.lon) < 0.3 || distanceKm(s.lat, s.lon, to.lat, to.lon) < 0.3
+                if (near) Log.d("FARE_CALC", "Заезд у самой точки А/Б — не считаем")
+                !near
             }
 
-            val route = getRouteWithZoneSplit(points.filterNotNull())
+            val route = getRouteWithZoneSplit(listOf(from) + stops + to)
             if (route == null) {
                 Log.e("FARE_CALC", "OSRM не вернул маршрут (сервер недоступен или code != Ok)")
                 return@withContext null
@@ -193,7 +205,8 @@ object RouteFareCalculator {
                 durationMin = Math.round(minutes).toInt(),
                 osrmMin = route.durationMin,
                 cityKm = route.cityKm,
-                outOfCityKm = route.outOfCityKm
+                outOfCityKm = route.outOfCityKm,
+                stops = stops.size
             )
         } catch (e: Exception) {
             Log.e("FARE_CALC", "Исключение при расчёте цены: ${e.message}", e)
@@ -496,23 +509,17 @@ object RouteFareCalculator {
 
                 if (members.length() == 0) return null
 
-                var best: LatLng? = null
-                var bestDist = Double.MAX_VALUE
-                for (i in 0 until members.length()) {
-                    val point = members.getJSONObject(i)
-                        .getJSONObject("GeoObject")
-                        .getJSONObject("Point")
-                        .getString("pos") // формат Яндекса: "долгота широта"
-                    val parts = point.split(" ")
-                    val lon = parts[0].toDouble()
-                    val lat = parts[1].toDouble()
-                    val dist = haversineKm(lat, lon, CITY_CENTER_LAT, CITY_CENTER_LON)
-                    if (dist < bestDist) {
-                        bestDist = dist
-                        best = LatLng(lat = lat, lon = lon)
-                    }
-                }
-                return best
+                // Яндекс сортирует варианты по точности. Берём первый точный (дом)
+                // не дальше 150 км, иначе — первый в этих пределах. Раньше брали
+                // ближайший к центру — и уезжали на середину длинной улицы.
+                val candidates = (0 until members.length()).map { i ->
+                    val geo = members.getJSONObject(i).getJSONObject("GeoObject")
+                    val parts = geo.getJSONObject("Point").getString("pos").split(" ") // "долгота широта"
+                    val precision = geo.optJSONObject("metaDataProperty")
+                        ?.optJSONObject("GeocoderMetaData")?.optString("precision").orEmpty()
+                    LatLng(lat = parts[1].toDouble(), lon = parts[0].toDouble()) to precision
+                }.filter { haversineKm(it.first.lat, it.first.lon, CITY_CENTER_LAT, CITY_CENTER_LON) <= MAX_DISTANCE_KM }
+                return (candidates.firstOrNull { it.second in GOOD_PRECISION } ?: candidates.firstOrNull())?.first
             }
         } catch (e: Exception) {
             Log.e("FARE_CALC", "Яндекс Геокодер: исключение ${e.message}")
@@ -535,6 +542,9 @@ object RouteFareCalculator {
     // Точка дальше этого от центра Кишинёва — почти наверняка Геокодер ошибся
     // («Gara de Nord» он находит в Бухаресте). Лучше без цены, чем с неверной.
     private const val MAX_DISTANCE_KM = 150.0
+
+    // Яндекс уверен в точке: дом найден точно / по номеру / рядом.
+    private val GOOD_PRECISION = setOf("exact", "number", "near")
 
     private val reportedMisses = LinkedHashSet<String>()
 

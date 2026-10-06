@@ -83,6 +83,8 @@ class FloatingWidgetService : Service() {
     private var floatingView: View? = null
     private var tvWidgetSurge: TextView? = null
     private var tvWidgetSub: TextView? = null
+    private var btnPlus: TextView? = null
+    private var reportMenu: View? = null
     private lateinit var licenseManager: LicenseManager
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -113,6 +115,7 @@ class FloatingWidgetService : Service() {
             floatingView = LayoutInflater.from(this).inflate(R.layout.layout_floating_widget, null)
             tvWidgetSurge = floatingView?.findViewById(R.id.tvWidgetSurge)
             tvWidgetSub = floatingView?.findViewById(R.id.tvWidgetSub)
+            setupReportMenu()
             applyScale()
 
             val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -204,6 +207,10 @@ class FloatingWidgetService : Service() {
             minimumWidth = (72 * dp).toInt()
         }
         tvWidgetSub?.maxWidth = (220 * dp).toInt()
+        btnPlus?.textSize = 20f * scale
+        (reportMenu as? ViewGroup)?.let { menu ->
+            for (i in 0 until menu.childCount) (menu.getChildAt(i) as? TextView)?.textSize = 24f * scale
+        }
         (tvWidgetSub?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = (3 * dp).toInt()
         setOrderSize(orderSize)
         floatingView?.requestLayout()
@@ -237,7 +244,10 @@ class FloatingWidgetService : Service() {
     private var roadJob: Job? = null
     @Volatile
     private var roadReports: List<RoadReports.Report> = emptyList()
-    private val alertedReports = mutableSetOf<Long>()
+    // Сколько метров было до метки на прошлой точке GPS и какое предупреждение уже было:
+    // 1 — «через 400 м», 2 — «через 100 м». Отъехали дальше 700 м — забываем.
+    private val lastDistance = mutableMapOf<Long, Int>()
+    private val alertStage = mutableMapOf<Long, Int>()
     private val askedReports = mutableSetOf<Long>()
 
     /** Раз в 1,5 минуты подгружаем метки вокруг водителя (только дорожные). */
@@ -256,26 +266,103 @@ class FloatingWidgetService : Service() {
     }
 
     /**
-     * Подъезжаем к метке: ближе 500 м — предупреждение на виджете (если сейчас
-     * не висит цена заказа), ближе 120 м — «Ещё здесь?» в уведомлении.
+     * Едем К метке — предупреждаем дважды: за 400 м и за 100 м (уведомление
+     * со звуком и, если не висит цена заказа, на виджете). Удаляемся от
+     * метки или стоим — молчим. Проехали её — «Ещё здесь?» с кнопками.
      */
     private fun checkRoadReports(lat: Double, lon: Double) {
         val dist = FloatArray(1)
         for (r in roadReports) {
             android.location.Location.distanceBetween(lat, lon, r.lat, r.lon, dist)
             val meters = dist[0].toInt()
-            val type = RoadReports.type(r.type) ?: continue
-            if (meters < 500 && r.id !in alertedReports && !isShowingOrder) {
-                alertedReports += r.id
-                displayNote(
-                    "${type.emoji} " + getString(R.string.road_ahead, getString(type.label)),
-                    getString(R.string.road_ahead_dist, (meters / 10) * 10),
-                    R.color.tr_warning, 7_000
-                )
+            val prev = lastDistance.put(r.id, meters)
+            if (meters > 700) {
+                alertStage.remove(r.id)
+                continue
             }
-            if (meters < 120 && r.id !in askedReports && !r.voted) {
+            // Приближаемся: за последние секунды стали ближе хотя бы на 15 м.
+            val approaching = prev != null && meters < prev - 15
+            val stage = alertStage[r.id] ?: 0
+            val next = when {
+                approaching && meters <= 150 && stage < 2 -> 2
+                approaching && meters <= 450 && stage < 1 -> 1
+                else -> 0
+            }
+            if (next > 0) {
+                alertStage[r.id] = next
+                warnAhead(r, meters)
+            }
+            // Были у самой метки и отъезжаем — спрашиваем, на месте ли она.
+            if (prev != null && prev < 120 && meters > prev && r.id !in askedReports && !r.voted) {
                 askedReports += r.id
                 RoadReports.askStillHere(this, r)
+            }
+        }
+    }
+
+    private fun warnAhead(r: RoadReports.Report, meters: Int) {
+        val type = RoadReports.type(r.type) ?: return
+        val rounded = maxOf(50, (meters / 50) * 50)
+        RoadReports.notifyAhead(this, r, rounded)
+        if (!isShowingOrder) {
+            displayNote(
+                "${type.emoji} " + getString(R.string.road_ahead, getString(type.label)),
+                getString(R.string.road_ahead_dist, rounded),
+                R.color.tr_warning, 7_000
+            )
+        }
+    }
+
+    // ---------- «+» на виджете: отметить радар, полицию, опасность ----------
+
+    private var menuCloseJob: Job? = null
+
+    private fun setupReportMenu() {
+        btnPlus = floatingView?.findViewById(R.id.btnWidgetPlus)
+        reportMenu = floatingView?.findViewById(R.id.layoutReportMenu)
+        btnPlus?.setOnClickListener { toggleReportMenu(reportMenu?.visibility != View.VISIBLE) }
+        mapOf(R.id.btnRepRadar to "radar", R.id.btnRepPolice to "police", R.id.btnRepDanger to "danger").forEach { (id, key) ->
+            floatingView?.findViewById<View>(id)?.setOnClickListener {
+                toggleReportMenu(false)
+                sendReport(key)
+            }
+        }
+    }
+
+    private fun toggleReportMenu(open: Boolean) {
+        reportMenu?.visibility = if (open) View.VISIBLE else View.GONE
+        btnPlus?.text = if (open) "✕" else "+"
+        menuCloseJob?.cancel()
+        // Открыли и забыли — само закроется, чтобы не мешало навигатору.
+        if (open) menuCloseJob = serviceScope.launch {
+            delay(8_000)
+            withContext(Dispatchers.Main) { toggleReportMenu(false) }
+        }
+    }
+
+    private fun sendReport(key: String) {
+        val type = RoadReports.type(key) ?: return
+        serviceScope.launch {
+            if (!awaitFix()) {
+                withContext(Dispatchers.Main) {
+                    displayNote(getString(R.string.widget_report_no_fix), getString(R.string.widget_report_no_fix_hint), R.color.tr_warning, 5_000)
+                }
+                return@launch
+            }
+            val r = RoadReports.add(this@FloatingWidgetService, key, driverLat, driverLon)
+            withContext(Dispatchers.Main) {
+                if (r?.first == true) {
+                    displayNote(
+                        "${type.emoji} " + getString(R.string.widget_report_sent, getString(type.label)),
+                        getString(R.string.widget_report_sent_hint), R.color.tr_success, 4_000
+                    )
+                } else {
+                    displayNote(
+                        getString(R.string.widget_report_failed),
+                        r?.second?.takeIf { it.isNotBlank() } ?: getString(R.string.chk_key_no_network),
+                        R.color.tr_danger, 5_000
+                    )
+                }
             }
         }
     }
@@ -287,10 +374,11 @@ class FloatingWidgetService : Service() {
     private fun initFusedGps() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        // Экономный режим (вышки и Wi-Fi, GPS по возможности) раз в 8 секунд:
-        // «высокая точность» каждые 1,5 с грела телефон и сажала батарею.
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 8000L).apply {
-            setMinUpdateIntervalMillis(4000L)
+        // Для предупреждений «через 100 м» нужен GPS: по вышкам и Wi-Fi точка
+        // гуляет на сотню метров. Раз в 4 секунды, а не каждые 1,5 с, как когда-то
+        // (тогда телефон грелся). GPS и так включён — им ведёт навигатор Яндекса.
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 4000L).apply {
+            setMinUpdateIntervalMillis(3000L)
             setWaitForAccurateLocation(false)
         }.build()
 
@@ -496,28 +584,34 @@ class FloatingWidgetService : Service() {
         val showComfort = prefs.getBoolean("show_comfort", false)
         val showComfortPlus = prefs.getBoolean("show_comfortplus", false)
 
-        val results = mutableListOf<String>()
         var hasSurge = false
 
-        if (showEconom) {
-            val s = YandexTaxiSurgeChecker.getSurgePrice(driverLon, driverLat, "econom")
-            val text = if (s != null && s > 0) { hasSurge = true; "+$s" } else "0"
-            results.add("${getString(R.string.tariff_econom_short)}: $text")
+        // Каждый тариф — «буква + надбавка» в одну строку: «Э+35  К0».
+        // Столбиком из трёх строк кружок закрывал полэкрана на маленьких телефонах.
+        val tariffs = listOfNotNull(
+            if (showEconom) R.string.tariff_econom_short to "econom" else null,
+            if (showComfort) R.string.tariff_comfort_short to "comfort" else null,
+            if (showComfortPlus) R.string.tariff_comfort_plus_short to "comfortplus" else null
+        )
+        val parts = tariffs.map { (label, key) ->
+            val s = YandexTaxiSurgeChecker.getSurgePrice(driverLon, driverLat, key)
+            val value = if (s != null && s > 0) { hasSurge = true; "+$s" } else "0"
+            getString(label) to value
         }
-
-        if (showComfort) {
-            val s = YandexTaxiSurgeChecker.getSurgePrice(driverLon, driverLat, "comfort")
-            val text = if (s != null && s > 0) { hasSurge = true; "+$s" } else "0"
-            results.add("${getString(R.string.tariff_comfort_short)}: $text")
+        val displayText: CharSequence = when (parts.size) {
+            0 -> "0"
+            1 -> parts[0].second
+            else -> SpannableStringBuilder().apply {
+                parts.forEachIndexed { i, (label, value) ->
+                    if (i > 0) append("  ")
+                    val start = length
+                    append(label)
+                    setSpan(ForegroundColorSpan(getColor(R.color.tr_text_muted)), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    setSpan(android.text.style.RelativeSizeSpan(0.7f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    append(value)
+                }
+            }
         }
-
-        if (showComfortPlus) {
-            val s = YandexTaxiSurgeChecker.getSurgePrice(driverLon, driverLat, "comfortplus")
-            val text = if (s != null && s > 0) { hasSurge = true; "+$s" } else "0"
-            results.add("${getString(R.string.tariff_comfort_plus_short)}: $text")
-        }
-
-        val displayText = if (results.isNotEmpty()) results.joinToString("\n") else "0"
 
         withContext(Dispatchers.Main) {
             if (!isShowingOrder) {
@@ -583,6 +677,7 @@ class FloatingWidgetService : Service() {
         autoUpdateJob?.cancel()
         orderDisplayJob?.cancel()
         roadJob?.cancel()
+        menuCloseJob?.cancel()
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
         if (floatingView != null) {
             windowManager?.removeView(floatingView)

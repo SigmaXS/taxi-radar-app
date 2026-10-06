@@ -225,6 +225,8 @@ class OrderAccessibilityService : AccessibilityService() {
                 allLines.subList(addrAIndex + 1, markerBIndex)
                     .filter { it.length > 3 && !isServiceWord(it) && it.any { c -> c.isLetter() } }
                     .map { stripHiddenLinesSuffix(it).take(60) }
+                    .filter { looksLikeStop(it, addrA, allLines.getOrNull(markerBIndex + 1).orEmpty()) }
+                    .distinct()
             } else {
                 emptyList()
             }
@@ -748,7 +750,7 @@ class OrderAccessibilityService : AccessibilityService() {
                     km = result.distanceKm,
                     min = result.durationMin,
                     pickupKm = pickupKm,
-                    stops = route.size - 2,
+                    stops = result.stops,
                     bonus = surgeBonus
                 )
             } else {
@@ -802,6 +804,27 @@ class OrderAccessibilityService : AccessibilityService() {
         return trimmed == cyr.toString() || trimmed == lat.toString() ||
                 trimmed.endsWith(", $cyr") || trimmed.endsWith(",$cyr") ||
                 trimmed.endsWith(", $lat") || trimmed.endsWith(",$lat")
+    }
+
+    // Слова, по которым строка похожа на адрес, а не на город или пометку.
+    private val streetWordRegex = Regex(
+        """(?i)(^|[\s,.])(str|strada|stradela|bd|bul|bulevardul|șos|şos|sos|soseaua|șoseaua|aleea|piața|piata|calea|ул|улица|пр|проспект|бул|бульвар|шоссе|пер|переулок|село|satul|sat|com)[\s.,]"""
+    )
+    private val entranceRegex = Regex("""(?i)^(entrance|подъезд|scara|scară|poarta|ворота|этаж|etaj|кв|ap)\b""")
+
+    /**
+     * Строка между А и Б — настоящий заезд, а не скрытый дубль адреса, город
+     * («Chișinău»), подъезд или комментарий. Раньше такая строка считалась
+     * заездом: на виджете «1 остановка», а маршрут шёл через центр города.
+     */
+    private fun looksLikeStop(line: String, addrA: String, addrB: String): Boolean {
+        val l = line.trim().lowercase()
+        val a = stripHiddenLinesSuffix(addrA).lowercase()
+        val b = stripHiddenLinesSuffix(addrB).lowercase()
+        if (a.isNotEmpty() && (l.contains(a) || a.contains(l))) return false
+        if (b.isNotEmpty() && (l.contains(b) || b.contains(l))) return false
+        if (entranceRegex.containsMatchIn(l)) return false
+        return l.any { it.isDigit() } || streetWordRegex.containsMatchIn(" $l ")
     }
 
     /**

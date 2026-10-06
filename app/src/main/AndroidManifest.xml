@@ -15,6 +15,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!-- Уведомления (Android 13+): без этой строки система не даёт их включить даже вручную -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Оптимизация батареи -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 

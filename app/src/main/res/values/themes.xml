@@ -71,4 +71,13 @@
     <style name="TaxiRadar.NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
         <item name="android:color">@color/tr_surface_high</item>
     </style>
+    <!-- Кнопки «Радар / Полиция / Опасность» в меню «+» плавающего виджета -->
+    <style name="WidgetReportButton" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingHorizontal">7dp</item>
+        <item name="android:paddingVertical">2dp</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
 </resources>

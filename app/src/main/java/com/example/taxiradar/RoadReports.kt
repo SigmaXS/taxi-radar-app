@@ -18,6 +18,7 @@ object RoadReports {
     val TYPES = listOf(
         Type("police", "🚓", R.string.rep_police, true, 0xFF1565C0.toInt()),
         Type("radar", "📸", R.string.rep_radar, true, 0xFF6A1B9A.toInt()),
+        Type("danger", "⚠️", R.string.rep_danger, true, 0xFFF9A825.toInt()),
         Type("accident", "💥", R.string.rep_accident, true, 0xFFC62828.toInt()),
         Type("closure", "⛔", R.string.rep_closure, true, 0xFF8E0000.toInt()),
         Type("jam", "🚦", R.string.rep_jam, true, 0xFFEF6C00.toInt()),
@@ -31,10 +32,11 @@ object RoadReports {
 
     /**
      * «Предупреждать в дороге»: только при включённом переключателе радар
-     * следит за GPS (метки на дороге, очередь в аэропорту). По умолчанию выкл.
+     * следит за GPS (метки на дороге, очередь в аэропорту). С 1.16 по
+     * умолчанию вкл. — иначе предупреждения о радарах почти никто не видел.
      */
     fun alertsEnabled(context: Context) =
-        context.getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE).getBoolean("road_alerts", false)
+        context.getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE).getBoolean("road_alerts", true)
 
     fun setAlertsEnabled(context: Context, on: Boolean) {
         context.getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE).edit().putBoolean("road_alerts", on).apply()
@@ -111,6 +113,33 @@ object RoadReports {
     }
 
     const val ROAD_NOTIFICATION_ID = 303
+
+    /** «📸 Радар через 400 м» — со звуком, видно поверх навигатора. */
+    fun notifyAhead(context: Context, r: Report, meters: Int) {
+        val type = type(r.type) ?: return
+        val nm = context.getSystemService(android.app.NotificationManager::class.java) ?: return
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(
+                android.app.NotificationChannel(
+                    "road_alert", context.getString(R.string.road_alert_channel), android.app.NotificationManager.IMPORTANCE_HIGH
+                )
+            )
+        }
+        val n = androidx.core.app.NotificationCompat.Builder(context, "road_alert")
+            .setSmallIcon(R.drawable.ic_map)
+            .setContentTitle(context.getString(R.string.road_ahead_at, "${type.emoji} ${context.getString(type.label)}", meters))
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+            .setCategory(androidx.core.app.NotificationCompat.CATEGORY_NAVIGATION)
+            .setTimeoutAfter(30_000)
+            .setAutoCancel(true)
+            .build()
+        try {
+            nm.notify(ROAD_ALERT_ID, n)
+        } catch (e: SecurityException) {
+        }
+    }
+
+    private const val ROAD_ALERT_ID = 304
 
     /** Кружок со значком для карты. */
     fun icon(context: Context, emoji: String, sizeDp: Int = 34): Drawable {
