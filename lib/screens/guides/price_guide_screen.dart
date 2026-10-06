@@ -9,7 +9,8 @@ import '../../ui/ds.dart';
 import 'guide_widgets.dart';
 import 'order_price_view.dart';
 
-/// Инструкция «Показ цены заказа»: быстрая команда + AssistiveTouch, со схемами и проверкой.
+/// Инструкция «Показ цены заказа»: быстрая команда + AssistiveTouch, по шагам,
+/// со схемами и кнопками, которые открывают нужное место.
 class PriceGuideScreen extends StatefulWidget {
   const PriceGuideScreen({super.key});
 
@@ -18,7 +19,7 @@ class PriceGuideScreen extends StatefulWidget {
 }
 
 class _PriceGuideScreenState extends State<PriceGuideScreen> {
-  // Так выглядит текст, распознанный со скриншота карточки Яндекс Про.
+  // Так выглядит текст, распознанный со снимка карточки Яндекс Про.
   final _sample = TextEditingController(
     text: 'Omite\nPrioritate: -4\nstr. ISMAIL\n1,5 km · 5 min.\nPreluare apropiată\nA\nstrada Calea Basarabiei, 8\n'
         'B\nstrada Alecu Russo, 63/2, entrance 1\nPasager\npoarta 3\n+35 L\nAcceptă',
@@ -44,6 +45,48 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
     LiveActivityService.processScannedOrder(priced);
   }
 
+  Future<void> _open(List<String> urls) async {
+    for (final u in urls) {
+      try {
+        if (await launchUrl(Uri.parse(u), mode: LaunchMode.externalApplication)) return;
+      } catch (_) {}
+    }
+  }
+
+  /// Нужное место в Настройках. Apple не всегда даёт открыть подраздел из приложения —
+  /// тогда откроются просто Настройки, дальше по схеме.
+  void _openTouchSettings() => _open([
+        'App-prefs:ACCESSIBILITY&path=TOUCH_REACHABLE_TITLE/ASSISTIVE_TOUCH_SWITCH',
+        'App-prefs:ACCESSIBILITY&path=TOUCH_REACHABLE_TITLE',
+        'App-prefs:ACCESSIBILITY',
+        'App-prefs:',
+        'app-settings:',
+      ]);
+
+  Widget _rows(List<Widget> rows) => SizedBox(
+        width: 280,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Column(
+            children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                if (i > 0) Container(height: 0.5, color: DS.separator(context)),
+                rows[i],
+              ],
+            ],
+          ),
+        ),
+      );
+
+  Widget _buttons(List<Widget> buttons) => DSInset(
+        padding: const EdgeInsets.fromLTRB(DS.gutter, 0, DS.gutter, DS.s8),
+        child: Column(
+          children: [
+            for (var i = 0; i < buttons.length; i++) ...[if (i > 0) const SizedBox(height: DS.s8), buttons[i]],
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final t = AppStrings.t;
@@ -54,24 +97,28 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
           child: Text(
             t(
               'iPhone не даёт приложениям читать экран Яндекс Про. Поэтому цену узнаём по снимку: одно касание '
-                  'полупрозрачной кнопки — и сверху приходит баннер с ценой, км и минутами. Снимок никуда не сохраняется.',
+                  'полупрозрачной кнопки — и сверху приходит баннер с ценой, км и минутами. Снимок нигде не сохраняется. '
+                  'Настраивается один раз, минут за пять.',
               'iPhone nu permite aplicațiilor să citească ecranul Yandex Pro. De aceea prețul se află din captură: o atingere '
-                  'a butonului semitransparent — și sus apare un banner cu prețul, km și minute. Captura nu se salvează.',
+                  'a butonului semitransparent — și sus apare un banner cu prețul, km și minute. Captura nu se salvează. '
+                  'Se configurează o singură dată, în cinci minute.',
             ),
             style: DS.callout.copyWith(color: DS.label2(context), height: 1.35),
           ),
         ),
+
+        // ---------- 1. Быстрая команда ----------
         GuideStep(
           n: 1,
           title: t('Создайте быструю команду', 'Creați o comandă rapidă'),
           text: t(
             'Откройте «Команды» → «+» вверху справа → нажмите на название → «Переименовать» → «Taxi Radar». '
-                'Дальше внизу в «Поиске действий» вводите название и добавляйте 5 действий по порядку:',
+                'Внизу в «Поиске действий» вводите название и нажимайте на действие. Нужно 4 действия по порядку:',
             'Deschideți «Comenzi» → «+» sus în dreapta → apăsați pe nume → «Redenumește» → «Taxi Radar». '
-                'Apoi jos în «Căutare acțiuni» scrieți numele și adăugați 5 acțiuni în ordine:',
+                'Jos în «Căutare acțiuni» scrieți numele și apăsați pe acțiune. Sunt necesare 4 acțiuni în ordine:',
           ),
           picture: SizedBox(
-            width: 270,
+            width: 280,
             child: Column(
               children: [
                 MockShortcutAction(
@@ -84,86 +131,122 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
                     text: t('2. «Извлечь текст из изображения» — само возьмёт снимок',
                         '2. «Extrage textul din imagine» — ia singur captura')),
                 MockShortcutAction(
-                    icon: CupertinoIcons.link,
+                    icon: CupertinoIcons.doc_on_clipboard_fill,
                     color: CupertinoColors.systemGrey,
-                    text: t('3. «Кодировать URL» — оставьте «Закодировать Текст»',
-                        '3. «Codifică URL» — lăsați «Codifică Text»')),
-                MockShortcutAction(
-                    icon: CupertinoIcons.link_circle_fill,
-                    color: CupertinoColors.systemIndigo,
-                    text: t('4. «URL»: taxiradar://order?text= и сразу за «=» кнопка «Закодированный текст» над клавиатурой',
-                        '4. «URL»: taxiradar://order?text= și imediat după «=» butonul «Text codificat» de deasupra tastaturii')),
+                    text: t('3. «Скопировать в буфер обмена» — само возьмёт текст',
+                        '3. «Copiază în clipboard» — ia singur textul')),
                 MockShortcutAction(
                     icon: CupertinoIcons.globe,
                     color: CupertinoColors.systemTeal,
-                    text: t('5. «Открыть URL-адреса» — само возьмёт URL', '5. «Deschide URL-urile» — ia singur URL-ul')),
+                    text: t('4. «Открыть URL-адреса» → вставьте taxiradar://order', '4. «Deschide URL-urile» → lipiți taxiradar://order')),
               ],
             ),
           ),
         ),
-        DSInset(
-          padding: const EdgeInsets.fromLTRB(DS.gutter, 0, DS.gutter, DS.s8),
-          child: Column(
-            children: [
-              DSButton(
-                t('Скопировать адрес для шага 4', 'Copiază adresa pentru pasul 4'),
-                icon: CupertinoIcons.doc_on_doc,
-                secondary: true,
-                onPressed: () {
-                  Clipboard.setData(const ClipboardData(text: 'taxiradar://order?text='));
-                  dsToast(context, t('Скопировано: taxiradar://order?text=', 'Copiat: taxiradar://order?text='));
-                },
-              ),
-              const SizedBox(height: DS.s8),
-              DSButton(
-                t('Открыть «Команды»', 'Deschide «Comenzi»'),
-                icon: CupertinoIcons.square_stack_3d_up_fill,
-                secondary: true,
-                onPressed: () => launchUrl(Uri.parse('shortcuts://'), mode: LaunchMode.externalApplication),
-              ),
-            ],
+        _buttons([
+          DSButton(
+            t('Скопировать taxiradar://order', 'Copiază taxiradar://order'),
+            icon: CupertinoIcons.doc_on_doc,
+            secondary: true,
+            onPressed: () {
+              Clipboard.setData(const ClipboardData(text: 'taxiradar://order'));
+              dsToast(context, t('Скопировано — вставьте в 4-е действие', 'Copiat — lipiți în acțiunea 4'));
+            },
           ),
-        ),
+          DSButton(
+            t('Открыть «Команды»', 'Deschide «Comenzi»'),
+            icon: CupertinoIcons.square_stack_3d_up_fill,
+            secondary: true,
+            onPressed: () => _open(['shortcuts://create-shortcut', 'shortcuts://']),
+          ),
+        ]),
+
+        // ---------- 2. Вставка из буфера ----------
         GuideStep(
           n: 2,
-          title: t('Включите AssistiveTouch', 'Activați AssistiveTouch'),
+          title: t('Разрешите вставку', 'Permiteți lipirea'),
           text: t(
-            'Настройки → Универсальный доступ → Касание → AssistiveTouch. «Непрозрачность в покое» — 15–20 %, '
-                'чтобы точка не мешала карте.',
-            'Setări → Accesibilitate → Atingere → AssistiveTouch. «Opacitate inactivă» — 15–20 %, '
-                'ca punctul să nu încurce harta.',
+            'Чтобы iPhone не спрашивал «Разрешить вставку?» при каждом заказе: Настройки → Taxi Radar → '
+                '«Вставка из других приложений» → «Разрешить».',
+            'Ca iPhone să nu întrebe «Permiteți lipirea?» la fiecare comandă: Setări → Taxi Radar → '
+                '«Lipire din alte aplicații» → «Permite».',
           ),
-          picture: SizedBox(
-            width: 260,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Column(
-                children: [
-                  MockSettingsRow(icon: CupertinoIcons.hand_point_right_fill, color: CupertinoColors.systemBlue, title: t('Касание', 'Atingere')),
-                  Container(height: 0.5, color: DS.separator(context)),
-                  MockSettingsRow(icon: CupertinoIcons.circle_grid_3x3_fill, color: CupertinoColors.systemGrey, title: 'AssistiveTouch', on: true),
-                ],
-              ),
-            ),
-          ),
+          picture: _rows([
+            MockSettingsRow(icon: CupertinoIcons.dot_radiowaves_left_right, color: const Color(0xFF1C1C1E), title: 'Taxi Radar'),
+            MockSettingsRow(
+                icon: CupertinoIcons.doc_on_clipboard_fill,
+                color: CupertinoColors.systemGrey,
+                title: t('Вставка из других приложений: Разрешить', 'Lipire din alte aplicații: Permite')),
+          ]),
         ),
+        _buttons([
+          DSButton(
+            t('Открыть настройки Taxi Radar', 'Deschide setările Taxi Radar'),
+            icon: CupertinoIcons.gear_alt_fill,
+            secondary: true,
+            onPressed: () => _open(['app-settings:']),
+          ),
+        ]),
+
+        // ---------- 3. AssistiveTouch ----------
         GuideStep(
           n: 3,
-          title: t('Назначьте команду на одно касание', 'Atribuiți comanda la o atingere'),
+          title: t('Включите кнопку AssistiveTouch', 'Activați butonul AssistiveTouch'),
           text: t(
-            'Там же: «Настройка действий» → «Одно касание» → внизу «Быстрые команды» → «Taxi Radar».',
-            'Tot acolo: «Personalizare acțiuni» → «O atingere» → jos «Comenzi rapide» → «Taxi Radar».',
+            'Настройки → Универсальный доступ → Касание → AssistiveTouch → включите. '
+                '«Непрозрачность в покое» — 15–20 %, чтобы точка не мешала карте.',
+            'Setări → Accesibilitate → Atingere → AssistiveTouch → activați. '
+                '«Opacitate inactivă» — 15–20 %, ca punctul să nu încurce harta.',
           ),
+          picture: _rows([
+            MockSettingsRow(
+                icon: CupertinoIcons.person_crop_circle_fill_badge_checkmark,
+                color: CupertinoColors.systemBlue,
+                title: t('Универсальный доступ', 'Accesibilitate')),
+            MockSettingsRow(icon: CupertinoIcons.hand_point_right_fill, color: CupertinoColors.systemBlue, title: t('Касание', 'Atingere')),
+            MockSettingsRow(icon: CupertinoIcons.circle_grid_3x3_fill, color: CupertinoColors.systemGrey, title: 'AssistiveTouch', on: true),
+            MockSettingsRow(
+                icon: CupertinoIcons.circle_lefthalf_fill,
+                color: CupertinoColors.systemGrey,
+                title: t('Непрозрачность в покое: 20 %', 'Opacitate inactivă: 20 %')),
+          ]),
         ),
+        _buttons([
+          DSButton(
+            t('Открыть Настройки', 'Deschide Setările'),
+            icon: CupertinoIcons.settings,
+            secondary: true,
+            onPressed: _openTouchSettings,
+          ),
+        ]),
+
+        // ---------- 4. Одно касание → команда ----------
         GuideStep(
           n: 4,
+          title: t('Назначьте команду на одно касание', 'Atribuiți comanda la o atingere'),
+          text: t(
+            'Там же, в AssistiveTouch: «Настройка действий» → «Одно касание» → пролистайте вниз до «Быстрые команды» → «Taxi Radar».',
+            'Tot în AssistiveTouch: «Personalizare acțiuni» → «O atingere» → derulați jos la «Comenzi rapide» → «Taxi Radar».',
+          ),
+          picture: _rows([
+            MockSettingsRow(icon: CupertinoIcons.slider_horizontal_3, color: CupertinoColors.systemGrey, title: t('Настройка действий', 'Personalizare acțiuni')),
+            MockSettingsRow(icon: CupertinoIcons.hand_draw_fill, color: CupertinoColors.systemBlue, title: t('Одно касание', 'O atingere')),
+            MockSettingsRow(icon: CupertinoIcons.square_stack_3d_up_fill, color: CupertinoColors.systemIndigo, title: 'Taxi Radar  ✓'),
+          ]),
+        ),
+
+        // ---------- 5. Пользуемся ----------
+        GuideStep(
+          n: 5,
           title: t('Пришёл заказ — коснитесь точки', 'A venit o comandă — atingeți punctul'),
           text: t(
-            'Через секунду-две сверху — цена по маршруту и надбавка. Включённый радар не нужен.',
-            'În 1–2 secunde sus apare prețul pe traseu și adaosul. Radarul pornit nu e necesar.',
+            'Откроется Taxi Radar и сверху придёт баннер с ценой по маршруту. Вернитесь в Яндекс Про — '
+                'баннер останется в шторке.',
+            'Se deschide Taxi Radar și sus apare un banner cu prețul pe traseu. Reveniți în Yandex Pro — '
+                'bannerul rămâne în centrul de notificări.',
           ),
           picture: SizedBox(
-            width: 260,
+            width: 280,
             child: MockBanner(
               icon: CupertinoIcons.car_fill,
               color: DS.success,
@@ -172,6 +255,7 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
             ),
           ),
         ),
+
         DSSection(
           header: t('Проверка распознавания', 'Verificarea recunoașterii'),
           footer: t(

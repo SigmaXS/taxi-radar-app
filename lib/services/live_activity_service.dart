@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'community_service.dart';
 import 'order_parser_service.dart';
+import '../l10n/app_strings.dart';
 import 'radar_alerts.dart';
 import 'road_alerts.dart';
 import 'yandex_surge_service.dart';
@@ -88,23 +89,48 @@ class LiveActivityService {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onUrl') {
         final url = call.arguments as String?;
-        if (url != null) handleIncomingUrl(url);
+        if (url != null) await handleIncomingUrl(url);
       }
     });
+    // Запустили «с нуля» из команды — ссылка ждёт в нативной части.
+    try {
+      final initial = await _channel.invokeMethod<String>('initialUrl');
+      if (initial != null && initial.isNotEmpty) {
+        // Дать приложению подняться: буфер обмена читается, когда оно уже на экране.
+        Future.delayed(const Duration(milliseconds: 600), () => handleIncomingUrl(initial));
+      }
+    } catch (_) {}
   }
 
   /// Обработка входящего URL (taxiradar://order?text=...)
-  static void handleIncomingUrl(String url) {
+  static Future<void> handleIncomingUrl(String url) async {
     try {
       final uri = Uri.parse(url);
+      if (uri.host != 'order') return;
       String text = uri.queryParameters['text'] ?? '';
       if (text.isEmpty && uri.queryParameters['data'] != null) {
         text = uri.queryParameters['data']!;
       }
-      if (text.isEmpty && uri.path.isNotEmpty) {
+      if (text.isEmpty && uri.path.length > 1) {
         text = Uri.decodeComponent(uri.path);
       }
-      if (text.isNotEmpty) {
+      // Новая команда кладёт распознанный текст в буфер и открывает taxiradar://order
+      // без переменных (в старой водитель часто забывал вставить «Закодированный текст»).
+      if (text.trim().isEmpty) {
+        text = (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+      }
+      if (text.trim().isEmpty) {
+        _diag('Ссылка пришла без текста карточки');
+        await RadarAlerts.notify(
+          'radar_order',
+          AppStrings.t('Текст со снимка не дошёл', 'Textul din captură nu a ajuns'),
+          AppStrings.t('Проверьте команду: шаг «Скопировать в буфер обмена»',
+              'Verificați comanda: pasul «Copiază în clipboard»'),
+        );
+        return;
+      }
+      _diag('Карточка со снимка: ${text.length} символов');
+      {
         // Доставку не считаем — как в Android.
         if (OrderParserService.isDelivery(text.split('\n').map((l) => l.trim()).toList())) return;
         final order = OrderParserService.parse(text);

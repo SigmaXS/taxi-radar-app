@@ -6,6 +6,8 @@ import UserNotifications
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     private static var channel: FlutterMethodChannel?
+    /// Ссылка, с которой приложение запустили «с нуля» (до готовности Flutter).
+    static var pendingUrl: String?
     private static var channelReady = false
     private static var engineInitialized = false
 
@@ -114,6 +116,10 @@ import UserNotifications
             center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
                 DispatchQueue.main.async { result(error == nil) }
             }
+        case "initialUrl":
+            let url = AppDelegate.pendingUrl
+            AppDelegate.pendingUrl = nil
+            result(url)
         case "removeNotification":
             let id = args["id"] as? String ?? ""
             center.removeDeliveredNotifications(withIdentifiers: [id])

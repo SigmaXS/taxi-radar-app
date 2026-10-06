@@ -88,17 +88,14 @@ String orderTariffLabel(String ru) => switch (ru) {
 
 /// Что сказать водителю, когда надбавка изменилась (null — молчим). Отдельно от
 /// отправки, чтобы правила можно было проверить тестами.
+/// Коротко, чтобы читалось с одного взгляда: «+15 → +35».
 String? surgeChangeMessage(int? previous, int current, RadarAlertSettings s) {
   if (previous == null || previous == current) return null;
-  final name = s.tariffName;
-  if (current > previous) {
-    if (!s.onUp || current < s.minSurge || current <= 0) return null;
-    return previous == 0
-        ? AppStrings.t('Надбавка появилась: $name +$current', 'A apărut adaos: $name +$current')
-        : AppStrings.t('Надбавка выросла: $name +$current (было +$previous)', 'Adaosul a crescut: $name +$current (era +$previous)');
-  }
-  if (current == 0) return s.onGone ? AppStrings.t('Надбавка пропала: $name 0', 'Adaosul a dispărut: $name 0') : null;
-  return s.onDown ? AppStrings.t('Надбавка упала: $name +$current (было +$previous)', 'Adaosul a scăzut: $name +$current (era +$previous)') : null;
+  String f(int v) => v > 0 ? '+$v' : '0';
+  final title = '${f(previous)} → ${f(current)}';
+  if (current > previous) return s.onUp && current > 0 && current >= s.minSurge ? title : null;
+  if (current == 0) return s.onGone ? title : null;
+  return s.onDown ? title : null;
 }
 
 /// Оповещения радара на iPhone без острова: цифра на иконке, тихий статус
@@ -145,7 +142,9 @@ class RadarAlerts {
     }
     final msg = surgeChangeMessage(_lastSurge, surge, s);
     _lastSurge = surge;
-    if (msg != null) await _notify('radar_change', msg, 'Taxi Radar', sound: s.sound);
+    if (msg != null) {
+      await _notify('radar_change', msg, AppStrings.t('Надбавка · ${s.tariffName}', 'Adaos · ${s.tariffName}'), sound: s.sound);
+    }
   }
 
   /// Цена заказа: «считаю…» тихо, потом тот же баннер с ценой — громко.
