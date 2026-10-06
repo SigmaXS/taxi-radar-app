@@ -199,11 +199,11 @@ class SetupCheckActivity : AppCompatActivity() {
         list += if (hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
             hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
         ) {
-            Check(getString(R.string.chk_location), State.OK, getString(R.string.chk_location_ok), getString(R.string.setup_open)) {
+            Check(getString(R.string.chk_location), State.OK, getString(R.string.chk_location_ok) + "\n" + LocationDiag.describe(this), getString(R.string.setup_open)) {
                 openAppDetails()
             }
         } else {
-            Check(getString(R.string.chk_location), State.MANUAL, getString(R.string.chk_location_optional), getString(R.string.setup_allow)) {
+            Check(getString(R.string.chk_location), State.MANUAL, getString(R.string.chk_location_optional) + "\n" + LocationDiag.describe(this), getString(R.string.setup_allow)) {
                 locationLauncher.launch(
                     arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
                 )
