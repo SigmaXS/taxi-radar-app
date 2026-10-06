@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.provider.Settings
 import android.widget.Toast
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.launch
 
 /**
  * Включение «Специальных возможностей» для радара. На части устройств
@@ -66,7 +67,8 @@ object AccessibilityAccess {
         }
         val prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val last = prefs.getLong(KEY_OPENED_AT, 0L)
-        if (System.currentTimeMillis() - last < 60_000) {
+        // Мультимедиа BYD: экран настроек там не открывается — сразу обходные пути.
+        if (isCarHeadUnit() || System.currentTimeMillis() - last < 60_000) {
             showWorkarounds(activity)
             return
         }
@@ -96,8 +98,14 @@ object AccessibilityAccess {
     fun adbCommand(context: Context) =
         "adb shell pm grant ${context.packageName} android.permission.WRITE_SECURE_SETTINGS"
 
+    fun isCarHeadUnit(): Boolean {
+        val b = (android.os.Build.MANUFACTURER + " " + android.os.Build.BRAND + " " + android.os.Build.MODEL).lowercase()
+        return b.contains("byd") || b.contains("dilink")
+    }
+
     fun showWorkarounds(activity: Activity) {
         val items = arrayOf(
+            activity.getString(R.string.acc_way_network_adb),
             activity.getString(R.string.acc_way_service_page),
             activity.getString(R.string.acc_way_all_settings),
             activity.getString(R.string.acc_way_computer)
@@ -106,13 +114,48 @@ object AccessibilityAccess {
             .setTitle(R.string.acc_way_title)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> openServicePage(activity)
-                    1 -> start(activity, Intent(Settings.ACTION_SETTINGS))
+                    0 -> showNetworkAdbWay(activity)
+                    1 -> openServicePage(activity)
+                    2 -> start(activity, Intent(Settings.ACTION_SETTINGS))
                     else -> showComputerWay(activity)
                 }
             }
             .setNegativeButton(R.string.close, null)
             .show()
+    }
+
+    /** Без компьютера: отладка по сети на самом устройстве (как делает BYDMate). */
+    private fun showNetworkAdbWay(activity: Activity) {
+        MaterialAlertDialogBuilder(activity)
+            .setTitle(R.string.acc_way_network_adb)
+            .setMessage(R.string.acc_network_adb_text)
+            .setPositiveButton(R.string.acc_network_adb_go) { _, _ -> runNetworkAdb(activity) }
+            .setNeutralButton(R.string.acc_open_dev_options) { _, _ ->
+                if (!start(activity, Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))) start(activity, Intent(Settings.ACTION_SETTINGS))
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
+    }
+
+    private fun runNetworkAdb(activity: Activity) {
+        // Ключи отладки делаются средствами Android 8+; на старых — только через компьютер.
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
+            showComputerWay(activity)
+            return
+        }
+        Toast.makeText(activity, R.string.acc_network_adb_wait, Toast.LENGTH_LONG).show()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            val r = AdbSelfGrant.grant(activity)
+            if (activity.isFinishing) return@launch
+            val msg = when (r) {
+                AdbSelfGrant.Result.GRANTED ->
+                    if (enableSelf(activity)) R.string.acc_self_enabled else R.string.acc_self_failed
+                AdbSelfGrant.Result.NO_ADB -> R.string.acc_network_adb_off
+                AdbSelfGrant.Result.NOT_ALLOWED -> R.string.acc_network_adb_denied
+                AdbSelfGrant.Result.FAILED -> R.string.acc_network_adb_failed
+            }
+            MaterialAlertDialogBuilder(activity).setMessage(msg).setPositiveButton(R.string.got_it, null).show()
+        }
     }
 
     private fun showComputerWay(activity: Activity) {

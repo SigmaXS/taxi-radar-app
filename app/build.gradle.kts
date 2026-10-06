@@ -83,6 +83,13 @@ dependencies {
     // Карта спроса (OpenStreetMap, без ключей)
     implementation("org.osmdroid:osmdroid-android:6.1.18")
 
+    // ADB-клиент (Apache 2.0): на мультимедиа машин (BYD) экран «Спец. возможности»
+    // падает — радар подключается к отладке по сети на самом устройстве и выдаёт себе
+    // право включить свою службу.
+    implementation("dev.mobile:dadb:1.2.9") {
+        exclude(group = "org.graalvm.buildtools")
+    }
+
     // Зависимости для тестов (убирают ошибки Unresolved reference)
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

@@ -176,6 +176,21 @@
     <string name="chk_location_fail">Necesară pentru a arăta suplimentul acolo unde stați</string>
     <string name="acc_self_enabled">Accesibilitatea pentru Taxi Radar este activată</string>
     <string name="acc_self_failed">Nu s-a putut activa — deschideți setările manual</string>
+    <string name="acc_way_network_adb">Activează automat (depanare prin rețea, fără calculator)</string>
+    <string name="acc_network_adb_text">Așa se activează și alte aplicații pentru mașini (de ex. BYDMate).
+
+1. Setări → Despre sistem → apăsați de 7 ori pe «Număr versiune».
+2. În «Opțiuni dezvoltator» activați «Depanare USB» și «Depanare prin rețea» (ADB prin Wi-Fi / Depanare wireless).
+3. Reveniți aici și apăsați «Conectează».
+4. Pe ecran apare «Permiteți depanarea?» — bifați «Permite mereu» și apăsați «Permite».
+
+Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezactiva după.</string>
+    <string name="acc_network_adb_go">Conectează</string>
+    <string name="acc_open_dev_options">Opțiuni dezvoltator</string>
+    <string name="acc_network_adb_wait">Mă conectez… Dacă apare «Permiteți depanarea?» — apăsați «Permite»</string>
+    <string name="acc_network_adb_off">Depanarea prin rețea este dezactivată. Activați-o în «Opțiuni dezvoltator» (pasul 2) și apăsați din nou «Conectează».</string>
+    <string name="acc_network_adb_denied">Depanarea nu a fost permisă sau nu ați apucat să apăsați «Permite». Apăsați din nou «Conectează» și confirmați pe ecran.</string>
+    <string name="acc_network_adb_failed">Nu s-a putut acorda permisiunea. Încercați varianta «prin calculator».</string>
     <string name="acc_way_title">Nu se deschide «Accesibilitate»?</string>
     <string name="acc_way_service_page">Deschide direct pagina Taxi Radar</string>
     <string name="acc_way_all_settings">Deschide toate setările (găsiți singur «Accesibilitate»)</string>
