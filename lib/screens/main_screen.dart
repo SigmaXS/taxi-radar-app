@@ -99,7 +99,7 @@ class _MainScreenState extends State<MainScreen> {
         index: _currentIndex,
         children: [
           RadarTab(license: _license, config: _config, onRefresh: _syncData),
-          const MapTab(),
+          MapTab(config: _config),
           UsefulTab(
             unreadChat: _unreadChat,
             onChatOpened: () => setState(() => _unreadChat = 0),

@@ -4,6 +4,15 @@ import '../models/flight.dart';
 import '../models/report.dart';
 import 'api_service.dart';
 
+class FoundAddress {
+  final String name;
+  final String desc;
+  final double lat;
+  final double lon;
+  final double km;
+  const FoundAddress({required this.name, required this.desc, required this.lat, required this.lon, required this.km});
+}
+
 class ChatPage {
   final List<ChatMessage> messages;
   final Set<int> deleted;
@@ -95,6 +104,40 @@ class CommunityService {
       'still': still,
     });
     return res != null && res['ok'] == true;
+  }
+
+  // ---------- «ВАШИ ТОЧКИ» (места водителей) ----------
+  static Future<List<PlaceItem>> getPlaces(double lat, double lon) async {
+    final res = await ApiService.post('/api/places/list', {'lat': lat, 'lon': lon});
+    if (res == null || res['ok'] != true || res['places'] is! List) return [];
+    return (res['places'] as List).whereType<Map<String, dynamic>>().map(PlaceItem.fromJson).toList();
+  }
+
+  /// Текст ошибки или null.
+  static Future<String?> addPlace(String type, String name, String note, double lat, double lon) async {
+    final res = await ApiService.post('/api/places/add', {'type': type, 'name': name, 'note': note, 'lat': lat, 'lon': lon});
+    if (res == null) return 'Нет связи с сервером';
+    return res['ok'] == true ? null : (res['message']?.toString() ?? 'Ошибка');
+  }
+
+  /// vote: 1 — советую, -1 — не советую, 0 — убрать голос.
+  static Future<bool> votePlace(int id, int vote) async =>
+      (await ApiService.post('/api/places/vote', {'id': id, 'vote': vote}))?['ok'] == true;
+
+  static Future<bool> deletePlace(int id) async => (await ApiService.post('/api/places/delete', {'id': id}))?['ok'] == true;
+
+  // ---------- ПОИСК АДРЕСА НА КАРТЕ ----------
+  /// До 6 вариантов, ближайшие к водителю первыми. null — сервер без поиска (старый).
+  static Future<List<FoundAddress>?> searchAddress(String q, double lat, double lon) async {
+    final res = await ApiService.post('/api/geocode/search', {'q': q, 'lat': lat, 'lon': lon});
+    if (res == null || res['ok'] != true || res['results'] is! List) return null;
+    return (res['results'] as List).whereType<Map<String, dynamic>>().map((o) => FoundAddress(
+          name: o['name']?.toString() ?? q,
+          desc: o['desc']?.toString() ?? '',
+          lat: (o['lat'] as num).toDouble(),
+          lon: (o['lon'] as num).toDouble(),
+          km: (o['km'] as num?)?.toDouble() ?? 0,
+        )).toList();
   }
 
   // ---------- AIRPORT ----------

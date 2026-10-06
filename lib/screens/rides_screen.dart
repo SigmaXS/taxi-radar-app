@@ -1,8 +1,13 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../l10n/app_strings.dart';
 import '../models/ride_item.dart';
 import '../services/rides_service.dart';
+import '../ui/ds.dart';
 
+/// «Попутчики»: заявки пассажиров и машин из групп, поиск по направлению.
 class RidesScreen extends StatefulWidget {
   const RidesScreen({super.key});
 
@@ -11,10 +16,10 @@ class RidesScreen extends StatefulWidget {
 }
 
 class _RidesScreenState extends State<RidesScreen> {
-  final TextEditingController _fromController = TextEditingController();
-  final TextEditingController _toController = TextEditingController();
+  final _fromController = TextEditingController();
+  final _toController = TextEditingController();
 
-  String _kind = 'passenger'; // 'passenger' or 'driver'
+  String _kind = 'passenger'; // passenger | driver
   List<RideItem> _rides = [];
   List<String> _places = [];
   int _total = 0;
@@ -23,6 +28,14 @@ class _RidesScreenState extends State<RidesScreen> {
   bool _isLoading = false;
   bool _isLoadingMore = false;
   String? _errorMessage;
+
+  // Быстрые направления: подпись на языке приложения → код для сервера.
+  static List<(String, String)> get _regions => [
+        (AppStrings.t('В ПМР', 'Spre Transnistria'), '@pmr'),
+        (AppStrings.t('В Молдову', 'Spre Moldova'), '@md'),
+        (AppStrings.t('В Украину', 'Spre Ucraina'), '@ua'),
+        (AppStrings.t('В Европу', 'Spre Europa'), '@eu'),
+      ];
 
   @override
   void initState() {
@@ -38,429 +51,264 @@ class _RidesScreenState extends State<RidesScreen> {
 
   Future<void> _performSearch({bool append = false}) async {
     if (_isLoading || _isLoadingMore) return;
-
-    if (!append) {
-      setState(() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      if (append) {
+        _isLoadingMore = true;
+      } else {
         _isLoading = true;
         _errorMessage = null;
         _offset = 0;
         _rides = [];
-      });
-    } else {
-      setState(() => _isLoadingMore = true);
-    }
+      }
+    });
 
     final from = _fromController.text.trim();
-    String to = _toController.text.trim();
-    if (to == 'В ПМР') to = '@pmr';
-    if (to == 'В Молдову') to = '@md';
-    if (to == 'В Украину') to = '@ua';
-    if (to == 'В Европу') to = '@eu';
-
-    final res = await RidesService.searchRides(
-      kind: _kind,
-      from: from,
-      to: to,
-      offset: _offset,
-      limit: 20,
-    );
-
-    if (mounted) {
-      if (res != null) {
-        setState(() {
-          _total = res.total;
-          _routeTitle = res.route;
-          _offset += res.items.length;
-          if (append) {
-            _rides.addAll(res.items);
-          } else {
-            _rides = res.items;
-          }
-          _isLoading = false;
-          _isLoadingMore = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-          _isLoadingMore = false;
-          _errorMessage = 'Не удалось загрузить заявки';
-        });
-      }
+    var to = _toController.text.trim();
+    for (final r in _regions) {
+      if (to == r.$1) to = r.$2;
     }
+
+    final res = await RidesService.searchRides(kind: _kind, from: from, to: to, offset: _offset, limit: 20);
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _isLoadingMore = false;
+      if (res == null) {
+        _errorMessage = AppStrings.t('Не удалось загрузить заявки', 'Nu s-au putut încărca cererile');
+        return;
+      }
+      _total = res.total;
+      _routeTitle = res.route;
+      _offset += res.items.length;
+      append ? _rides.addAll(res.items) : _rides = res.items;
+    });
   }
 
-  void _swapDirections() {
-    final temp = _fromController.text;
+  void _swap() {
+    DS.tap();
+    final tmp = _fromController.text;
     _fromController.text = _toController.text;
-    _toController.text = temp;
+    _toController.text = tmp;
     _performSearch();
   }
 
-  void _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
+  void _open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121826),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1E2638),
-        elevation: 0,
-        title: const Text('Попутчики', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => _performSearch(),
-          ),
-        ],
+    final t = AppStrings.t;
+    final quick = [
+      ..._regions.map((r) => r.$1),
+      if (_places.isNotEmpty) ..._places.take(15) else ...['Кишинёв', 'Тирасполь', 'Бельцы', 'Бендеры', 'Рыбница'],
+    ];
+    return DSSubpage(
+      title: AppStrings.tileRides,
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () => _performSearch(),
+        child: Icon(CupertinoIcons.arrow_clockwise, color: DS.label(context)),
       ),
-      body: Column(
-        children: [
-          // Панель поиска
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: const Color(0xFF1E2638),
+      children: [
+        DSInset(
+          child: SizedBox(
+            width: double.infinity,
+            child: CupertinoSlidingSegmentedControl<String>(
+              groupValue: _kind,
+              children: {
+                'passenger': Text(t('Пассажиры', 'Pasageri')),
+                'driver': Text(t('Машины', 'Mașini')),
+              },
+              onValueChanged: (v) {
+                if (v == null) return;
+                DS.tap();
+                setState(() => _kind = v);
+                _performSearch();
+              },
+            ),
+          ),
+        ),
+        DSInset(
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    DSField(
+                      controller: _fromController,
+                      placeholder: t('Откуда (город)', 'De unde (oraș)'),
+                      prefixIcon: CupertinoIcons.circle,
+                      onSubmitted: (_) => _performSearch(),
+                    ),
+                    const SizedBox(height: DS.s8),
+                    DSField(
+                      controller: _toController,
+                      placeholder: t('Куда (город или страна)', 'Încotro (oraș sau țară)'),
+                      prefixIcon: CupertinoIcons.location_solid,
+                      onSubmitted: (_) => _performSearch(),
+                    ),
+                  ],
+                ),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.only(left: DS.s8),
+                onPressed: _swap,
+                child: Icon(CupertinoIcons.arrow_up_arrow_down, color: DS.label2(context)),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: DS.gutter),
+            itemCount: quick.length,
+            separatorBuilder: (_, _) => const SizedBox(width: DS.s8),
+            itemBuilder: (ctx, i) => GestureDetector(
+              onTap: () {
+                DS.tap();
+                _toController.text = quick[i];
+                _performSearch();
+              },
+              child: Container(
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(color: DS.fill(context), borderRadius: BorderRadius.circular(100)),
+                child: Text(quick[i], style: DS.subhead.copyWith(color: DS.label(context))),
+              ),
+            ),
+          ),
+        ),
+        DSInset(
+          padding: const EdgeInsets.fromLTRB(DS.gutter + 12, DS.s16, DS.gutter, 0),
+          child: Text(
+            _isLoading
+                ? t('Ищу…', 'Caut…')
+                : '${t('Найдено', 'Găsite')} $_total · ${_routeTitle.isNotEmpty ? _routeTitle : t('все направления', 'toate direcțiile')}',
+            style: DS.footnote.copyWith(color: DS.label2(context)),
+          ),
+        ),
+        if (_isLoading)
+          const Padding(padding: EdgeInsets.all(DS.s32), child: CupertinoActivityIndicator())
+        else if (_errorMessage != null)
+          Padding(
+            padding: const EdgeInsets.all(DS.s32),
             child: Column(
               children: [
-                // Переключатель Пассажиры / Машины
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(
-                      value: 'passenger',
-                      icon: Icon(Icons.person_rounded),
-                      label: Text('Пассажиры'),
-                    ),
-                    ButtonSegment(
-                      value: 'driver',
-                      icon: Icon(Icons.directions_car_rounded),
-                      label: Text('Машины'),
-                    ),
-                  ],
-                  selected: {_kind},
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.selected)) return Colors.amber.shade700;
-                      return const Color(0xFF2A364F);
-                    }),
-                    foregroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.selected)) return Colors.black;
-                      return Colors.white70;
-                    }),
-                  ),
-                  onSelectionChanged: (set) {
-                    setState(() => _kind = set.first);
-                    _performSearch();
-                  },
-                ),
-
-                const SizedBox(height: 12),
-
-                // Поля Откуда -> Куда с кнопкой реверса
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        children: [
-                          TextField(
-                            controller: _fromController,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
-                            decoration: InputDecoration(
-                              hintText: 'Откуда (город)',
-                              hintStyle: TextStyle(color: Colors.grey.shade400),
-                              filled: true,
-                              fillColor: const Color(0xFF2A364F),
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: _toController,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
-                            decoration: InputDecoration(
-                              hintText: 'Куда (город или страна)',
-                              hintStyle: TextStyle(color: Colors.grey.shade400),
-                              filled: true,
-                              fillColor: const Color(0xFF2A364F),
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Column(
-                      children: [
-                        IconButton.filled(
-                          style: IconButton.styleFrom(backgroundColor: const Color(0xFF2A364F)),
-                          icon: const Icon(Icons.swap_vert_rounded, color: Colors.amberAccent),
-                          tooltip: 'Поменять местами',
-                          onPressed: _swapDirections,
-                        ),
-                        IconButton.filled(
-                          style: IconButton.styleFrom(backgroundColor: Colors.amber.shade700),
-                          icon: const Icon(Icons.search_rounded, color: Colors.black),
-                          tooltip: 'Найти',
-                          onPressed: () => _performSearch(),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 8),
-
-                // Быстрые фильтры направлений
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      'В ПМР', 'В Молдову', 'В Украину', 'В Европу',
-                      if (_places.isNotEmpty) ..._places.take(15)
-                      else ...['Кишинёв', 'Тирасполь', 'Бельцы', 'Бендеры', 'Рыбница'],
-                    ].map((dest) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ActionChip(
-                          label: Text(dest, style: const TextStyle(fontSize: 11, color: Colors.white70)),
-                          backgroundColor: const Color(0xFF2A364F),
-                          padding: const EdgeInsets.all(2),
-                          onPressed: () {
-                            _toController.text = dest;
-                            _performSearch();
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
+                Icon(CupertinoIcons.wifi_slash, size: 40, color: DS.label3(context)),
+                const SizedBox(height: DS.s12),
+                Text(_errorMessage!, style: DS.subhead.copyWith(color: DS.label2(context))),
+                const SizedBox(height: DS.s16),
+                DSButton(t('Повторить', 'Reîncearcă'), secondary: true, onPressed: () => _performSearch()),
               ],
             ),
-          ),
-
-          // Статусная строка результатов
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: const Color(0xFF172033),
-            child: Text(
-              _isLoading
-                  ? 'Поиск попутчиков…'
-                  : 'Найдено $_total ${_kind == "driver" ? "машин" : "заявок"} · ${_routeTitle.isNotEmpty ? _routeTitle : "Все направления"}',
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+          )
+        else if (_rides.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(DS.s32),
+            child: Text(t('Заявок по этому маршруту нет', 'Nu sunt cereri pe această rută'),
+                textAlign: TextAlign.center, style: DS.subhead.copyWith(color: DS.label2(context))),
+          )
+        else ...[
+          ..._rides.map(_card),
+          if (_offset < _total)
+            DSInset(
+              child: DSButton(
+                t('Показать ещё (${_total - _offset})', 'Arată mai mult (${_total - _offset})'),
+                secondary: true,
+                loading: _isLoadingMore,
+                onPressed: () => _performSearch(append: true),
+              ),
             ),
-          ),
-
-          // Список заявок
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Colors.amberAccent))
-                : _errorMessage != null
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.cloud_off_rounded, color: Colors.white54, size: 48),
-                            const SizedBox(height: 10),
-                            Text(_errorMessage!, style: const TextStyle(color: Colors.white70)),
-                            const SizedBox(height: 12),
-                            ElevatedButton(
-                              onPressed: () => _performSearch(),
-                              child: const Text('Повторить'),
-                            ),
-                          ],
-                        ),
-                      )
-                    : _rides.isEmpty
-                        ? Center(
-                            child: Text(
-                              'Заявок по этому маршруту не найдено',
-                              style: TextStyle(color: Colors.grey.shade400),
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            itemCount: _rides.length + (_offset < _total ? 1 : 0),
-                            itemBuilder: (ctx, i) {
-                              if (i == _rides.length) {
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  child: Center(
-                                    child: _isLoadingMore
-                                        ? const CircularProgressIndicator(color: Colors.amberAccent)
-                                        : ElevatedButton.icon(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFF2A364F),
-                                              foregroundColor: Colors.white,
-                                            ),
-                                            icon: const Icon(Icons.expand_more_rounded),
-                                            label: Text('Загрузить ещё (${_total - _offset})'),
-                                            onPressed: () => _performSearch(append: true),
-                                          ),
-                                  ),
-                                );
-                              }
-
-                              final r = _rides[i];
-                              return _buildRideCard(r);
-                            },
-                          ),
-          ),
         ],
-      ),
+      ],
     );
   }
 
-  Widget _buildRideCard(RideItem r) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      color: const Color(0xFF1E2638),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Маршрут и тип (Пассажир / Машина / Перевозчик)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    '${r.from} → ${r.to}',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: r.kind == 'driver'
-                        ? (r.isCarrier ? Colors.purple.shade700 : Colors.teal.shade700)
-                        : Colors.blue.shade700,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    r.kind == 'driver'
-                        ? (r.isCarrier ? 'Перевозчик' : 'Едет машина')
-                        : 'Пассажир',
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            // Время и места
-            Wrap(
-              spacing: 12,
-              children: [
-                if (r.when.isNotEmpty)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.access_time_rounded, color: Colors.amberAccent, size: 14),
-                      const SizedBox(width: 4),
-                      Text(r.when, style: const TextStyle(color: Colors.amberAccent, fontSize: 12)),
-                    ],
-                  ),
-                if (r.people != null && r.people! > 0)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.people_alt_rounded, color: Colors.white70, size: 14),
-                      const SizedBox(width: 4),
-                      Text('${r.people} пасс.', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                    ],
-                  ),
-                if (r.seats != null && r.seats! > 0)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.airline_seat_recline_normal_rounded, color: Colors.greenAccent, size: 14),
-                      const SizedBox(width: 4),
-                      Text('${r.seats} мест', style: const TextStyle(color: Colors.greenAccent, fontSize: 12)),
-                    ],
-                  ),
-              ],
-            ),
-
-            if (r.text.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                r.text,
-                style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.3),
-              ),
+  Widget _card(RideItem r) {
+    final t = AppStrings.t;
+    final kindText = r.kind == 'driver'
+        ? (r.isCarrier ? t('Перевозчик', 'Transportator') : t('Едет машина', 'Merge mașina'))
+        : t('Пассажир', 'Pasager');
+    final kindColor = r.kind == 'driver' ? (r.isCarrier ? DS.surge : CupertinoColors.systemTeal) : DS.info;
+    final meta = <String>[
+      if (r.when.isNotEmpty) r.when,
+      if (r.people != null && r.people! > 0) '${r.people} ${t('пасс.', 'pas.')}',
+      if (r.seats != null && r.seats! > 0) '${r.seats} ${t('мест', 'locuri')}',
+    ];
+    final source = [r.source, r.author].where((s) => s != null && s.isNotEmpty).join(' · ');
+    return DSCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: Text('${r.from} → ${r.to}', style: DS.headline.copyWith(color: DS.label(context)))),
+              const SizedBox(width: DS.s8),
+              Text(kindText, style: DS.footnote.copyWith(color: DS.c(context, kindColor), fontWeight: FontWeight.w600)),
             ],
-
-            const SizedBox(height: 8),
-
-            // Источник
-            if (r.source != null || r.author != null)
-              Text(
-                [r.source, r.author].where((s) => s != null && s.isNotEmpty).join(' · '),
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
-              ),
-
-            const Divider(color: Colors.white10, height: 20),
-
-            // Кнопки связи (Позвонить / Написать / Группа)
+          ),
+          if (meta.isNotEmpty) ...[
+            const SizedBox(height: DS.s4),
+            Text(meta.join(' · '), style: DS.subhead.copyWith(color: DS.label2(context))),
+          ],
+          if (r.text.isNotEmpty) ...[
+            const SizedBox(height: DS.s8),
+            Text(r.text, style: DS.callout.copyWith(color: DS.label(context), height: 1.3)),
+          ],
+          if (source.isNotEmpty) ...[
+            const SizedBox(height: DS.s8),
+            Text(source, style: DS.caption.copyWith(color: DS.label3(context))),
+          ],
+          if (r.phone != null || r.telegram != null || r.groupLink != null) ...[
+            const SizedBox(height: DS.s12),
             Row(
               children: [
                 if (r.phone != null) ...[
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                      icon: const Icon(Icons.phone_rounded, size: 16),
-                      label: const Text('Позвонить', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                      onPressed: () => _openUrl('tel:${r.phone}'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+                  Expanded(child: _action(CupertinoIcons.phone_fill, t('Позвонить', 'Sună'), DS.success, () => _open('tel:${r.phone}'))),
+                  const SizedBox(width: DS.s8),
                 ],
                 if (r.telegram != null) ...[
                   Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0088CC),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                      icon: const Icon(Icons.telegram, size: 16),
-                      label: const Text('Написать', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                      onPressed: () => _openUrl('https://t.me/${r.telegram}'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+                      child: _action(CupertinoIcons.paperplane_fill, t('Написать', 'Scrie'), DS.telegram,
+                          () => _open('https://t.me/${r.telegram}'))),
+                  const SizedBox(width: DS.s8),
                 ],
                 if (r.groupLink != null)
-                  IconButton.filled(
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFF2A364F),
-                      foregroundColor: Colors.white70,
-                    ),
-                    icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                    tooltip: 'Открыть группу',
-                    onPressed: () => _openUrl(r.groupLink!),
+                  CupertinoButton(
+                    padding: const EdgeInsets.all(DS.s8),
+                    color: DS.fill(context),
+                    borderRadius: BorderRadius.circular(DS.rButton),
+                    minimumSize: const Size(40, 40),
+                    onPressed: () => _open(r.groupLink!),
+                    child: Icon(CupertinoIcons.arrow_up_right_square, size: 20, color: DS.label(context)),
                   ),
               ],
             ),
           ],
-        ),
+        ],
       ),
     );
   }
+
+  Widget _action(IconData icon, String label, Color color, VoidCallback onTap) => CupertinoButton(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        color: DS.c(context, color),
+        borderRadius: BorderRadius.circular(DS.rButton),
+        minimumSize: const Size(40, 40),
+        onPressed: () {
+          DS.tap();
+          onTap();
+        },
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(label, style: DS.subhead.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
 }

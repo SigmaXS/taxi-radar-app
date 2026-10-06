@@ -140,7 +140,8 @@ class LicenseService {
   }
 
   static Future<AppConfig> fetchAppConfig() async {
-    final res = await ApiService.post('/api/app-config');
+    // Сервер отдаёт настройки только по GET (раньше здесь был POST — и iPhone их не получал).
+    final res = await ApiService.get('/api/app-config');
     if (res != null) {
       return AppConfig.fromJson(res);
     }

@@ -124,6 +124,9 @@ class RadarAlerts {
     await _call('requestNotifications');
   }
 
+  static Future<void> notify(String id, String title, String body, {bool passive = false, bool sound = true}) =>
+      _notify(id, title, body, passive: passive, sound: sound);
+
   static Future<void> _notify(String id, String title, String body, {bool passive = false, bool sound = true}) =>
       _call('notify', {'id': id, 'title': title, 'body': body, 'passive': passive, 'sound': sound});
 

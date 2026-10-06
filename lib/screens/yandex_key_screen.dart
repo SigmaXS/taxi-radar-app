@@ -1,6 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../l10n/app_strings.dart';
+import '../ui/ds.dart';
+
+/// Свой ключ «API Геокодера» Яндекса — запасной поиск адресов.
 class YandexKeyScreen extends StatefulWidget {
   const YandexKeyScreen({super.key});
 
@@ -9,7 +14,7 @@ class YandexKeyScreen extends StatefulWidget {
 }
 
 class _YandexKeyScreenState extends State<YandexKeyScreen> {
-  final TextEditingController _keyController = TextEditingController();
+  final _keyController = TextEditingController();
   bool _hasSavedKey = false;
 
   @override
@@ -32,110 +37,71 @@ class _YandexKeyScreenState extends State<YandexKeyScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('custom_yandex_key', k);
     setState(() => _hasSavedKey = k.isNotEmpty);
-
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(k.isNotEmpty ? 'Ключ Яндекс API сохранён!' : 'Ключ удалён')),
-      );
+      dsToast(context, k.isNotEmpty ? AppStrings.t('Ключ сохранён', 'Cheia a fost salvată') : AppStrings.t('Ключ удалён', 'Cheia a fost ștearsă'));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121826),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1E2638),
-        elevation: 0,
-        title: const Text('Ключ Яндекс API', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        children: [
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: const Color(0xFF1E2638),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+    final t = AppStrings.t;
+    return DSSubpage(
+      title: t('Ключ Яндекс API', 'Cheia Yandex API'),
+      children: [
+        DSSection(
+          footer: t(
+            'Свой бесплатный ключ «API Геокодера» (1000 запросов в сутки) нужен, только если сервер недоступен.',
+            'Cheia gratuită proprie «API Geocoder» (1000 cereri pe zi) e necesară doar dacă serverul nu e disponibil.',
+          ),
+          children: [
+            DSRow(
+              icon: DSIcon(_hasSavedKey ? CupertinoIcons.checkmark_alt : CupertinoIcons.cloud_fill, _hasSavedKey ? DS.success : DS.info),
+              title: _hasSavedKey ? t('Свой ключ подключён', 'Cheia proprie este conectată') : t('Адреса ищет сервер Taxi Radar', 'Adresele le caută serverul Taxi Radar'),
+            ),
+          ],
+        ),
+        DSSection(
+          header: t('Ключ', 'Cheie'),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(DS.s12),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        _hasSavedKey ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-                        color: _hasSavedKey ? Colors.greenAccent : Colors.amberAccent,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _hasSavedKey ? 'Ключ подключён' : 'Используется общий сервер',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'По умолчанию адреса ищет сервер Taxi Radar. Вы можете указать свой личный бесплатный ключ «API Геокодера» из Кабинета разработчика Яндекса (1000 запросов в сутки).',
-                    style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _keyController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'API ключ Яндекса',
-                      labelStyle: TextStyle(color: Colors.grey.shade400),
-                      hintText: '1a2b3c4d-xxxx-xxxx-xxxx-...',
-                      hintStyle: TextStyle(color: Colors.white24),
-                      filled: true,
-                      fillColor: const Color(0xFF2A364F),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  DSField(controller: _keyController, placeholder: '1a2b3c4d-xxxx-xxxx-xxxx-…'),
+                  const SizedBox(height: DS.s12),
+                  DSButton(t('Сохранить', 'Salvează'), secondary: true, onPressed: _saveKey),
+                  if (_hasSavedKey) ...[
+                    const SizedBox(height: DS.s8),
+                    DSButton(
+                      t('Удалить ключ', 'Șterge cheia'),
+                      secondary: true,
+                      destructive: true,
+                      onPressed: () {
+                        _keyController.clear();
+                        _saveKey();
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.amber.shade700,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          onPressed: _saveKey,
-                          child: const Text('Сохранить ключ', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      if (_hasSavedKey) ...[
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                          onPressed: () {
-                            _keyController.clear();
-                            _saveKey();
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
+                  ],
                 ],
               ),
             ),
+          ],
+        ),
+        DSSection(
+          header: t('Как получить', 'Cum se obține'),
+          footer: t(
+            'Нажмите «Подключить API» → «API Геокодера», выберите бесплатный тариф и скопируйте ключ сюда.',
+            'Apăsați «Conectează API» → «API Geocoder», alegeți tariful gratuit și copiați cheia aici.',
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Инструкция по получению:',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '1. Перейдите на developer.tech.yandex.ru\n'
-            '2. Нажмите «Подключить API» → «API Геокодера».\n'
-            '3. Выберите бесплатный тариф и скопируйте созданный ключ сюда.',
-            style: TextStyle(color: Colors.white60, fontSize: 13, height: 1.5),
-          ),
-        ],
-      ),
+          children: [
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.globe, DS.danger),
+              title: 'developer.tech.yandex.ru',
+              onTap: () => launchUrl(Uri.parse('https://developer.tech.yandex.ru'), mode: LaunchMode.externalApplication),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

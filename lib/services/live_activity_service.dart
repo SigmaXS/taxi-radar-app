@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'community_service.dart';
 import 'order_parser_service.dart';
 import 'radar_alerts.dart';
+import 'road_alerts.dart';
 import 'yandex_surge_service.dart';
 
 class LiveActivityResult {
@@ -292,7 +293,7 @@ class LiveActivityService {
     final LocationSettings settings = Platform.isIOS
         ? AppleSettings(
             accuracy: LocationAccuracy.medium,
-            distanceFilter: 100,
+            distanceFilter: 30,
             activityType: ActivityType.automotiveNavigation,
             pauseLocationUpdatesAutomatically: false,
             allowBackgroundLocationUpdates: true,
@@ -301,7 +302,10 @@ class LiveActivityService {
         : const LocationSettings(accuracy: LocationAccuracy.medium, distanceFilter: 100);
     try {
       _positionSub = Geolocator.getPositionStream(locationSettings: settings)
-          .listen((p) => _lastPosition = p, onError: (e) => _diag('Геолокация в фоне: $e'));
+          .listen((p) {
+        _lastPosition = p;
+        RoadAlerts.onPosition(p);
+      }, onError: (e) => _diag('Геолокация в фоне: $e'));
     } catch (e) {
       _diag('Геолокация в фоне не запустилась: $e');
     }

@@ -67,6 +67,21 @@ class ApiService {
     return _cachedDeviceInfo!;
   }
 
+  /// GET без тела — например, /api/app-config (на POST сервер отвечает 404).
+  static Future<Map<String, dynamic>?> get(String path) async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl$path'), headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode < 200 || response.statusCode >= 300) return null;
+      final body = jsonDecode(utf8.decode(response.bodyBytes));
+      return body is Map<String, dynamic> ? body : null;
+    } catch (e) {
+      if (kDebugMode) print('API GET ERROR $path: $e');
+      return null;
+    }
+  }
+
   static Future<Map<String, dynamic>?> post(String path, [Map<String, dynamic>? body]) async {
     try {
       final deviceId = await getDeviceId();
