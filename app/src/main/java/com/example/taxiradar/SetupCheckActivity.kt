@@ -151,6 +151,13 @@ class SetupCheckActivity : AppCompatActivity() {
                 getString(R.string.chk_acc_open)
             ) { openAccessibilitySettings() }
         }
+        // Экран «Спец. возможности» вылетает (мультимедиа машин, урезанные прошивки).
+        if (!accConnected) {
+            list += Check(
+                getString(R.string.chk_acc_broken), State.MANUAL,
+                getString(R.string.chk_acc_broken_hint), getString(R.string.setup_open)
+            ) { AccessibilityAccess.showWorkarounds(this) }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list += Check(
                 getString(R.string.chk_restricted), State.MANUAL,
@@ -351,7 +358,7 @@ class SetupCheckActivity : AppCompatActivity() {
 
     private fun openAppDetails() = openFirst(appDetailsIntent())
 
-    private fun openAccessibilitySettings() = openFirst(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    private fun openAccessibilitySettings() = AccessibilityAccess.open(this)
 
     private fun openNotificationSettings() = openFirst(
         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName),

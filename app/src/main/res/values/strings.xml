@@ -177,6 +177,17 @@
     <string name="chk_location">Геолокация</string>
     <string name="chk_location_ok">Надбавка считается по вашему местоположению</string>
     <string name="chk_location_fail">Нужна, чтобы показывать надбавку там, где вы стоите</string>
+    <string name="acc_self_enabled">Специальные возможности для Taxi Radar включены</string>
+    <string name="acc_self_failed">Не получилось включить — откройте настройки вручную</string>
+    <string name="acc_way_title">Не открываются «Специальные возможности»?</string>
+    <string name="acc_way_service_page">Открыть страницу Taxi Radar напрямую</string>
+    <string name="acc_way_all_settings">Открыть все настройки (найдите «Спец. возможности» сами)</string>
+    <string name="acc_way_computer">Включить через компьютер (один раз)</string>
+    <string name="acc_computer_text">Если экран настроек на этом устройстве вылетает (так бывает в мультимедиа машин), подключите его к компьютеру с отладкой по USB и выполните одну команду:\n\n%1$s\n\nПосле этого вернитесь сюда и нажмите «Включить» — Taxi Radar включит себя сам, без экрана настроек.</string>
+    <string name="acc_copy_command">Скопировать команду</string>
+    <string name="acc_command_copied">Команда скопирована</string>
+    <string name="chk_acc_broken">Экран «Спец. возможности» вылетает?</string>
+    <string name="chk_acc_broken_hint">Бывает в мультимедиа машин (BYD и др.) — есть обходные пути</string>
     <string name="chk_notif">Уведомления</string>
     <string name="chk_notif_ok">Значок радара в шторке — значит, он работает</string>
     <string name="chk_notif_fail">Выключены — не придут предупреждения о радарах и полиции, а радар хуже держится в фоне. Если тумблер не нажимается — сначала «Ограниченные настройки» выше</string>

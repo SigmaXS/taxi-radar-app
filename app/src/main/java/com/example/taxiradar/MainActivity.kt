@@ -1091,11 +1091,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun openAccessibilitySettings() {
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        startActivity(intent)
-    }
+    // На урезанных прошивках (мультимедиа BYD) экран падает — там предложим обходные пути.
+    private fun openAccessibilitySettings() = AccessibilityAccess.open(this)
 
     private fun verifyAccessibilityBeforeStart() {
         if (!isAccessibilityServiceRunning()) {

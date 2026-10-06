@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Интернет и сеть -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -17,6 +18,12 @@
 
     <!-- Уведомления (Android 13+): без этой строки система не даёт их включить даже вручную -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Только если выдали с компьютера (adb pm grant): радар сам включает свою службу
+         на устройствах, где экран «Спец. возможности» падает (мультимедиа BYD) -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- Оптимизация батареи -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />

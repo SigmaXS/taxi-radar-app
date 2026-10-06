@@ -174,6 +174,17 @@
     <string name="chk_location">Localizare</string>
     <string name="chk_location_ok">Suplimentul se calculează după locația dvs.</string>
     <string name="chk_location_fail">Necesară pentru a arăta suplimentul acolo unde stați</string>
+    <string name="acc_self_enabled">Accesibilitatea pentru Taxi Radar este activată</string>
+    <string name="acc_self_failed">Nu s-a putut activa — deschideți setările manual</string>
+    <string name="acc_way_title">Nu se deschide «Accesibilitate»?</string>
+    <string name="acc_way_service_page">Deschide direct pagina Taxi Radar</string>
+    <string name="acc_way_all_settings">Deschide toate setările (găsiți singur «Accesibilitate»)</string>
+    <string name="acc_way_computer">Activează prin calculator (o singură dată)</string>
+    <string name="acc_computer_text">Dacă ecranul de setări se închide pe acest dispozitiv (se întâmplă la multimedia mașinilor), conectați-l la calculator cu depanarea USB și rulați o comandă:\n\n%1$s\n\nApoi reveniți aici și apăsați «Activează» — Taxi Radar se va activa singur, fără ecranul de setări.</string>
+    <string name="acc_copy_command">Copiază comanda</string>
+    <string name="acc_command_copied">Comanda a fost copiată</string>
+    <string name="chk_acc_broken">Ecranul «Accesibilitate» se închide?</string>
+    <string name="chk_acc_broken_hint">Se întâmplă la multimedia mașinilor (BYD etc.) — există soluții</string>
     <string name="chk_notif">Notificări</string>
     <string name="chk_notif_ok">Iconița radarului în bara de notificări — înseamnă că funcționează</string>
     <string name="chk_notif_fail">Dezactivate — nu vor veni avertizări despre radare și poliție, iar radarul se ține mai greu în fundal. Dacă comutatorul nu se apasă — întâi „Setări restricționate” de mai sus</string>

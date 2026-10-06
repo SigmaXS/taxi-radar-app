@@ -161,7 +161,7 @@ class SetupWizardActivity : AppCompatActivity() {
                     else -> getString(R.string.wiz_acc_text, path)
                 }
             },
-            R.string.chk_acc_open, { open(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+            R.string.chk_acc_open, { AccessibilityAccess.open(this) },
             { OrderAccessibilityService.isConnected || accessibilityEnabled() },
             action2 = if (android13) R.string.wiz_acc_restricted else null,
             onAction2 = if (android13) ({ open(appDetails()) }) else null
