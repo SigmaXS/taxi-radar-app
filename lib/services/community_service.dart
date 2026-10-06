@@ -94,11 +94,25 @@ class CommunityService {
   }
 
   // ---------- CLIENTS ----------
-  static Future<ClientSummary?> checkClient(String phone) async {
-    final res = await ApiService.post('/api/clients/check', {'phone': phone});
-    if (res == null || res['ok'] != true) return null;
+  /// Почему последний запрос по клиенту не удался — для показа водителю.
+  static String lastClientError = '';
+
+  static ClientSummary? _clientResult(Map<String, dynamic>? res) {
+    if (res == null) {
+      lastClientError = 'Нет связи с сервером';
+      return null;
+    }
+    if (res['ok'] != true) {
+      lastClientError = res['message']?.toString() ?? 'Сервер не принял запрос';
+      return null;
+    }
+    lastClientError = '';
     return ClientSummary.fromJson(res);
   }
+
+  /// [phone] — уже в международном виде (PhoneNumbers.normalize).
+  static Future<ClientSummary?> checkClient(String phone) async =>
+      _clientResult(await ApiService.post('/api/clients/check', {'phone': phone}));
 
   static Future<ClientSummary?> tagClient(String phone, String tag, bool on) async {
     final res = await ApiService.post('/api/clients/tag', {
@@ -106,8 +120,7 @@ class CommunityService {
       'tag': tag,
       'on': on,
     });
-    if (res == null || res['ok'] != true) return null;
-    return ClientSummary.fromJson(res);
+    return _clientResult(res);
   }
 
   static Future<ClientSummary?> reviewClient(String phone, String text) async {
@@ -115,7 +128,6 @@ class CommunityService {
       'phone': phone,
       'text': text,
     });
-    if (res == null || res['ok'] != true) return null;
-    return ClientSummary.fromJson(res);
+    return _clientResult(res);
   }
 }

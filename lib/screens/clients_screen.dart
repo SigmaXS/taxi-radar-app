@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/phone_numbers.dart';
 import '../l10n/app_strings.dart';
 import '../models/client_summary.dart';
 import '../services/community_service.dart';
@@ -20,10 +21,11 @@ class _ClientsScreenState extends State<ClientsScreen> {
   bool _isSavingTag = false;
 
   Future<void> _checkPhone() async {
-    final phone = _phoneController.text.trim();
-    if (phone.length < 6) {
+    // Сервер принимает только «+373…» — приводим «078 12 34 56» к нему, как Android.
+    final phone = PhoneNumbers.normalize(_phoneController.text);
+    if (phone == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Введите корректный номер')),
+        SnackBar(content: Text(AppStrings.isRu ? 'Введите номер, например 078123456' : 'Introduceți numărul, de ex. 078123456')),
       );
       return;
     }
@@ -40,6 +42,9 @@ class _ClientsScreenState extends State<ClientsScreen> {
         _summary = res;
         _isLoading = false;
       });
+      if (res == null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(CommunityService.lastClientError)));
+      }
     }
   }
 

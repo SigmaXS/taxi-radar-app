@@ -92,6 +92,12 @@ class ApiService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>?;
       }
+      // 403 «Нужна активная подписка» и т. п.: отдаём ответ с ok:false и текстом
+      // ошибки, чтобы экран мог его показать, а не молчать.
+      try {
+        final body = jsonDecode(utf8.decode(response.bodyBytes));
+        if (body is Map<String, dynamic>) return body..putIfAbsent('ok', () => false);
+      } catch (_) {}
       return null;
     } catch (e) {
       if (kDebugMode) {
