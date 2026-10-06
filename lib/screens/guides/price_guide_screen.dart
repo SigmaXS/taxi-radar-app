@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_strings.dart';
@@ -97,10 +96,12 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
           child: Text(
             t(
               'iPhone не даёт приложениям читать экран Яндекс Про. Поэтому цену узнаём по снимку: одно касание '
-                  'полупрозрачной кнопки — и сверху приходит баннер с ценой, км и минутами. Снимок нигде не сохраняется. '
+                  'полупрозрачной точки — и через секунду-две сверху приходит баннер с ценой. Taxi Radar при этом '
+                  'не открывается, вы остаётесь в Яндекс Про. На экране звонка та же точка покажет отметки о клиенте. '
                   'Настраивается один раз, минут за пять.',
               'iPhone nu permite aplicațiilor să citească ecranul Yandex Pro. De aceea prețul se află din captură: o atingere '
-                  'a butonului semitransparent — și sus apare un banner cu prețul, km și minute. Captura nu se salvează. '
+                  'a punctului semitransparent — și în 1–2 secunde sus apare un banner cu prețul. Taxi Radar nu se '
+                  'deschide, rămâneți în Yandex Pro. Pe ecranul apelului, același punct arată etichetele clientului. '
                   'Se configurează o singură dată, în cinci minute.',
             ),
             style: DS.callout.copyWith(color: DS.label2(context), height: 1.35),
@@ -113,9 +114,11 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
           title: t('Создайте быструю команду', 'Creați o comandă rapidă'),
           text: t(
             'Откройте «Команды» → «+» вверху справа → нажмите на название → «Переименовать» → «Taxi Radar». '
-                'Внизу в «Поиске действий» вводите название и нажимайте на действие. Нужно 4 действия по порядку:',
+                'Внизу в «Поиске действий» вводите название и нажимайте на действие. Нужно 3 действия по порядку. '
+                'Если «Цена заказа» не находится — откройте Taxi Radar один раз и вернитесь.',
             'Deschideți «Comenzi» → «+» sus în dreapta → apăsați pe nume → «Redenumește» → «Taxi Radar». '
-                'Jos în «Căutare acțiuni» scrieți numele și apăsați pe acțiune. Sunt necesare 4 acțiuni în ordine:',
+                'Jos în «Căutare acțiuni» scrieți numele și apăsați pe acțiune. Sunt necesare 3 acțiuni în ordine. '
+                'Dacă «Prețul comenzii» nu se găsește — deschideți Taxi Radar o dată și reveniți.',
           ),
           picture: SizedBox(
             width: 280,
@@ -131,28 +134,15 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
                     text: t('2. «Извлечь текст из изображения» — само возьмёт снимок',
                         '2. «Extrage textul din imagine» — ia singur captura')),
                 MockShortcutAction(
-                    icon: CupertinoIcons.doc_on_clipboard_fill,
-                    color: CupertinoColors.systemGrey,
-                    text: t('3. «Скопировать в буфер обмена» — само возьмёт текст',
-                        '3. «Copiază în clipboard» — ia singur textul')),
-                MockShortcutAction(
-                    icon: CupertinoIcons.globe,
-                    color: CupertinoColors.systemTeal,
-                    text: t('4. «Открыть URL-адреса» → вставьте taxiradar://order', '4. «Deschide URL-urile» → lipiți taxiradar://order')),
+                    icon: CupertinoIcons.dot_radiowaves_left_right,
+                    color: const Color(0xFF1C1C1E),
+                    text: t('3. Введите «Taxi Radar» → «Цена заказа» — само возьмёт текст',
+                        '3. Scrieți «Taxi Radar» → «Prețul comenzii» — ia singur textul')),
               ],
             ),
           ),
         ),
         _buttons([
-          DSButton(
-            t('Скопировать taxiradar://order', 'Copiază taxiradar://order'),
-            icon: CupertinoIcons.doc_on_doc,
-            secondary: true,
-            onPressed: () {
-              Clipboard.setData(const ClipboardData(text: 'taxiradar://order'));
-              dsToast(context, t('Скопировано — вставьте в 4-е действие', 'Copiat — lipiți în acțiunea 4'));
-            },
-          ),
           DSButton(
             t('Открыть «Команды»', 'Deschide «Comenzi»'),
             icon: CupertinoIcons.square_stack_3d_up_fill,
@@ -161,22 +151,21 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
           ),
         ]),
 
-        // ---------- 2. Вставка из буфера ----------
+        // ---------- 2. Уведомления ----------
         GuideStep(
           n: 2,
-          title: t('Разрешите вставку', 'Permiteți lipirea'),
+          title: t('Разрешите уведомления', 'Permiteți notificările'),
           text: t(
-            'Чтобы iPhone не спрашивал «Разрешить вставку?» при каждом заказе: Настройки → Taxi Radar → '
-                '«Вставка из других приложений» → «Разрешить».',
-            'Ca iPhone să nu întrebe «Permiteți lipirea?» la fiecare comandă: Setări → Taxi Radar → '
-                '«Lipire din alte aplicații» → «Permite».',
+            'Цена приходит уведомлением. Настройки → Taxi Radar → «Уведомления» → включите «Допуск уведомлений» '
+                'и выберите стиль баннера «Постоянно» — тогда баннер не исчезнет, пока вы его не смахнёте.',
+            'Prețul vine ca notificare. Setări → Taxi Radar → «Notificări» → activați «Permite notificări» '
+                'și alegeți stilul bannerului «Persistent» — bannerul nu dispare până nu-l glisați.',
           ),
           picture: _rows([
             MockSettingsRow(icon: CupertinoIcons.dot_radiowaves_left_right, color: const Color(0xFF1C1C1E), title: 'Taxi Radar'),
-            MockSettingsRow(
-                icon: CupertinoIcons.doc_on_clipboard_fill,
-                color: CupertinoColors.systemGrey,
-                title: t('Вставка из других приложений: Разрешить', 'Lipire din alte aplicații: Permite')),
+            MockSettingsRow(icon: CupertinoIcons.bell_fill, color: CupertinoColors.systemRed, title: t('Уведомления', 'Notificări')),
+            MockSettingsRow(icon: CupertinoIcons.bell_fill, color: CupertinoColors.systemRed, title: t('Допуск уведомлений', 'Permite notificări'), on: true),
+            MockSettingsRow(icon: CupertinoIcons.rectangle_fill_on_rectangle_fill, color: CupertinoColors.systemGrey, title: t('Стиль баннеров: Постоянно', 'Stil banner: Persistent')),
           ]),
         ),
         _buttons([
@@ -191,12 +180,12 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
         // ---------- 3. AssistiveTouch ----------
         GuideStep(
           n: 3,
-          title: t('Включите кнопку AssistiveTouch', 'Activați butonul AssistiveTouch'),
+          title: t('Включите точку AssistiveTouch', 'Activați punctul AssistiveTouch'),
           text: t(
-            'Настройки → Универсальный доступ → Касание → AssistiveTouch → включите. '
-                '«Непрозрачность в покое» — 15–20 %, чтобы точка не мешала карте.',
-            'Setări → Accesibilitate → Atingere → AssistiveTouch → activați. '
-                '«Opacitate inactivă» — 15–20 %, ca punctul să nu încurce harta.',
+            'Это кнопка, которой вы запускаете команду поверх любого приложения. Настройки → Универсальный доступ → '
+                'Касание → AssistiveTouch → включите. «Непрозрачность в покое» — 15–20 %, чтобы точка не мешала карте.',
+            'E butonul cu care porniți comanda peste orice aplicație. Setări → Accesibilitate → Atingere → '
+                'AssistiveTouch → activați. «Opacitate inactivă» — 15–20 %, ca punctul să nu încurce harta.',
           ),
           picture: _rows([
             MockSettingsRow(
@@ -225,8 +214,10 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
           n: 4,
           title: t('Назначьте команду на одно касание', 'Atribuiți comanda la o atingere'),
           text: t(
-            'Там же, в AssistiveTouch: «Настройка действий» → «Одно касание» → пролистайте вниз до «Быстрые команды» → «Taxi Radar».',
-            'Tot în AssistiveTouch: «Personalizare acțiuni» → «O atingere» → derulați jos la «Comenzi rapide» → «Taxi Radar».',
+            'Там же, в AssistiveTouch: «Настройка действий» → «Одно касание» → пролистайте вниз до «Быстрые команды» → «Taxi Radar». '
+                'Вместо точки можно использовать двойной стук по задней крышке: Касание → «Касание задней панели» → «Двойное касание» → «Taxi Radar».',
+            'Tot în AssistiveTouch: «Personalizare acțiuni» → «O atingere» → derulați jos la «Comenzi rapide» → «Taxi Radar». '
+                'În loc de punct puteți folosi dubla atingere pe spate: Atingere → «Atingere spate» → «Atingere dublă» → «Taxi Radar».',
           ),
           picture: _rows([
             MockSettingsRow(icon: CupertinoIcons.slider_horizontal_3, color: CupertinoColors.systemGrey, title: t('Настройка действий', 'Personalizare acțiuni')),
@@ -240,10 +231,8 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
           n: 5,
           title: t('Пришёл заказ — коснитесь точки', 'A venit o comandă — atingeți punctul'),
           text: t(
-            'Откроется Taxi Radar и сверху придёт баннер с ценой по маршруту. Вернитесь в Яндекс Про — '
-                'баннер останется в шторке.',
-            'Se deschide Taxi Radar și sus apare un banner cu prețul pe traseu. Reveniți în Yandex Pro — '
-                'bannerul rămâne în centrul de notificări.',
+            'Через секунду-две сверху — цена по маршруту и надбавка. Taxi Radar не открывается, можно сразу нажать «Принять».',
+            'În 1–2 secunde sus apare prețul pe traseu și adaosul. Taxi Radar nu se deschide, puteți apăsa imediat «Acceptă».',
           ),
           picture: SizedBox(
             width: 280,
@@ -251,7 +240,26 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
               icon: CupertinoIcons.car_fill,
               color: DS.success,
               title: '~109 L',
-              body: t('Эконом · 9.4 км · 15 мин', 'Econom · 9.4 km · 15 min'),
+              body: t('Эконом · 9.4 км · 15 мин · надбавка +15', 'Econom · 9.4 km · 15 min · adaos +15'),
+            ),
+          ),
+        ),
+        GuideStep(
+          n: 6,
+          title: t('Звоните клиенту — коснитесь точки', 'Sunați clientul — atingeți punctul'),
+          text: t(
+            'На экране звонка видно номер — придёт баннер с отметками других водителей. '
+                'Номер сохранится: в «Полезное → Клиенты» он уже будет подставлен, чтобы после поездки отметить клиента.',
+            'Pe ecranul apelului se vede numărul — vine un banner cu etichetele altor șoferi. '
+                'Numărul se salvează: în «Utile → Clienți» va fi deja completat, ca după cursă să marcați clientul.',
+          ),
+          picture: SizedBox(
+            width: 280,
+            child: MockBanner(
+              icon: CupertinoIcons.person_crop_circle_fill,
+              color: DS.surge,
+              title: t('Клиент +373 78 123 456', 'Client +373 78 123 456'),
+              body: t('Не вышел ×2 · Всё ок ×3', 'Nu a ieșit ×2 · Totul ok ×3'),
             ),
           ),
         ),

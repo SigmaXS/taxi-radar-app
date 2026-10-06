@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/client_summary.dart';
@@ -23,6 +24,22 @@ class _ClientsScreenState extends State<ClientsScreen> {
   String _currentPhone = '';
   bool _isLoading = false;
   bool _isSavingTag = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillFromCall();
+  }
+
+  /// Номер, распознанный на экране звонка (действие «Цена заказа» в «Командах»),
+  /// подставляем сразу — чтобы после поездки отметить клиента в два касания.
+  Future<void> _prefillFromCall() async {
+    final prefs = await SharedPreferences.getInstance();
+    final phone = prefs.getString('last_client_phone') ?? '';
+    if (phone.isEmpty || !mounted) return;
+    _phoneController.text = PhoneNumbers.pretty(phone);
+    _checkPhone();
+  }
 
   Future<void> _checkPhone() async {
     FocusScope.of(context).unfocus();
