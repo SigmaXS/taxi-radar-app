@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import ActivityKit
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -21,6 +22,8 @@ import ActivityKit
         // Проект использует UIScene lifecycle (SceneDelegate + Main.storyboard),
         // поэтому здесь `window` всегда nil и rootViewController недоступен.
         // Регистрация плагинов и канала выполняется в didInitializeImplicitFlutterEngine.
+        // Баннеры радара показываем и когда приложение открыто.
+        UNUserNotificationCenter.current().delegate = self
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 
@@ -72,7 +75,65 @@ import ActivityKit
         )
     }
 
+    // MARK: - Уведомления и цифра на иконке (работают без расширений — в отличие от острова)
+
+    /// «Тихое» уведомление со статусом надбавки — только в шторке и на экране блокировки,
+    /// остальные (заказ, изменение надбавки) — баннером.
+    override func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        let quiet = notification.request.identifier == "radar_status"
+        if #available(iOS 14.0, *) {
+            completionHandler(quiet ? [.list] : [.banner, .list, .sound])
+        } else {
+            completionHandler(quiet ? [] : [.alert, .sound])
+        }
+    }
+
+    private func handleNotificationCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) -> Bool {
+        let center = UNUserNotificationCenter.current()
+        let args = call.arguments as? [String: Any] ?? [:]
+        switch call.method {
+        case "requestNotifications":
+            center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                DispatchQueue.main.async { result(granted) }
+            }
+        case "notify":
+            let id = args["id"] as? String ?? "radar"
+            let content = UNMutableNotificationContent()
+            content.title = args["title"] as? String ?? ""
+            content.body = args["body"] as? String ?? ""
+            content.threadIdentifier = "taxiradar"
+            let passive = args["passive"] as? Bool ?? false
+            if !passive && (args["sound"] as? Bool ?? true) { content.sound = .default }
+            if #available(iOS 15.0, *) { content.interruptionLevel = passive ? .passive : .active }
+            // Тот же id — заменяем, а не копим: «считаю…» превращается в цену, статус — один.
+            center.removeDeliveredNotifications(withIdentifiers: [id])
+            center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
+                DispatchQueue.main.async { result(error == nil) }
+            }
+        case "removeNotification":
+            let id = args["id"] as? String ?? ""
+            center.removeDeliveredNotifications(withIdentifiers: [id])
+            result(true)
+        case "badge":
+            let count = args["count"] as? Int ?? 0
+            if #available(iOS 16.0, *) {
+                center.setBadgeCount(count) { _ in DispatchQueue.main.async { result(true) } }
+            } else {
+                UIApplication.shared.applicationIconBadgeNumber = count
+                result(true)
+            }
+        default:
+            return false
+        }
+        return true
+    }
+
     private func handleLiveActivityCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        if handleNotificationCall(call, result: result) { return }
         DispatchQueue.main.async {
             if #available(iOS 16.1, *) {
                 self.handleLiveActivityCallImpl(call, result: result)

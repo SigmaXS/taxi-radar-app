@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'community_service.dart';
 import 'order_parser_service.dart';
+import 'radar_alerts.dart';
 import 'yandex_surge_service.dart';
 
 class LiveActivityResult {
@@ -26,6 +29,15 @@ class LiveActivityService {
   static AppLifecycleListener? _lifecycleListener;
   static bool _isMonitoring = false;
 
+  /// Остров запустился. На iOS 26.6.1 при установке через AltStore/Sideloadly он не
+  /// работает (ошибка подписи расширений) — тогда радар живёт на уведомлениях.
+  static bool _liveActivityOk = false;
+
+  /// Фоновая геолокация: пока она идёт, iOS не усыпляет приложение и надбавка
+  /// обновляется раз в минуту даже в свёрнутом виде.
+  static StreamSubscription<Position>? _positionSub;
+  static Position? _lastPosition;
+
   /// Возврат из фона должен сразу обновлять остров, иначе водитель смотрит
   /// на устаревшую надбавку до конца интервала опроса.
   static void _ensureLifecycleListener() {
@@ -37,6 +49,7 @@ class LiveActivityService {
       },
     );
   }
+
   static final ValueNotifier<ParsedOrder?> latestOrderNotifier = ValueNotifier<ParsedOrder?>(null);
   static final ValueNotifier<String> currentSurgeNotifier = ValueNotifier<String>('+0');
 
@@ -122,6 +135,7 @@ class LiveActivityService {
   /// Обновление виджета на Dynamic Island при сканировании заказа
   static Future<void> processScannedOrder(ParsedOrder order) async {
     latestOrderNotifier.value = order;
+    RadarAlerts.onOrder(order);
 
     final nowTime = DateFormat('HH:mm').format(DateTime.now());
 
@@ -185,10 +199,8 @@ class LiveActivityService {
   static Future<Map<String, dynamic>> nativeInfo() async {
     if (!Platform.isIOS) return <String, dynamic>{};
     try {
-      final Map<Object?, Object?>? info =
-          await _channel.invokeMethod<Map<Object?, Object?>>('nativeInfo');
-      return info?.map((key, value) => MapEntry(key.toString(), value)) ??
-          <String, dynamic>{};
+      final Map<Object?, Object?>? info = await _channel.invokeMethod<Map<Object?, Object?>>('nativeInfo');
+      return info?.map((key, value) => MapEntry(key.toString(), value)) ?? <String, dynamic>{};
     } catch (e) {
       _diag('nativeInfo недоступен: $e');
       return <String, dynamic>{};
@@ -204,21 +216,15 @@ class LiveActivityService {
       return LiveActivityResult(success: true);
     }
 
+    var activitiesEnabled = false;
     try {
-      final enabled = await areActivitiesEnabled();
+      activitiesEnabled = await areActivitiesEnabled();
       final info = await nativeInfo();
       _diag(
-        'Система: Live Activities $enabled | '
+        'Система: Live Activities $activitiesEnabled | '
         'канал=${info['channelReady']} движок=${info['engineInitialized']} '
         'активностей=${info['activityCount']} iOS ${info['iosVersion']}',
       );
-      if (!enabled) {
-        _diag('ОШИБКА: эфир активности выключен в настройках iOS');
-        return LiveActivityResult(
-          success: false,
-          errorMessage: 'Эфир активности выключен. Включите: Настройки -> Taxi Radar -> Эфир активности.',
-        );
-      }
     } catch (e) {
       if (kDebugMode) print('Check enabled error: $e');
     }
@@ -227,18 +233,20 @@ class LiveActivityService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_monitoring', true);
     _ensureLifecycleListener();
+    await RadarAlerts.requestPermission();
+    _startBackgroundLocation();
 
-    // Первичное обновление и старт Dynamic Island
+    // Остров — по возможности; не запустился — радар всё равно работает на уведомлениях.
+    _liveActivityOk = activitiesEnabled;
     final startRes = await _refreshSurgeAndPushActivity(isStart: true);
     if (!startRes.success) {
-      _diag('ОШИБКА запуска: ${startRes.errorMessage}');
-      return startRes;
+      _liveActivityOk = false;
+      _diag('Остров не запустился (${startRes.errorMessage}) — работаем на уведомлениях');
     }
-    _diag('Активность запущена, таймер опроса 25 сек');
 
-    // Запуск периодического обновления каждые 25 секунд
+    // Раз в минуту: надбавка, цифра на иконке, статус на экране блокировки.
     _monitorTimer?.cancel();
-    _monitorTimer = Timer.periodic(const Duration(seconds: 25), (timer) async {
+    _monitorTimer = Timer.periodic(const Duration(seconds: 60), (timer) async {
       if (!_isMonitoring) {
         timer.cancel();
         return;
@@ -262,6 +270,9 @@ class LiveActivityService {
     latestOrderNotifier.value = null;
     _lifecycleListener?.dispose();
     _lifecycleListener = null;
+    await _positionSub?.cancel();
+    _positionSub = null;
+    await RadarAlerts.clear();
 
     if (Platform.isIOS) {
       try {
@@ -272,41 +283,81 @@ class LiveActivityService {
     }
   }
 
+  /// Геолокация в фоне (синяя стрелка вверху экрана): держит радар живым в свёрнутом виде.
+  static void _startBackgroundLocation() {
+    if (_positionSub != null) return;
+    final LocationSettings settings = Platform.isIOS
+        ? AppleSettings(
+            accuracy: LocationAccuracy.medium,
+            distanceFilter: 100,
+            activityType: ActivityType.automotiveNavigation,
+            pauseLocationUpdatesAutomatically: false,
+            allowBackgroundLocationUpdates: true,
+            showBackgroundLocationIndicator: true,
+          )
+        : const LocationSettings(accuracy: LocationAccuracy.medium, distanceFilter: 100);
+    try {
+      _positionSub = Geolocator.getPositionStream(locationSettings: settings)
+          .listen((p) => _lastPosition = p, onError: (e) => _diag('Геолокация в фоне: $e'));
+    } catch (e) {
+      _diag('Геолокация в фоне не запустилась: $e');
+    }
+  }
+
   /// Получение геопозиции, данных Яндекс и радаров, отправка в Dynamic Island
   static Future<LiveActivityResult> _refreshSurgeAndPushActivity({bool isStart = false}) async {
-    double lat = 47.0245;
-    double lon = 28.8353;
+    // Без своей точки надбавку не показываем: раньше бралась запасная точка на
+    // Буюканах, и водитель видел чужой спрос (так же исправлено в Android).
+    double? lat;
+    double? lon;
 
-    try {
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.whileInUse || perm == LocationPermission.always) {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            timeLimit: Duration(seconds: 5),
-          ),
-        );
-        lat = pos.latitude;
-        lon = pos.longitude;
-      }
-    } catch (_) {}
+    final recent = _lastPosition;
+    if (recent != null && DateTime.now().difference(recent.timestamp).inMinutes < 3) {
+      lat = recent.latitude;
+      lon = recent.longitude;
+    } else {
+      try {
+        LocationPermission perm = await Geolocator.checkPermission();
+        if (perm == LocationPermission.denied) {
+          perm = await Geolocator.requestPermission();
+        }
+        if (perm == LocationPermission.whileInUse || perm == LocationPermission.always) {
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+              timeLimit: Duration(seconds: 5),
+            ),
+          );
+          lat = pos.latitude;
+          lon = pos.longitude;
+        }
+      } catch (_) {}
+    }
 
     // Если водитель выбрал точку на карте, надбавка и радар считаются от неё
     final originLat = _radarOriginLat ?? lat;
     final originLon = _radarOriginLon ?? lon;
+    if (originLat == null || originLon == null) {
+      currentSurgeNotifier.value = '📍';
+      _diag('Нет геолокации — надбавку не показываем');
+      return LiveActivityResult(success: true);
+    }
 
     final surge = await YandexSurgeService.getSurgeAll(originLon, originLat);
 
-    // Определяем текущую единую надбавку (+15, +35, +55 или +0)
+    // Надбавка по тарифу, выбранному в «Уведомлениях радара» (как один тариф в виджете Android).
+    final settings = await RadarAlertSettings.load();
     int maxSurge = 0;
     if (surge != null) {
-      maxSurge = [surge.econom, surge.comfort, surge.comfortPlus].reduce((a, b) => a > b ? a : b);
+      maxSurge = switch (settings.tariff) {
+        'comfort' => surge.comfort,
+        'comfortplus' => surge.comfortPlus,
+        _ => surge.econom,
+      };
+      await RadarAlerts.onSurge(maxSurge);
     }
     final surgeDisplay = maxSurge > 0 ? '+$maxSurge' : '+0';
-    currentSurgeNotifier.value = surgeDisplay;
+    currentSurgeNotifier.value = surge == null ? '?' : surgeDisplay;
 
     // Ближайшие предупреждения о радарах / полиции / ДТП
     String nearestAlert = '';
@@ -344,7 +395,7 @@ class LiveActivityService {
       'updatedAt': nowTime,
     };
 
-    if (Platform.isIOS) {
+    if (Platform.isIOS && _liveActivityOk) {
       try {
         if (isStart) {
           final id = await _channel.invokeMethod('start', data);
@@ -357,17 +408,11 @@ class LiveActivityService {
       } on PlatformException catch (pe) {
         _diag('ОШИБКА ${pe.code}: ${pe.message}');
         if (kDebugMode) print('LiveActivity PlatformException: ${pe.code} - ${pe.message}');
-        return LiveActivityResult(
-          success: false,
-          errorMessage: 'Ошибка Dynamic Island: ${pe.message ?? pe.code}',
-        );
+        return LiveActivityResult(success: false, errorMessage: 'Ошибка Dynamic Island: ${pe.message ?? pe.code}');
       } catch (e) {
         _diag('ОШИБКА: $e');
         if (kDebugMode) print('LiveActivity error: $e');
-        return LiveActivityResult(
-          success: false,
-          errorMessage: 'Ошибка: $e',
-        );
+        return LiveActivityResult(success: false, errorMessage: 'Ошибка: $e');
       }
     }
 

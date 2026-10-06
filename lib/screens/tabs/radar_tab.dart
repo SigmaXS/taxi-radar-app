@@ -7,6 +7,7 @@ import '../../services/license_service.dart';
 import '../../services/live_activity_service.dart';
 import '../../services/order_parser_service.dart';
 import '../assistive_touch_guide_screen.dart';
+import '../radar_alerts_screen.dart';
 
 class RadarTab extends StatefulWidget {
   final LicenseStatus? license;
@@ -81,7 +82,7 @@ class _RadarTabState extends State<RadarTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Мониторинг активен! Спрос и радары отображаются в Динамическом острове.'),
+            content: const Text('Радар включён: надбавка на иконке, на экране блокировки и баннером при изменении.'),
             backgroundColor: Colors.green.shade700,
             duration: const Duration(seconds: 3),
           ),
@@ -239,6 +240,32 @@ class _RadarTabState extends State<RadarTab> {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               onPressed: _toggleMonitoring,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Что и когда сообщать: цифра на иконке, статус, баннеры надбавки и цены
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            color: const Color(0xFF1E2638),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFC084FC).withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.notifications_active, color: Color(0xFFC084FC), size: 24),
+              ),
+              title: const Text('Уведомления радара', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              subtitle: const Text(
+                'Тариф, цифра на иконке, когда присылать баннер о надбавке и цене',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RadarAlertsScreen())),
             ),
           ),
 
