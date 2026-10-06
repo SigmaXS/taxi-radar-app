@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_strings.dart';
@@ -64,34 +65,63 @@ class _PriceGuideScreenState extends State<PriceGuideScreen> {
           n: 1,
           title: t('Создайте быструю команду', 'Creați o comandă rapidă'),
           text: t(
-            'Приложение «Команды» → «+» → назовите «Taxi Radar» и добавьте 4 действия по порядку. '
-                'В последнем вставьте адрес и переменную «Закодированный текст».',
-            'Aplicația «Comenzi» → «+» → numiți-o «Taxi Radar» și adăugați 4 acțiuni în ordine. '
-                'În ultima introduceți adresa și variabila «Text codificat».',
+            'Откройте «Команды» → «+» вверху справа → нажмите на название → «Переименовать» → «Taxi Radar». '
+                'Дальше внизу в «Поиске действий» вводите название и добавляйте 5 действий по порядку:',
+            'Deschideți «Comenzi» → «+» sus în dreapta → apăsați pe nume → «Redenumește» → «Taxi Radar». '
+                'Apoi jos în «Căutare acțiuni» scrieți numele și adăugați 5 acțiuni în ordine:',
           ),
           picture: SizedBox(
-            width: 260,
+            width: 270,
             child: Column(
               children: [
                 MockShortcutAction(
-                    icon: CupertinoIcons.camera_viewfinder, color: CupertinoColors.systemBlue, text: t('Сделать снимок экрана', 'Fă o captură de ecran')),
+                    icon: CupertinoIcons.camera_viewfinder,
+                    color: CupertinoColors.systemBlue,
+                    text: t('1. «Сделать снимок экрана»', '1. «Fă o captură de ecran»')),
                 MockShortcutAction(
-                    icon: CupertinoIcons.doc_text_viewfinder, color: CupertinoColors.systemOrange, text: t('Извлечь текст из [Снимок экрана]', 'Extrage textul din [Captură]')),
+                    icon: CupertinoIcons.doc_text_viewfinder,
+                    color: CupertinoColors.systemOrange,
+                    text: t('2. «Извлечь текст из изображения» — само возьмёт снимок',
+                        '2. «Extrage textul din imagine» — ia singur captura')),
                 MockShortcutAction(
-                    icon: CupertinoIcons.link, color: CupertinoColors.systemGrey, text: t('Кодировать URL [Текст]', 'Codifică URL [Text]')),
+                    icon: CupertinoIcons.link,
+                    color: CupertinoColors.systemGrey,
+                    text: t('3. «Кодировать URL» — оставьте «Закодировать Текст»',
+                        '3. «Codifică URL» — lăsați «Codifică Text»')),
                 MockShortcutAction(
-                    icon: CupertinoIcons.globe, color: CupertinoColors.systemIndigo, text: 'taxiradar://order?text=[…]'),
+                    icon: CupertinoIcons.link_circle_fill,
+                    color: CupertinoColors.systemIndigo,
+                    text: t('4. «URL»: taxiradar://order?text= и сразу за «=» кнопка «Закодированный текст» над клавиатурой',
+                        '4. «URL»: taxiradar://order?text= și imediat după «=» butonul «Text codificat» de deasupra tastaturii')),
+                MockShortcutAction(
+                    icon: CupertinoIcons.globe,
+                    color: CupertinoColors.systemTeal,
+                    text: t('5. «Открыть URL-адреса» — само возьмёт URL', '5. «Deschide URL-urile» — ia singur URL-ul')),
               ],
             ),
           ),
         ),
         DSInset(
           padding: const EdgeInsets.fromLTRB(DS.gutter, 0, DS.gutter, DS.s8),
-          child: DSButton(
-            t('Открыть «Команды»', 'Deschide «Comenzi»'),
-            icon: CupertinoIcons.square_stack_3d_up_fill,
-            secondary: true,
-            onPressed: () => launchUrl(Uri.parse('shortcuts://'), mode: LaunchMode.externalApplication),
+          child: Column(
+            children: [
+              DSButton(
+                t('Скопировать адрес для шага 4', 'Copiază adresa pentru pasul 4'),
+                icon: CupertinoIcons.doc_on_doc,
+                secondary: true,
+                onPressed: () {
+                  Clipboard.setData(const ClipboardData(text: 'taxiradar://order?text='));
+                  dsToast(context, t('Скопировано: taxiradar://order?text=', 'Copiat: taxiradar://order?text='));
+                },
+              ),
+              const SizedBox(height: DS.s8),
+              DSButton(
+                t('Открыть «Команды»', 'Deschide «Comenzi»'),
+                icon: CupertinoIcons.square_stack_3d_up_fill,
+                secondary: true,
+                onPressed: () => launchUrl(Uri.parse('shortcuts://'), mode: LaunchMode.externalApplication),
+              ),
+            ],
           ),
         ),
         GuideStep(
