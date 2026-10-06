@@ -88,14 +88,14 @@ class LiveActivityService {
         text = Uri.decodeComponent(uri.path);
       }
       if (text.isNotEmpty) {
+        // Доставку не считаем — как в Android.
+        if (OrderParserService.isDelivery(text.split('\n').map((l) => l.trim()).toList())) return;
         final order = OrderParserService.parse(text);
+        // Сразу — адреса и «считаю…», через секунду-две — цена по маршруту.
         processScannedOrder(order);
-
-        // Асинхронно обогащаем через геокодер Яндекс API на бэкенде Railway
         OrderParserService.enrich(order).then((enriched) {
-          if (enriched.distanceTime != order.distanceTime || enriched.price != order.price) {
-            processScannedOrder(enriched);
-          }
+          // Пока считали, водитель отсканировал другой заказ — этот уже не нужен.
+          if (identical(latestOrderNotifier.value, order)) processScannedOrder(enriched);
         });
       }
     } catch (e) {
@@ -105,7 +105,7 @@ class LiveActivityService {
 
   /// Чистая цена поездки вместе с километрами и минутами: «85 MDL (5.2 км · 12 мин)»
   static String _buildPriceLabel(ParsedOrder order) {
-    final fare = '${order.price.round()} MDL';
+    final fare = order.priceText;
     final distanceTime = order.distanceTime.trim();
     return distanceTime.isEmpty ? fare : '$fare ($distanceTime)';
   }

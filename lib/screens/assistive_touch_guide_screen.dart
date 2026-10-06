@@ -11,7 +11,9 @@ class AssistiveTouchGuideScreen extends StatefulWidget {
 
 class _AssistiveTouchGuideScreenState extends State<AssistiveTouchGuideScreen> {
   final TextEditingController _testTextController = TextEditingController(
-    text: "Комфорт\n~ 85 лей\nПодача: 2 мин\nул. Штефан чел Маре 128\nКуда: Московский проспект 5/2",
+    // Так выглядит текст, распознанный со скриншота карточки Яндекс Про.
+    text: "Omite\nPrioritate: -4\nstr. ISMAIL\n1,5 km · 5 min.\nPreluare apropiată\nA\nstrada Calea Basarabiei, 8\n"
+        "B\nstrada Alecu Russo, 63/2, entrance 1\nPasager\npoarta 3\n+35 L\nAcceptă",
   );
 
   ParsedOrder? _testResult;
@@ -24,9 +26,14 @@ class _AssistiveTouchGuideScreenState extends State<AssistiveTouchGuideScreen> {
       _testResult = order;
     });
     LiveActivityService.processScannedOrder(order);
+    OrderParserService.enrich(order).then((priced) {
+      if (!mounted) return;
+      setState(() => _testResult = priced);
+      LiveActivityService.processScannedOrder(priced);
+    });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Расчёт выполнен и отправлен в Dynamic Island!'),
+        content: Text('Считаю цену — результат появится здесь и в Dynamic Island'),
         backgroundColor: Colors.green,
       ),
     );
@@ -258,7 +265,7 @@ class _AssistiveTouchGuideScreenState extends State<AssistiveTouchGuideScreen> {
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber),
               ),
               Text(
-                '${order.price.round()} MDL',
+                order.priceText,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.greenAccent),
               ),
             ],

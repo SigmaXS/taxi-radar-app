@@ -1,3 +1,13 @@
+/// Поправка на пробки: во сколько раз поездка дольше, чем по пустым дорогам.
+/// Таблицу по часам сервер собирает по поездкам всех водителей (Android 1.16+).
+class TrafficFactor {
+  final double value;
+
+  /// true — поправка из поездок водителей; false — данных нет, 1.0 (+ час пик в расчёте).
+  final bool fromDrivers;
+  const TrafficFactor(this.value, this.fromDrivers);
+}
+
 class TrafficModel {
   static List<double?> sharedWeekday = [];
   static List<double?> sharedWeekend = [];
@@ -10,24 +20,13 @@ class TrafficModel {
     sharedWeekend = weekend;
   }
 
-  static double getMultiplierNow() {
-    final now = DateTime.now();
-    final hour = now.hour;
+  static TrafficFactor factor([DateTime? at]) {
+    final now = at ?? DateTime.now();
     final isWeekend = now.weekday == DateTime.saturday || now.weekday == DateTime.sunday;
-
     final list = isWeekend ? sharedWeekend : sharedWeekday;
-    if (hour >= 0 && hour < list.length && list[hour] != null) {
-      return list[hour]!;
-    }
-
-    // По умолчанию средние поправки по Кишинёву
-    if (isWeekend) {
-      return 1.0;
-    } else {
-      if (hour >= 8 && hour <= 9) return 1.35;
-      if (hour >= 17 && hour <= 19) return 1.40;
-      if (hour >= 12 && hour <= 14) return 1.15;
-      return 1.05;
-    }
+    final v = now.hour < list.length ? list[now.hour] : null;
+    return v != null ? TrafficFactor(v, true) : const TrafficFactor(1.0, false);
   }
+
+  static double getMultiplierNow() => factor().value;
 }

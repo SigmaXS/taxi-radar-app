@@ -300,7 +300,7 @@ class _RadarTabState extends State<RadarTab> {
                             Row(
                               children: [
                                 Text(
-                                  '${order.price.round()} MDL',
+                                  order.priceText,
                                   style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 18),
                                 ),
                                 const SizedBox(width: 8),
