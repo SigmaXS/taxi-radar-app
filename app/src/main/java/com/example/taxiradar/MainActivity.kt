@@ -194,20 +194,15 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.btnLanguage).setOnClickListener { showLanguageChooser() }
 
-        val saveCheckboxes = {
-            if (!cbEconom.isChecked && !cbComfort.isChecked && !cbComfortPlus.isChecked) {
-                cbEconom.isChecked = true
-            }
+        // Один тариф: несколько надбавок в виджете — длинная строка, а пользы мало.
+        findViewById<com.google.android.material.chip.ChipGroup>(R.id.groupTariffs).setOnCheckedStateChangeListener { _, ids ->
+            val id = ids.firstOrNull() ?: return@setOnCheckedStateChangeListener
             getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE).edit()
-                .putBoolean("show_econom", cbEconom.isChecked)
-                .putBoolean("show_comfort", cbComfort.isChecked)
-                .putBoolean("show_comfortplus", cbComfortPlus.isChecked)
+                .putBoolean("show_econom", id == R.id.cbEconom)
+                .putBoolean("show_comfort", id == R.id.cbComfort)
+                .putBoolean("show_comfortplus", id == R.id.cbComfortPlus)
                 .apply()
         }
-
-        cbEconom.setOnCheckedChangeListener { _, _ -> saveCheckboxes() }
-        cbComfort.setOnCheckedChangeListener { _, _ -> saveCheckboxes() }
-        cbComfortPlus.setOnCheckedChangeListener { _, _ -> saveCheckboxes() }
 
         btnActivate.setOnClickListener {
             val key = etLicenseKey.text.toString().trim()
@@ -382,17 +377,34 @@ class MainActivity : AppCompatActivity() {
             if (!checked) {
                 RoadReports.setAlertsEnabled(this, false)
                 FloatingWidgetService.setRoadAlerts()
-            } else if (hasLocation()) {
+            } else if (!RoadReports.alertsEnabled(this)) {
+                // Сначала коротко: что это и чем платим (GPS чаще — батарея чуть быстрее).
+                var accepted = false
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.alerts_intro_title)
+                    .setMessage(R.string.alerts_intro_text)
+                    .setPositiveButton(R.string.alerts_intro_on) { _, _ ->
+                        accepted = true
+                        enableRoadAlerts(chip)
+                    }
+                    .setNegativeButton(R.string.loc_not_now, null)
+                    .setOnDismissListener { if (!accepted) chip.isChecked = false }
+                    .show()
+            }
+        }
+    }
+
+    private fun enableRoadAlerts(chip: com.google.android.material.chip.Chip) {
+        if (hasLocation()) {
+            RoadReports.setAlertsEnabled(this, true)
+            FloatingWidgetService.setRoadAlerts()
+            Toast.makeText(this, getString(R.string.loc_alerts_on), Toast.LENGTH_SHORT).show()
+        } else {
+            askLocation(R.string.loc_alerts_why, onGranted = {
                 RoadReports.setAlertsEnabled(this, true)
                 FloatingWidgetService.setRoadAlerts()
-                Toast.makeText(this, getString(R.string.loc_alerts_on), Toast.LENGTH_SHORT).show()
-            } else {
-                askLocation(R.string.loc_alerts_why, onGranted = {
-                    RoadReports.setAlertsEnabled(this, true)
-                    FloatingWidgetService.setRoadAlerts()
-                    mapController?.onLocationGranted()
-                }, onDenied = { chip.isChecked = false })
-            }
+                mapController?.onLocationGranted()
+            }, onDenied = { chip.isChecked = false })
         }
     }
 
@@ -947,9 +959,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSelectedTariffs() {
         val prefs = getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE)
-        cbEconom.isChecked = prefs.getBoolean("show_econom", true)
-        cbComfort.isChecked = prefs.getBoolean("show_comfort", false)
-        cbComfortPlus.isChecked = prefs.getBoolean("show_comfortplus", false)
+        // Раньше можно было выбрать несколько — оставляем первый из выбранных.
+        when {
+            prefs.getBoolean("show_econom", true) -> cbEconom
+            prefs.getBoolean("show_comfort", false) -> cbComfort
+            prefs.getBoolean("show_comfortplus", false) -> cbComfortPlus
+            else -> cbEconom
+        }.isChecked = true
     }
 
     override fun onResume() {

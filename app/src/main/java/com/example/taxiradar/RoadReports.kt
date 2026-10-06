@@ -32,11 +32,11 @@ object RoadReports {
 
     /**
      * «Предупреждать в дороге»: только при включённом переключателе радар
-     * следит за GPS (метки на дороге, очередь в аэропорту). С 1.16 по
-     * умолчанию вкл. — иначе предупреждения о радарах почти никто не видел.
+     * следит за GPS (метки на дороге, очередь в аэропорту). По умолчанию выкл.:
+     * без него GPS спрашиваем раз в минуту — только для надбавки.
      */
     fun alertsEnabled(context: Context) =
-        context.getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE).getBoolean("road_alerts", true)
+        context.getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE).getBoolean("road_alerts", false)
 
     fun setAlertsEnabled(context: Context, on: Boolean) {
         context.getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE).edit().putBoolean("road_alerts", on).apply()

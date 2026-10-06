@@ -209,7 +209,7 @@ class FloatingWidgetService : Service() {
         tvWidgetSub?.maxWidth = (220 * dp).toInt()
         btnPlus?.textSize = 20f * scale
         (reportMenu as? ViewGroup)?.let { menu ->
-            for (i in 0 until menu.childCount) (menu.getChildAt(i) as? TextView)?.textSize = 24f * scale
+            for (i in 0 until menu.childCount) (menu.getChildAt(i) as? TextView)?.textSize = 30f * scale
         }
         (tvWidgetSub?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = (3 * dp).toInt()
         setOrderSize(orderSize)
@@ -320,7 +320,6 @@ class FloatingWidgetService : Service() {
     private fun setupReportMenu() {
         btnPlus = floatingView?.findViewById(R.id.btnWidgetPlus)
         reportMenu = floatingView?.findViewById(R.id.layoutReportMenu)
-        btnPlus?.setOnClickListener { toggleReportMenu(reportMenu?.visibility != View.VISIBLE) }
         mapOf(R.id.btnRepRadar to "radar", R.id.btnRepPolice to "police", R.id.btnRepDanger to "danger").forEach { (id, key) ->
             floatingView?.findViewById<View>(id)?.setOnClickListener {
                 toggleReportMenu(false)
@@ -512,9 +511,8 @@ class FloatingWidgetService : Service() {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!isMoved && !isShowingOrder) {
-                        refreshData()
-                    }
+                    // Нажатие в любом месте кружка — меню «+»: попасть пальцем на ходу легко.
+                    if (!isMoved) toggleReportMenu(reportMenu?.visibility != View.VISIBLE)
                     true
                 }
                 else -> false
@@ -580,9 +578,9 @@ class FloatingWidgetService : Service() {
         YandexTaxiSurgeChecker.updateBases(AppConfig.load(this).surgeBase)
 
         val prefs = getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE)
-        val showEconom = prefs.getBoolean("show_econom", true)
-        val showComfort = prefs.getBoolean("show_comfort", false)
-        val showComfortPlus = prefs.getBoolean("show_comfortplus", false)
+        val showComfort = !prefs.getBoolean("show_econom", true) && prefs.getBoolean("show_comfort", false)
+        val showComfortPlus = !prefs.getBoolean("show_econom", true) && !showComfort && prefs.getBoolean("show_comfortplus", false)
+        val showEconom = !showComfort && !showComfortPlus
 
         var hasSurge = false
 

@@ -82,7 +82,7 @@
     <string name="setup_check">Verificarea setărilor</string>
 
     <string name="tariffs_title">Cererea în widget</string>
-    <string name="tariffs_caption">Pentru ce tarife să arate suplimentul</string>
+    <string name="tariffs_caption">Pentru ce tarif să arate suplimentul</string>
 
     <string name="net_title">Net în widget</string>
     <string name="net_caption">Minus comisionul și benzina pentru deplasare și cursă</string>
@@ -359,6 +359,9 @@
     <string name="loc_not_now">Nu acum</string>
     <string name="loc_map_why">Harta are nevoie de localizare ca să arate unde sunteți și suplimentul din apropiere. Fără ea harta se deschide pe centrul Chișinăului.</string>
     <string name="loc_alerts_why">Ca să avertizeze despre poliție, accidente și drumuri închise în față, radarul trebuie să urmărească locația dvs. cât timp e pornit. Consumă puțină baterie — se oprește din același comutator.</string>
+    <string name="alerts_intro_title">Avertizări pe drum</string>
+    <string name="alerts_intro_text">Ca în Waze: șoferii marchează radarele, poliția și locurile periculoase cu butonul «+» din widget — apăsați oriunde pe cerc.\n\nCând mergeți spre un astfel de marcaj, Taxi Radar vă avertizează din timp: la 400 m și încă o dată la 100 m. Dacă mergeți în altă direcție — tace.\n\nPentru asta e nevoie de acces la localizare și, cât radarul e pornit, va verifica locul ceva mai des. Bateria se poate descărca puțin mai repede. Se oprește din același buton.</string>
+    <string name="alerts_intro_on">Pornește</string>
     <string name="loc_alerts_on">Avertizările pe drum sunt pornite</string>
     <string name="chk_location_optional">Opțional: pentru hartă, suplimentul acolo unde stați și avertizări pe drum</string>
     <string name="wiz_step_of">Pasul %1$d din %2$d</string>
