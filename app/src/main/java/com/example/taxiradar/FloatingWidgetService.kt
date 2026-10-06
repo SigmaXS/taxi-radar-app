@@ -191,7 +191,7 @@ class FloatingWidgetService : Service() {
     /** Цена заказа — крупнее обычного, чтобы читалась с одного взгляда. */
     private fun setOrderSize(order: Boolean) {
         orderSize = order
-        tvWidgetSurge?.textSize = (if (order) 25f else 19f) * scale
+        tvWidgetSurge?.textSize = (if (order) 25f else 23f) * scale
         tvWidgetSub?.textSize = (if (order) 13f else 11f) * scale
     }
 
@@ -601,19 +601,14 @@ class FloatingWidgetService : Service() {
             val value = if (s != null && s > 0) { hasSurge = true; "+$s" } else "0"
             getString(label) to value
         }
-        // Буква тарифа остаётся: «Э: 0», «К+: +55» — видно, про какой тариф цифра.
-        val displayText: CharSequence = when (parts.size) {
-            0 -> "0"
-            1 -> "${parts[0].first}: ${parts[0].second}"
-            else -> SpannableStringBuilder().apply {
-                parts.forEachIndexed { i, (label, value) ->
-                    if (i > 0) append("  ")
-                    val start = length
-                    append(label)
-                    setSpan(ForegroundColorSpan(getColor(R.color.tr_text_muted)), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    setSpan(android.text.style.RelativeSizeSpan(0.7f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    append(value)
-                }
+        // Буква тарифа — мелко («Э», «К+»), сама надбавка — крупно: её видно с одного взгляда.
+        val displayText: CharSequence = if (parts.isEmpty()) "0" else SpannableStringBuilder().apply {
+            parts.forEachIndexed { i, (label, value) ->
+                if (i > 0) append("  ")
+                val start = length
+                append("$label ")
+                setSpan(android.text.style.RelativeSizeSpan(0.55f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                append(value)
             }
         }
 

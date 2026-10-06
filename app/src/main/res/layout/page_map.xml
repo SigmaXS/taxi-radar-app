@@ -63,7 +63,7 @@
                 android:maxLines="1"
                 android:textColor="@color/tr_text"
                 android:textColorHint="@color/tr_text_muted"
-                android:textSize="15sp" />
+                android:textSize="13sp" />
 
             <ImageButton
                 android:id="@+id/btnMapLayers"

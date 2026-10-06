@@ -614,17 +614,24 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
     private fun flagDrawable(text: String, hot: Boolean): Drawable {
         val density = activity.resources.displayMetrics.density
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 15 * density
+            textSize = 17 * density
             typeface = Typeface.DEFAULT_BOLD
             color = if (hot) Color.WHITE else ContextCompat.getColor(activity, R.color.tr_on_accent)
         }
         val padH = 12 * density
         val padV = 8 * density
         val tail = 9 * density
+        // «Э +35»: буква тарифа мелко, надбавка крупно — как на виджете.
+        val labelPaint = Paint(textPaint).apply { textSize = textPaint.textSize * 0.65f }
+        fun split(line: String): Pair<String, String> {
+            val i = line.indexOf(' ')
+            return if (i > 0) line.substring(0, i + 1) to line.substring(i + 1) else "" to line
+        }
+        fun measure(line: String) = split(line).let { (l, v) -> labelPaint.measureText(l) + textPaint.measureText(v) }
         // Несколько тарифов — по строке на каждый: флажок выше, но не шире.
         val lines = text.split("\n")
         val lineH = textPaint.textSize * 1.25f
-        val width = (lines.maxOf { textPaint.measureText(it) } + 2 * padH).toInt().coerceAtLeast((44 * density).toInt())
+        val width = (lines.maxOf { measure(it) } + 2 * padH).toInt().coerceAtLeast((44 * density).toInt())
         val bubble = lineH * lines.size - (lineH - textPaint.textSize) + 2 * padV
         val height = (bubble + tail).toInt()
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -643,7 +650,11 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
         canvas.drawPath(tailPath, bg)
         lines.forEachIndexed { i, line ->
             val cy = padV + textPaint.textSize / 2f + i * lineH
-            canvas.drawText(line, (width - textPaint.measureText(line)) / 2f, cy - (textPaint.descent() + textPaint.ascent()) / 2, textPaint)
+            val baseline = cy - (textPaint.descent() + textPaint.ascent()) / 2
+            val (label, value) = split(line)
+            val x = (width - measure(line)) / 2f
+            canvas.drawText(label, x, baseline, labelPaint)
+            canvas.drawText(value, x + labelPaint.measureText(label), baseline, textPaint)
         }
         return BitmapDrawable(activity.resources, bitmap)
     }
