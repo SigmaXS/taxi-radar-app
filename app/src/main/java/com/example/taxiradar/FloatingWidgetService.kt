@@ -333,6 +333,14 @@ class FloatingWidgetService : Service() {
         }
     }
 
+    /** Цвет «+» (значок и обводка) — как у цифры надбавки. */
+    private fun tintPlus(colorRes: Int) {
+        val color = getColor(colorRes)
+        btnPlus?.setTextColor(color)
+        (btnPlus?.background?.mutate() as? android.graphics.drawable.GradientDrawable)
+            ?.setStroke((1.5f * resources.displayMetrics.density * scale).toInt().coerceAtLeast(1), color)
+    }
+
     private fun toggleReportMenu(open: Boolean) {
         reportMenu?.visibility = if (open) View.VISIBLE else View.GONE
         btnPlus?.text = if (open) "✕" else "+"
@@ -618,6 +626,7 @@ class FloatingWidgetService : Service() {
                 tvWidgetSurge?.text = displayText
                 tvWidgetSub?.visibility = View.GONE
                 tvWidgetSurge?.setTextColor(getColor(if (hasSurge) R.color.tr_surge else R.color.tr_accent))
+                tintPlus(if (hasSurge) R.color.tr_surge else R.color.tr_accent)
             }
         }
     }

@@ -182,21 +182,53 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
             activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
                 ?.hideSoftInputFromWindow(v.windowToken, 0)
             v.clearFocus()
-            scope.launch {
-                val found = kotlinx.coroutines.withContext(Dispatchers.IO) {
-                    runCatching { RouteFareCalculator.locate(activity, query) }.getOrNull()
-                }
-                if (found == null) {
-                    android.widget.Toast.makeText(activity, R.string.map_search_not_found, android.widget.Toast.LENGTH_SHORT).show()
-                    return@launch
-                }
-                val point = GeoPoint(found.first, found.second)
-                map.controller.setZoom(16.0)
-                map.controller.animateTo(point)
-                probe(point)
-            }
+            scope.launch { searchAddress(query) }
             true
         }
+    }
+
+    private data class Found(val name: String, val desc: String, val lat: Double, val lon: Double, val km: Double)
+
+    /**
+     * Несколько вариантов от сервера, ближайшие к водителю первыми: одна и та же
+     * улица бывает и в Кишинёве, и в соседнем селе. Один вариант — сразу туда,
+     * несколько — список. Старый сервер без поиска — как раньше, один адрес.
+     */
+    private suspend fun searchAddress(query: String) {
+        val me = myMarker?.position ?: GeoPoint(FloatingWidgetService.driverLat, FloatingWidgetService.driverLon)
+        val json = CommunityApi.post(
+            activity, "/api/geocode/search",
+            org.json.JSONObject().put("q", query).put("lat", me.latitude).put("lon", me.longitude)
+        )
+        val arr = json?.takeIf { it.optBoolean("ok") }?.optJSONArray("results")
+        val list = if (arr != null) (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            Found(o.optString("name"), o.optString("desc"), o.getDouble("lat"), o.getDouble("lon"), o.optDouble("km", 0.0))
+        } else {
+            kotlinx.coroutines.withContext(Dispatchers.IO) {
+                runCatching { RouteFareCalculator.locate(activity, query) }.getOrNull()
+            }?.let { listOf(Found(query, "", it.first, it.second, 0.0)) } ?: emptyList()
+        }
+        when (list.size) {
+            0 -> android.widget.Toast.makeText(activity, R.string.map_search_not_found, android.widget.Toast.LENGTH_SHORT).show()
+            1 -> goTo(list[0])
+            else -> com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                .setTitle(R.string.map_search_pick)
+                .setItems(list.map { f ->
+                    val where = listOf(f.desc, if (f.km > 0) activity.getString(R.string.map_search_km, f.km) else "")
+                        .filter { it.isNotBlank() }.joinToString(" · ")
+                    if (where.isEmpty()) f.name else "${f.name}\n$where"
+                }.toTypedArray()) { _, which -> goTo(list[which]) }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+        }
+    }
+
+    private fun goTo(f: Found) {
+        val point = GeoPoint(f.lat, f.lon)
+        map.controller.setZoom(16.0)
+        map.controller.animateTo(point)
+        probe(point)
     }
 
     /**
@@ -289,17 +321,20 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
     }
 
     private fun showAddReport(point: GeoPoint) {
-        // Последний пункт — не метка, а «Место водителей» (кебаб, мойка, заправка…).
-        val items = (RoadReports.TYPES.map { "${it.emoji}  ${activity.getString(it.label)}" } +
-                activity.getString(R.string.place_add_item)).toTypedArray()
+        // После «ДТП» — не метка, а «Ваша точка» (еда, мойка, заправка…); null — этот пункт.
+        val placeAt = RoadReports.TYPES.indexOfFirst { it.key == "accident" } + 1
+        val entries: List<RoadReports.Type?> = RoadReports.TYPES.take(placeAt) + listOf(null) + RoadReports.TYPES.drop(placeAt)
+        val items = entries.map { t ->
+            if (t == null) activity.getString(R.string.place_add_item) else "${t.emoji}  ${activity.getString(t.label)}"
+        }.toTypedArray()
         com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
             .setTitle(R.string.map_add_title)
             .setItems(items) { _, which ->
-                if (which == RoadReports.TYPES.size) {
+                val type = entries[which]
+                if (type == null) {
                     showAddPlace(point)
                     return@setItems
                 }
-                val type = RoadReports.TYPES[which]
                 scope.launch {
                     val r = RoadReports.add(activity, type.key, point.latitude, point.longitude)
                     val msg = when {

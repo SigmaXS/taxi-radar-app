@@ -318,6 +318,8 @@
     <string name="rep_addr_hard">Адрес: сложная подача</string>
     <string name="rep_addr_cancel">Адрес: частые отмены</string>
     <string name="map_search_hint">Поиск адреса — узнать спрос там</string>
+    <string name="map_search_pick">Какой адрес?</string>
+    <string name="map_search_km">%1$.1f км от вас</string>
     <string name="map_search_not_found">Адрес не нашёлся</string>
     <string name="map_layers">Слои карты</string>
     <string name="map_north">Север вверх</string>
@@ -476,7 +478,7 @@
     <string name="place_tire">Шиномонтаж</string>
     <string name="place_wc">Туалет</string>
     <string name="place_parking">Где постоять</string>
-    <string name="place_add_item">📍  Место водителей (еда, мойка, заправка…)</string>
+    <string name="place_add_item">📍  Ваша точка (еда, мойка, заправка)</string>
     <string name="place_add_title">Место для водителей</string>
     <string name="place_name_hint">Название, например «Кебаб у вокзала»</string>
     <string name="place_note_hint">Чем хорошо: цена, часы работы, совет</string>

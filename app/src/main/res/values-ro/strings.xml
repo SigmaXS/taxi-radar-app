@@ -315,6 +315,8 @@
     <string name="rep_addr_hard">Adresă: acces greu</string>
     <string name="rep_addr_cancel">Adresă: anulări dese</string>
     <string name="map_search_hint">Caută adresa — vezi cererea acolo</string>
+    <string name="map_search_pick">Care adresă?</string>
+    <string name="map_search_km">la %1$.1f km de dvs.</string>
     <string name="map_search_not_found">Adresa nu a fost găsită</string>
     <string name="map_layers">Straturile hărții</string>
     <string name="map_north">Nordul în sus</string>
@@ -472,7 +474,7 @@
     <string name="place_tire">Vulcanizare</string>
     <string name="place_wc">Toaletă</string>
     <string name="place_parking">Unde să staționezi</string>
-    <string name="place_add_item">📍  Loc pentru șoferi (mâncare, spălătorie, benzinărie…)</string>
+    <string name="place_add_item">📍  Punctul dvs. (mâncare, spălătorie, benzinărie)</string>
     <string name="place_add_title">Loc pentru șoferi</string>
     <string name="place_name_hint">Denumire, de ex. «Kebab lângă gară»</string>
     <string name="place_note_hint">De ce e bun: preț, program, sfat</string>

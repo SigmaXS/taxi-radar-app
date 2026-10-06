@@ -77,6 +77,15 @@
                 app:tint="@color/tr_accent" />
         </LinearLayout>
 
+        <!-- Предупреждения в дороге — отдельно, всегда под рукой -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipRoadAlerts"
+            style="@style/Widget.Material3.Chip.Filter.Elevated"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/map_road_alerts" />
+
         <!-- Слои и подсказка — по кнопке, чтобы не закрывали карту -->
         <LinearLayout
             android:id="@+id/layoutMapLayers"
@@ -133,13 +142,6 @@
                     android:layout_height="wrap_content"
                     android:checked="true"
                     android:text="@string/map_dark" />
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/chipRoadAlerts"
-                    style="@style/Widget.Material3.Chip.Filter.Elevated"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/map_road_alerts" />
             </com.google.android.material.chip.ChipGroup>
         </LinearLayout>
 
