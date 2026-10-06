@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_strings.dart';
 import 'order_parser_service.dart';
 
 /// Настройки оповещений радара — водитель выбирает сам на экране «Уведомления радара».
@@ -71,8 +72,19 @@ class RadarAlertSettings {
   }
 
   static const tariffNames = {'econom': 'Эконом', 'comfort': 'Комфорт', 'comfortplus': 'Комфорт+'};
-  String get tariffName => tariffNames[tariff] ?? 'Эконом';
+  String get tariffName => switch (tariff) {
+        'comfort' => AppStrings.t('Комфорт', 'Confort'),
+        'comfortplus' => AppStrings.t('Комфорт+', 'Confort+'),
+        _ => AppStrings.t('Эконом', 'Econom'),
+      };
 }
+
+/// «Эконом» / «Econom» — тариф заказа на языке приложения.
+String orderTariffLabel(String ru) => switch (ru) {
+      'Комфорт' => AppStrings.t('Комфорт', 'Confort'),
+      'Комфорт+' => AppStrings.t('Комфорт+', 'Confort+'),
+      _ => AppStrings.t('Эконом', 'Econom'),
+    };
 
 /// Что сказать водителю, когда надбавка изменилась (null — молчим). Отдельно от
 /// отправки, чтобы правила можно было проверить тестами.
@@ -82,11 +94,11 @@ String? surgeChangeMessage(int? previous, int current, RadarAlertSettings s) {
   if (current > previous) {
     if (!s.onUp || current < s.minSurge || current <= 0) return null;
     return previous == 0
-        ? '🔥 Надбавка появилась: $name +$current'
-        : '🔥 Надбавка выросла: $name +$current (было +$previous)';
+        ? AppStrings.t('Надбавка появилась: $name +$current', 'A apărut adaos: $name +$current')
+        : AppStrings.t('Надбавка выросла: $name +$current (было +$previous)', 'Adaosul a crescut: $name +$current (era +$previous)');
   }
-  if (current == 0) return s.onGone ? '🌙 Надбавка пропала: $name 0' : null;
-  return s.onDown ? '↘️ Надбавка упала: $name +$current (было +$previous)' : null;
+  if (current == 0) return s.onGone ? AppStrings.t('Надбавка пропала: $name 0', 'Adaosul a dispărut: $name 0') : null;
+  return s.onDown ? AppStrings.t('Надбавка упала: $name +$current (было +$previous)', 'Adaosul a scăzut: $name +$current (era +$previous)') : null;
 }
 
 /// Оповещения радара на iPhone без острова: цифра на иконке, тихий статус
@@ -137,21 +149,13 @@ class RadarAlerts {
   static Future<void> onOrder(ParsedOrder order) async {
     final s = await RadarAlertSettings.load();
     if (!s.orderBanner) return;
-    final route = [
+    // Крупно — цена, ниже «Эконом · 4.5 км · 18 мин»; адреса не нужны (водитель их видит в Яндексе).
+    final line = [
+      orderTariffLabel(order.tariff),
       if (order.distanceTime.isNotEmpty) order.distanceTime,
-      if (order.surgeBonus > 0) 'надбавка +${order.surgeBonus}',
+      if (order.surgeBonus > 0) AppStrings.t('надбавка +${order.surgeBonus}', 'adaos +${order.surgeBonus}'),
     ].join(' · ');
-    final points = [
-      if (order.pointA.isNotEmpty) 'A: ${order.pointA}',
-      if (order.pointB.isNotEmpty) 'B: ${order.pointB}',
-    ].join('\n');
-    await _notify(
-      'radar_order',
-      '🚕 ${order.priceText}${route.isEmpty ? '' : ' · $route'}',
-      points,
-      passive: order.calculating,
-      sound: s.sound,
-    );
+    await _notify('radar_order', order.priceText, line, passive: order.calculating, sound: s.sound);
   }
 
   /// Радар выключили — убираем статус и цифру.

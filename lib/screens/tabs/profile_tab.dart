@@ -1,20 +1,27 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../l10n/app_strings.dart';
 import '../../models/app_config.dart';
 import '../../services/license_service.dart';
+import '../../services/live_activity_service.dart';
+import '../../ui/ds.dart';
+import '../subscription_screen.dart';
 import '../yandex_key_screen.dart';
 
 class ProfileTab extends StatefulWidget {
   final AppConfig config;
   final LicenseStatus? license;
   final Function(String) onLanguageChanged;
+  final Future<void> Function() onRefresh;
 
   const ProfileTab({
     super.key,
     required this.config,
     required this.license,
     required this.onLanguageChanged,
+    required this.onRefresh,
   });
 
   @override
@@ -22,58 +29,39 @@ class ProfileTab extends StatefulWidget {
 }
 
 class _ProfileTabState extends State<ProfileTab> {
-  final TextEditingController _friendCodeController = TextEditingController();
+  final _friendCode = TextEditingController();
 
+  void _open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  void _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  void _showEnterCodeDialog() {
-    showDialog(
+  void _enterFriendCode() {
+    final t = AppStrings.t;
+    showCupertinoDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E2638),
-        title: Text(AppStrings.refEnterCode, style: const TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: _friendCodeController,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'TR-XXXXXX',
-            hintStyle: TextStyle(color: Colors.grey.shade400),
-            filled: true,
-            fillColor: const Color(0xFF2A364F),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+      barrierDismissible: true,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(AppStrings.refEnterCode),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: CupertinoTextField(
+            controller: _friendCode,
+            placeholder: 'TR-XXXXXX',
+            textCapitalization: TextCapitalization.characters,
+            autofocus: true,
           ),
         ),
         actions: [
-          TextButton(
-            child: const Text('Отмена', style: TextStyle(color: Colors.white70)),
-            onPressed: () => Navigator.pop(ctx),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade700),
-            child: const Text('Применить', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: Text(t('Отмена', 'Anulează'))),
+          CupertinoDialogAction(
+            isDefaultAction: true,
             onPressed: () async {
-              final code = _friendCodeController.text.trim();
-              if (code.isNotEmpty) {
-                Navigator.pop(ctx);
-                final res = await LicenseService.applyReferralCode(code);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(res['message']?.toString() ?? 'Ответ сервера')),
-                  );
-                }
-              }
+              final code = _friendCode.text.trim();
+              Navigator.pop(ctx);
+              if (code.isEmpty) return;
+              final res = await LicenseService.applyReferralCode(code);
+              if (mounted) dsToast(context, res['message']?.toString() ?? '');
+              widget.onRefresh();
             },
+            child: Text(t('Применить', 'Aplică')),
           ),
         ],
       ),
@@ -82,152 +70,123 @@ class _ProfileTabState extends State<ProfileTab> {
 
   @override
   Widget build(BuildContext context) {
-    final refCode = widget.license?.referralCode ?? 'TR-000000';
-
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    final t = AppStrings.t;
+    final lic = widget.license;
+    final cfg = widget.config;
+    final refCode = lic?.referralCode ?? '';
+    return DSPage(
+      title: AppStrings.navProfile,
+      onRefresh: widget.onRefresh,
       children: [
-        // Язык приложения
-        Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: const Color(0xFF1E2638),
-          child: ListTile(
-            leading: const Icon(Icons.language_rounded, color: Colors.blueAccent),
-            title: const Text('Язык приложения / Limba', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            trailing: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'RU', label: Text('RU')),
-                ButtonSegment(value: 'RO', label: Text('RO')),
-              ],
-              selected: {AppStrings.lang},
-              onSelectionChanged: (set) {
-                widget.onLanguageChanged(set.first);
-                setState(() {});
+        DSSection(
+          children: [
+            DSRow(
+              icon: DSIcon(CupertinoIcons.checkmark_seal_fill, (lic?.isLicensed ?? false) ? DS.success : DS.danger),
+              title: t('Подписка', 'Abonament'),
+              value: lic == null
+                  ? null
+                  : lic.isLicensed
+                      ? '${lic.daysLeft} ${t('дн.', 'zile')}'
+                      : t('не активна', 'inactiv'),
+              onTap: () async {
+                await dsPush(context, SubscriptionScreen(config: cfg, license: lic));
+                widget.onRefresh();
               },
             ),
-          ),
+          ],
         ),
-
-        const SizedBox(height: 12),
-
-        // Пригласи друга
-        Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: const Color(0xFF1E2638),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      AppStrings.refTitle,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade700,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '+${widget.config.referralBonusDays} дн.',
-                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
-                    ),
-                  ],
+        DSSection(
+          header: t('Язык', 'Limba'),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(DS.s12),
+              child: SizedBox(
+                width: double.infinity,
+                child: CupertinoSlidingSegmentedControl<String>(
+                  groupValue: AppStrings.lang,
+                  children: const {'RU': Text('Русский'), 'RO': Text('Română')},
+                  onValueChanged: (v) {
+                    if (v == null) return;
+                    DS.tap();
+                    widget.onLanguageChanged(v);
+                    setState(() {});
+                  },
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Ваш код друга: $refCode',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amberAccent),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white24),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: _showEnterCodeDialog,
-                        child: Text(AppStrings.refEnterCode),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
-
-        const SizedBox(height: 12),
-
-        // Свой ключ Яндекс Геокодера
-        Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: const Color(0xFF1E2638),
-          child: ListTile(
-            leading: const Icon(Icons.vpn_key_rounded, color: Colors.amberAccent),
-            title: const Text('Свой ключ Яндекс API', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Запасной ключ геокодирования', style: TextStyle(color: Colors.grey, fontSize: 13)),
-            trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white30, size: 16),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const YandexKeyScreen()),
-              );
-            },
+        DSSection(
+          header: AppStrings.refTitle,
+          footer: t(
+            'Друг вводит ваш код — вы оба получаете +${cfg.referralBonusDays} дн. подписки.',
+            'Prietenul introduce codul dvs. — primiți amândoi +${cfg.referralBonusDays} zile.',
           ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Контакты техподдержки
-        Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: const Color(0xFF1E2638),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(AppStrings.contactTitle, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.phone_rounded, color: Colors.greenAccent, size: 28),
-                      onPressed: () => _openUrl('tel:${widget.config.phone}'),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.telegram, color: Color(0xFF29B6F6), size: 28),
-                      onPressed: () => _openUrl('https://t.me/${widget.config.telegram}'),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF25D366), size: 28),
-                      onPressed: () => _openUrl('https://wa.me/${widget.config.whatsapp.replaceAll("+", "")}'),
-                    ),
-                  ],
-                ),
-              ],
+          children: [
+            if (refCode.isNotEmpty)
+              DSRow(
+                icon: const DSIcon(CupertinoIcons.gift_fill, CupertinoColors.systemPink),
+                title: t('Ваш код', 'Codul dvs.'),
+                value: refCode,
+                trailing: Icon(CupertinoIcons.doc_on_doc, size: 20, color: DS.label2(context)),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: refCode));
+                  dsToast(context, t('Код скопирован', 'Cod copiat'));
+                },
+              ),
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.person_badge_plus_fill, CupertinoColors.systemTeal),
+              title: AppStrings.refEnterCode,
+              onTap: _enterFriendCode,
             ),
-          ),
+          ],
         ),
-
-        const SizedBox(height: 20),
-        const Center(
-          child: Text(
-            'Taxi Radar v1.16 · iOS & Android',
-            style: TextStyle(color: Colors.white38, fontSize: 13),
-          ),
+        DSSection(
+          header: t('Дополнительно', 'Suplimentar'),
+          children: [
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.lock_shield_fill, CupertinoColors.systemGrey),
+              title: t('Свой ключ Яндекс API', 'Cheia proprie Yandex API'),
+              subtitle: t('Запасной поиск адресов', 'Căutarea adreselor de rezervă'),
+              onTap: () => dsPush(context, const YandexKeyScreen()),
+            ),
+          ],
         ),
-        const SizedBox(height: 30),
+        DSSection(
+          header: AppStrings.contactTitle,
+          children: [
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.paperplane_fill, DS.telegram),
+              title: 'Telegram',
+              value: '@${cfg.telegram}',
+              onTap: () => _open('https://t.me/${cfg.telegram}'),
+            ),
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.chat_bubble_fill, Color(0xFF25D366)),
+              title: 'WhatsApp',
+              onTap: () => _open('https://wa.me/${cfg.whatsapp.replaceAll('+', '')}'),
+            ),
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.phone_fill, DS.success),
+              title: t('Позвонить', 'Sună'),
+              value: cfg.phone,
+              onTap: () => _open('tel:${cfg.phone}'),
+            ),
+          ],
+        ),
+        DSSection(
+          header: t('О приложении', 'Despre aplicație'),
+          children: [
+            const DSRow(title: 'Taxi Radar', value: '1.16 · iOS'),
+            ValueListenableBuilder<String>(
+              valueListenable: LiveActivityService.diagnosticsNotifier,
+              builder: (context, diag, _) => DSRow(
+                title: t('Диагностика', 'Diagnostic'),
+                subtitle: diag,
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../l10n/app_strings.dart';
 import 'fare_calculator.dart';
 
 /// Заказ, разобранный из текста скриншота карточки Яндекс Про.
@@ -47,9 +48,9 @@ class ParsedOrder {
 
   /// «~109 L», «считаю…» или «нет цены» — как на виджете Android.
   String get priceText {
-    if (calculating) return 'считаю…';
+    if (calculating) return AppStrings.t('считаю…', 'calculez…');
     if (price > 0) return '~${price.round()} L';
-    return hasRoute ? 'нет цены' : 'адрес не распознан';
+    return hasRoute ? AppStrings.t('нет цены', 'fără preț') : AppStrings.t('адрес не распознан', 'adresă nerecunoscută');
   }
 
   ParsedOrder copyWith({double? price, String? distanceTime, bool? calculating, int? stopsCount}) => ParsedOrder(
@@ -259,7 +260,11 @@ class OrderParserService {
         stops: r.stops,
       );
     }
-    final parts = ['${_fmtKm(r.distanceKm)} км', '${r.durationMin} мин', if (r.stops > 0) '${r.stops} заезд'];
+    final parts = [
+      '${_fmtKm(r.distanceKm)} ${AppStrings.t('км', 'km')}',
+      '${r.durationMin} ${AppStrings.t('мин', 'min')}',
+      if (r.stops > 0) '${r.stops} ${AppStrings.t('заезд', 'opriri')}',
+    ];
     return order.copyWith(
         price: r.price.toDouble(), distanceTime: parts.join(' · '), calculating: false, stopsCount: r.stops);
   }

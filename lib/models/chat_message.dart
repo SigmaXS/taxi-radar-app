@@ -25,7 +25,7 @@ class ChatMessage {
 
     return ChatMessage(
       id: (j['id'] as num?)?.toInt() ?? 0,
-      author: j['author'] as String? ?? 'Водитель',
+      author: (j['nickname'] ?? j['author'])?.toString() ?? 'Водитель',
       text: j['text'] as String? ?? '',
       timestamp: ts,
       mine: j['mine'] == true,

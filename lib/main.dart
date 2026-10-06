@@ -2,21 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/main_screen.dart';
 import 'services/live_activity_service.dart';
+import 'ui/ds.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await LiveActivityService.init();
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-  ]);
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF1E2638),
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const TaxiRadarApp());
 }
 
@@ -28,21 +19,10 @@ class TaxiRadarApp extends StatelessWidget {
     return MaterialApp(
       title: 'Taxi Radar',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF121826),
-        colorScheme: const ColorScheme.dark(
-          primary: Colors.amber,
-          surface: Color(0xFF1E2638),
-          onPrimary: Colors.black,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1E2638),
-          elevation: 0,
-        ),
-      ),
+      // Светлая и тёмная — как выбрано в iPhone.
+      themeMode: ThemeMode.system,
+      theme: DS.theme(Brightness.light),
+      darkTheme: DS.theme(Brightness.dark),
       home: const MainScreen(),
     );
   }

@@ -1,500 +1,318 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../l10n/app_strings.dart';
 import '../../models/app_config.dart';
 import '../../services/license_service.dart';
 import '../../services/live_activity_service.dart';
 import '../../services/order_parser_service.dart';
-import '../assistive_touch_guide_screen.dart';
+import '../../services/radar_alerts.dart';
+import '../../ui/ds.dart';
+import '../guides/price_guide_screen.dart';
+import '../guides/order_price_view.dart';
+import '../guides/radar_guide_screen.dart';
 import '../radar_alerts_screen.dart';
+import '../subscription_screen.dart';
 
+/// Главный экран: надбавка крупно, включение радара, инструкции и поддержка.
 class RadarTab extends StatefulWidget {
   final LicenseStatus? license;
   final AppConfig config;
-  final VoidCallback onRefresh;
+  final Future<void> Function() onRefresh;
 
-  const RadarTab({
-    super.key,
-    required this.license,
-    required this.config,
-    required this.onRefresh,
-  });
+  const RadarTab({super.key, required this.license, required this.config, required this.onRefresh});
 
   @override
   State<RadarTab> createState() => _RadarTabState();
 }
 
 class _RadarTabState extends State<RadarTab> {
-  final TextEditingController _keyController = TextEditingController();
-  bool _isActivating = false;
   bool _isMonitoring = false;
+  bool _busy = false;
+  String _tariffName = 'Эконом';
 
   @override
   void initState() {
     super.initState();
-    _loadMonitoringState();
+    _loadState();
   }
 
-  Future<void> _loadMonitoringState() async {
+  Future<void> _loadState() async {
     final prefs = await SharedPreferences.getInstance();
+    final s = await RadarAlertSettings.load();
+    if (!mounted) return;
     setState(() {
       _isMonitoring = prefs.getBool('is_monitoring') ?? false;
+      _tariffName = s.tariffName;
     });
   }
 
-  Future<void> _toggleMonitoring() async {
-    final nextState = !_isMonitoring;
 
-    if (nextState) {
+  Future<void> _toggleMonitoring() async {
+    setState(() => _busy = true);
+    if (!_isMonitoring) {
       LiveActivityResult res;
       try {
         res = await LiveActivityService.startMonitoring();
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Ошибка запуска: $e'),
-              backgroundColor: Colors.red.shade800,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        }
-        return;
+        res = LiveActivityResult(success: false, errorMessage: '$e');
       }
-      if (!res.success) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(res.errorMessage ?? 'Не удалось запустить Dynamic Island'),
-              backgroundColor: Colors.red.shade800,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        }
-        return;
-      }
-
+      if (!mounted) return;
       setState(() {
-        _isMonitoring = true;
+        _busy = false;
+        _isMonitoring = res.success;
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Радар включён: надбавка на иконке, на экране блокировки и баннером при изменении.'),
-            backgroundColor: Colors.green.shade700,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      dsToast(
+        context,
+        res.success
+            ? AppStrings.t('Радар включён — надбавка на иконке и на экране блокировки',
+                'Radarul e pornit — adaosul pe pictogramă și pe ecranul de blocare')
+            : (res.errorMessage ?? AppStrings.t('Не удалось запустить радар', 'Radarul nu a pornit')),
+      );
     } else {
       await LiveActivityService.stopMonitoring();
+      if (!mounted) return;
       setState(() {
+        _busy = false;
         _isMonitoring = false;
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppStrings.radarStop),
-            backgroundColor: Colors.grey.shade800,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
     }
   }
 
-  Future<void> _activateKey() async {
-    final key = _keyController.text.trim();
-    if (key.isEmpty) return;
+  void _open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 
-    setState(() => _isActivating = true);
-    final res = await LicenseService.activateKey(key);
-    setState(() => _isActivating = false);
-
-    if (mounted) {
-      final msg = res['message']?.toString() ?? 'Ответ сервера';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
-      if (res['ok'] == true) {
-        _keyController.clear();
-        widget.onRefresh();
-      }
-    }
-  }
-
-  void _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  void _showNews() {
+    final cfg = widget.config;
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text('Taxi Radar ${cfg.latestVersionName.isNotEmpty ? cfg.latestVersionName : '1.16'}'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(cfg.updateNotes.isNotEmpty
+              ? cfg.updateNotes
+              : AppStrings.t('Новостей пока нет — всё работает.', 'Deocamdată nu sunt noutăți — totul funcționează.')),
+        ),
+        actions: [CupertinoDialogAction(isDefaultAction: true, onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final lic = widget.license;
-    final isLicensed = lic?.isLicensed ?? false;
-    final daysLeft = lic?.daysLeft ?? 0;
-
-    return RefreshIndicator(
-      onRefresh: () async => widget.onRefresh(),
-      child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        children: [
-          // Карточка лицензии
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: const Color(0xFF1E2638),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isLicensed ? Colors.greenAccent : Colors.redAccent,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        isLicensed
-                            ? (lic?.isTrial == true
-                                ? '${AppStrings.licenseTrial} · $daysLeft дн.'
-                                : '${AppStrings.licenseActive} · $daysLeft дн.')
-                            : AppStrings.licenseExpired,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (!isLicensed) ...[
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _keyController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: AppStrings.licenseKeyHint,
-                        hintStyle: TextStyle(color: Colors.grey.shade400),
-                        filled: true,
-                        fillColor: const Color(0xFF2A364F),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.amber.shade700,
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: _isActivating ? null : _activateKey,
-                        child: _isActivating
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                              )
-                            : Text(AppStrings.licenseActivate, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+    final licensed = lic?.isLicensed ?? false;
+    return DSPage(
+      title: AppStrings.navRadar,
+      onRefresh: widget.onRefresh,
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: _showNews,
+        child: Icon(CupertinoIcons.bell, color: DS.label(context)),
+      ),
+      children: [
+        if (lic != null && !licensed) _subscriptionBanner(),
+        _hero(),
+        _order(),
+        DSSection(
+          header: AppStrings.t('Как это работает', 'Cum funcționează'),
+          children: [
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.dot_radiowaves_left_right, DS.surge),
+              title: AppStrings.t('Радар надбавки', 'Radarul adaosului'),
+              subtitle: AppStrings.t('Где сейчас горит надбавка и как её видеть', 'Unde e acum adaos și cum îl vedeți'),
+              onTap: () => dsPush(context, const RadarGuideScreen()),
             ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Кнопка Старт / Стоп мониторинга
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isMonitoring ? Colors.red.shade700 : const Color(0xFF00C853),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 4,
-              ),
-              icon: Icon(_isMonitoring ? Icons.stop_circle_rounded : Icons.play_circle_filled_rounded, size: 28),
-              label: Text(
-                _isMonitoring ? AppStrings.radarStop : AppStrings.radarStart,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              onPressed: _toggleMonitoring,
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.money_dollar_circle_fill, DS.success),
+              title: AppStrings.t('Показ цены заказа', 'Prețul comenzii'),
+              subtitle: AppStrings.t('Цена до «Принять» — одной кнопкой поверх Яндекс Про',
+                  'Prețul înainte de «Acceptă» — cu un buton peste Yandex Pro'),
+              onTap: () => dsPush(context, const PriceGuideScreen()),
             ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Что и когда сообщать: цифра на иконке, статус, баннеры надбавки и цены
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: const Color(0xFF1E2638),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFC084FC).withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.notifications_active, color: Color(0xFFC084FC), size: 24),
-              ),
-              title: const Text('Уведомления радара', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-              subtitle: const Text(
-                'Тариф, цифра на иконке, когда присылать баннер о надбавке и цене',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RadarAlertsScreen())),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Карточка AssistiveTouch / Плавающая кнопка
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: const Color(0xFF1E2638),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.touch_app, color: Colors.amber, size: 24),
-              ),
-              title: const Text(
-                'Плавающая кнопка (AssistiveTouch)',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              subtitle: const Text(
-                'Считывание цены и точек А/Б в 1 касание поверх Яндекс Про',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AssistiveTouchGuideScreen()),
-                );
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.bell_fill, DS.danger),
+              title: AppStrings.t('Уведомления радара', 'Notificările radarului'),
+              subtitle: AppStrings.t('Тариф и когда сообщать', 'Tariful și când să anunțe'),
+              onTap: () async {
+                await dsPush(context, const RadarAlertsScreen());
+                _loadState();
               },
             ),
-          ),
+          ],
+        ),
+        DSSection(
+          header: AppStrings.t('Помощь', 'Ajutor'),
+          children: [
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.paperplane_fill, DS.telegram),
+              title: AppStrings.t('Группа в Telegram', 'Grupul Telegram'),
+              subtitle: AppStrings.t('Новости, обновления, вопросы водителей', 'Noutăți, actualizări, întrebări'),
+              onTap: () => _open(widget.config.groupUrl),
+            ),
+            DSRow(
+              icon: const DSIcon(CupertinoIcons.chat_bubble_2_fill, DS.success),
+              title: AppStrings.t('Написать в поддержку', 'Scrie suportului'),
+              onTap: () => _open('https://t.me/${widget.config.telegram}'),
+            ),
+          ],
+        ),
+        _footer(lic),
+      ],
+    );
+  }
 
-          // Карточка последнего распознанного заказа (если был скан)
-          ValueListenableBuilder<ParsedOrder?>(
-            valueListenable: LiveActivityService.latestOrderNotifier,
-            builder: (context, order, _) {
-              if (order == null) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  color: const Color(0xFF162521),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              '🎯 Заказ со скриншота',
-                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontSize: 14),
-                            ),
-                            Row(
-                              children: [
-                                Text(
-                                  order.priceText,
-                                  style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 18),
-                                ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white54),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  tooltip: 'Сбросить и вернуться к радару',
-                                  onPressed: () => LiveActivityService.clearCurrentOrder(),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        if (order.distanceTime.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            '⏱ ${order.distanceTime}',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.cyanAccent),
-                          ),
-                        ],
-                        const SizedBox(height: 6),
-                        Text('📍 Подача: ${order.pointA}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                        Text('🏁 Куда: ${order.pointB}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                      ],
-                    ),
-                  ),
-                ),
-              );
+  /// Подписки нет — сразу наверху, коротко, со входом в «Подписку».
+  Widget _subscriptionBanner() => DSSection(
+        children: [
+          DSRow(
+            icon: const DSIcon(CupertinoIcons.exclamationmark_triangle_fill, CupertinoColors.systemOrange),
+            title: AppStrings.t('Подписка не активна', 'Abonamentul nu este activ'),
+            subtitle: AppStrings.t('Введите ключ или выберите тариф', 'Introduceți cheia sau alegeți un tarif'),
+            onTap: () async {
+              await dsPush(context, SubscriptionScreen(config: widget.config, license: widget.license));
+              widget.onRefresh();
             },
           ),
+        ],
+      );
 
-          const SizedBox(height: 16),
-
-          // Единый радар спроса (без лишних тарифов)
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            color: const Color(0xFF1E2638),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _hero() {
+    return DSCard(
+      padding: const EdgeInsets.fromLTRB(DS.s20, DS.s16, DS.s20, DS.s20),
+      child: ValueListenableBuilder<String>(
+        valueListenable: LiveActivityService.currentSurgeNotifier,
+        builder: (context, surge, _) {
+          final hot = surge.startsWith('+') && surge != '+0';
+          final noFix = surge == '📍';
+          final big = !_isMonitoring
+              ? '—'
+              : noFix
+                  ? '—'
+                  : (surge == '+0' || surge.isEmpty ? '0' : surge);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.radar_rounded, color: Colors.amber.shade400, size: 22),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Радар надбавки',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                        ],
-                      ),
-                      ValueListenableBuilder<String>(
-                        valueListenable: LiveActivityService.currentSurgeNotifier,
-                        builder: (context, surge, _) {
-                          final isHigh = surge != '+0' && surge.isNotEmpty;
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isHigh ? Colors.orange.withValues(alpha: 0.2) : Colors.white10,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: isHigh ? Colors.orangeAccent : Colors.white24,
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              surge,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: isHigh ? Colors.orangeAccent : Colors.white70,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
                   Text(
-                    _isMonitoring
-                        ? '🟢 Радар активен · Надбавка обновляется каждые 25 сек, цена отсканированного заказа держится 15 сек.'
-                        : '⚪ Радар выключен · Нажмите «Запустить радар», чтобы включить отображение на Dynamic Island.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                    AppStrings.t('Надбавка · ', 'Adaos · ') + _tariffNameLocalized(),
+                    style: DS.footnote.copyWith(color: DS.label2(context), fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 8),
-                  ValueListenableBuilder<String>(
-                    valueListenable: LiveActivityService.diagnosticsNotifier,
-                    builder: (context, diag, _) => Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: diag.startsWith('ОШИБКА') ? Colors.red.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Диагностика: $diag',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          color: diag.startsWith('ОШИБКА') ? Colors.redAccent : Colors.grey.shade500,
-                        ),
-                      ),
+                  const Spacer(),
+                  ValueListenableBuilder<DateTime?>(
+                    valueListenable: LiveActivityService.surgeUpdatedNotifier,
+                    builder: (context, at, _) => Text(
+                      at == null || !_isMonitoring
+                          ? ''
+                          : AppStrings.t('обновлено ', 'actualizat ') + DateFormat('HH:mm').format(at),
+                      style: DS.footnote.copyWith(color: DS.label3(context)),
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
-
-
-          const SizedBox(height: 16),
-
-          // Группа и контакты
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: () => _openUrl(widget.config.groupUrl),
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E2638),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.telegram, color: Color(0xFF29B6F6), size: 24),
-                        SizedBox(width: 8),
-                        Text('Telegram группа', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
+              const SizedBox(height: DS.s4),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: Text(
+                  big,
+                  key: ValueKey(big),
+                  style: DS.display.copyWith(
+                    height: 1.1,
+                    color: big == '—'
+                        ? DS.label3(context)
+                        : hot
+                            ? DS.c(context, DS.surge)
+                            : DS.label(context),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: InkWell(
-                  onTap: () => _openUrl('https://t.me/${widget.config.telegram}'),
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+              const SizedBox(height: DS.s4),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E2638),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.support_agent_rounded, color: Colors.greenAccent, size: 24),
-                        SizedBox(width: 8),
-                        Text('Поддержка', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ],
+                      shape: BoxShape.circle,
+                      color: _isMonitoring ? DS.c(context, DS.success) : DS.label3(context),
                     ),
                   ),
-                ),
+                  const SizedBox(width: DS.s8),
+                  Expanded(
+                    child: Text(
+                      !_isMonitoring
+                          ? AppStrings.t('Радар выключен', 'Radarul este oprit')
+                          : noFix
+                              ? AppStrings.t('Нет геолокации — надбавку не показываем', 'Fără localizare — adaosul nu se arată')
+                              : AppStrings.t('Радар включён · обновляется раз в минуту', 'Radar pornit · se actualizează la un minut'),
+                      style: DS.subhead.copyWith(color: DS.label2(context)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: DS.s16),
+              DSButton(
+                _isMonitoring ? AppStrings.t('Выключить радар', 'Oprește radarul') : AppStrings.t('Включить радар', 'Pornește radarul'),
+                icon: _isMonitoring ? CupertinoIcons.stop_fill : CupertinoIcons.play_fill,
+                secondary: _isMonitoring,
+                destructive: _isMonitoring,
+                loading: _busy,
+                onPressed: _toggleMonitoring,
               ),
             ],
-          ),
-        ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _tariffNameLocalized() => switch (_tariffName) {
+        'Комфорт' => AppStrings.t('Комфорт', 'Confort'),
+        'Комфорт+' => AppStrings.t('Комфорт+', 'Confort+'),
+        _ => AppStrings.t('Эконом', 'Econom'),
+      };
+
+  /// Последний заказ со скриншота.
+  Widget _order() => ValueListenableBuilder<ParsedOrder?>(
+        valueListenable: LiveActivityService.latestOrderNotifier,
+        builder: (context, order, _) {
+          if (order == null) return const SizedBox.shrink();
+          return DSCard(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: OrderPriceView(order: order)),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(28, 28),
+                  onPressed: LiveActivityService.clearCurrentOrder,
+                  child: Icon(CupertinoIcons.xmark_circle_fill, color: DS.label3(context)),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+  Widget _footer(LicenseStatus? lic) {
+    final parts = <String>[
+      if (lic != null && lic.isLicensed)
+        '${lic.isTrial ? AppStrings.licenseTrial : AppStrings.licenseActive} · ${lic.daysLeft} ${AppStrings.t('дн.', 'zile')}',
+      'Taxi Radar 1.16',
+    ];
+    return GestureDetector(
+      onTap: () => dsPush(context, SubscriptionScreen(config: widget.config, license: widget.license)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(DS.gutter, DS.s16, DS.gutter, DS.s8),
+        child: Text(
+          parts.join('  ·  '),
+          textAlign: TextAlign.center,
+          style: DS.footnote.copyWith(color: DS.label3(context)),
+        ),
       ),
     );
   }

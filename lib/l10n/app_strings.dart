@@ -3,6 +3,9 @@ class AppStrings {
 
   static bool get isRu => lang == 'RU';
 
+  /// Строка на текущем языке: t('Радар', 'Radar').
+  static String t(String ru, String ro) => isRu ? ru : ro;
+
   static String get appName => 'Taxi Radar';
   static String get appSubtitle => isRu ? 'Радар тарифов и дорожной обстановки' : 'Radar de tarife și situație rutieră';
 

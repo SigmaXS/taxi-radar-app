@@ -4,35 +4,61 @@ import '../models/flight.dart';
 import '../models/report.dart';
 import 'api_service.dart';
 
+class ChatPage {
+  final List<ChatMessage> messages;
+  final Set<int> deleted;
+  final String? nickname;
+  final bool muted;
+  final bool admin;
+  const ChatPage({required this.messages, required this.deleted, this.nickname, this.muted = false, this.admin = false});
+}
+
 class CommunityService {
   // ---------- CHAT ----------
-  static Future<List<ChatMessage>> getChatMessages({int afterId = 0}) async {
-    final res = await ApiService.post('/api/chat/messages', {
-      'count': 50,
-      if (afterId > 0) 'after': afterId,
-    });
-    if (res == null || res['ok'] != true || res['messages'] is! List) {
-      return [];
-    }
+  /// Сообщения после [after] (0 — последние 50), свой ник и id удалённых админом.
+  static Future<ChatPage?> getChat({int after = 0}) async {
+    final res = await ApiService.post('/api/chat/list', {if (after > 0) 'after': after});
+    if (res == null || res['ok'] != true) return null;
     final list = <ChatMessage>[];
-    for (var m in res['messages']) {
-      if (m is Map<String, dynamic>) {
-        list.add(ChatMessage.fromJson(m));
+    if (res['messages'] is List) {
+      for (final m in res['messages']) {
+        if (m is Map<String, dynamic>) list.add(ChatMessage.fromJson(m));
       }
     }
-    return list;
+    final me = res['me'] is Map ? res['me'] as Map : null;
+    return ChatPage(
+      messages: list,
+      deleted: (res['deleted'] is List) ? (res['deleted'] as List).map((e) => (e as num).toInt()).toSet() : <int>{},
+      nickname: me?['nickname']?.toString(),
+      muted: me?['muted'] == true,
+      admin: me?['admin'] == true,
+    );
   }
 
-  static Future<bool> sendChatMessage(String text, String author) async {
-    final res = await ApiService.post('/api/chat/send', {
-      'text': text,
-      'author': author,
-    });
-    return res != null && res['ok'] == true;
+  /// Ник в чате (2–20 букв или цифр). Возвращает текст ошибки или null.
+  static Future<String?> setChatNickname(String nickname) async {
+    final res = await ApiService.post('/api/chat/profile', {'nickname': nickname});
+    if (res == null) return 'Нет связи с сервером';
+    return res['ok'] == true ? null : (res['message']?.toString() ?? 'Ошибка');
   }
 
+  /// Текст ошибки или null, если отправлено.
+  static Future<String?> sendChatMessage(String text) async {
+    final res = await ApiService.post('/api/chat/send', {'text': text});
+    if (res == null) return 'Нет связи с сервером';
+    return res['ok'] == true ? null : (res['message']?.toString() ?? 'Ошибка');
+  }
+
+  /// Админ чата: action = delete | mute.
+  static Future<String?> moderateChat(int id, String action) async {
+    final res = await ApiService.post('/api/chat/moderate', {'id': id, 'action': action});
+    if (res == null) return 'Нет связи с сервером';
+    return res['ok'] == true ? null : (res['message']?.toString() ?? 'Ошибка');
+  }
+
+  /// Сколько новых (не своих) сообщений после [lastSeenId].
   static Future<int> getUnreadChatCount(int lastSeenId) async {
-    final res = await ApiService.post('/api/chat/unread', {'since_id': lastSeenId});
+    final res = await ApiService.post('/api/chat/unread', {'after': lastSeenId});
     if (res != null && res['ok'] == true) {
       return (res['count'] as num?)?.toInt() ?? 0;
     }

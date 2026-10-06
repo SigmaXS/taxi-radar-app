@@ -53,6 +53,9 @@ class LiveActivityService {
   static final ValueNotifier<ParsedOrder?> latestOrderNotifier = ValueNotifier<ParsedOrder?>(null);
   static final ValueNotifier<String> currentSurgeNotifier = ValueNotifier<String>('+0');
 
+  /// Когда надбавку последний раз получили с сервера — «обновлено 14:32» на главном экране.
+  static final ValueNotifier<DateTime?> surgeUpdatedNotifier = ValueNotifier<DateTime?>(null);
+
   /// Последний результат обмена с нативной частью — виден в интерфейсе,
   /// потому что в установленном IPA логи консоли недоступны.
   static final ValueNotifier<String> diagnosticsNotifier = ValueNotifier<String>('ожидание…');
@@ -358,6 +361,7 @@ class LiveActivityService {
     }
     final surgeDisplay = maxSurge > 0 ? '+$maxSurge' : '+0';
     currentSurgeNotifier.value = surge == null ? '?' : surgeDisplay;
+    if (surge != null) surgeUpdatedNotifier.value = DateTime.now();
 
     // Ближайшие предупреждения о радарах / полиции / ДТП
     String nearestAlert = '';
