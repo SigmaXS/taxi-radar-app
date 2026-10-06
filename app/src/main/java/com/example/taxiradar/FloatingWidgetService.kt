@@ -202,12 +202,17 @@ class FloatingWidgetService : Service() {
     fun applyScale() {
         scale = WidgetSize.scale(this)
         val dp = resources.displayMetrics.density * scale
-        floatingView?.apply {
+        floatingView?.findViewById<View>(R.id.widgetPill)?.apply {
             setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
             minimumWidth = (72 * dp).toInt()
         }
         tvWidgetSub?.maxWidth = (220 * dp).toInt()
         btnPlus?.textSize = 20f * scale
+        btnPlus?.layoutParams = (btnPlus?.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
+            width = (30 * dp).toInt()
+            height = (30 * dp).toInt()
+            topMargin = (-9 * dp).toInt()
+        }
         (reportMenu as? ViewGroup)?.let { menu ->
             for (i in 0 until menu.childCount) (menu.getChildAt(i) as? TextView)?.textSize = 30f * scale
         }
@@ -596,9 +601,10 @@ class FloatingWidgetService : Service() {
             val value = if (s != null && s > 0) { hasSurge = true; "+$s" } else "0"
             getString(label) to value
         }
+        // Буква тарифа остаётся: «Э: 0», «К+: +55» — видно, про какой тариф цифра.
         val displayText: CharSequence = when (parts.size) {
             0 -> "0"
-            1 -> parts[0].second
+            1 -> "${parts[0].first}: ${parts[0].second}"
             else -> SpannableStringBuilder().apply {
                 parts.forEachIndexed { i, (label, value) ->
                     if (i > 0) append("  ")

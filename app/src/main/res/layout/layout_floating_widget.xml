@@ -1,20 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- WidgetPillLayout = LinearLayout + долгое нажатие открывает Taxi Radar -->
+<!-- Сверху — кружок с надбавкой, под ним по центру — «+» (метки на дороге) -->
 <com.example.taxiradar.WidgetPillLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:background="@drawable/bg_widget_pill"
-    android:gravity="center_vertical"
-    android:minWidth="72dp"
-    android:orientation="horizontal"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="10dp">
+    android:gravity="center_horizontal"
+    android:orientation="vertical">
 
     <LinearLayout
+        android:id="@+id/widgetPill"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:background="@drawable/bg_widget_pill"
         android:gravity="center"
-        android:orientation="vertical">
+        android:minWidth="72dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp">
 
         <TextView
             android:id="@+id/tvWidgetSurge"
@@ -66,16 +68,17 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- Чуть заходит на кружок снизу; рисуется поверх него -->
     <TextView
         android:id="@+id/btnWidgetPlus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_marginTop="-9dp"
+        android:background="@drawable/bg_widget_plus"
+        android:gravity="center"
         android:includeFontPadding="false"
-        android:paddingVertical="4dp"
-        android:paddingStart="4dp"
         android:text="+"
-        android:textColor="@color/tr_text_muted"
+        android:textColor="@color/tr_accent"
         android:textSize="20sp"
         android:textStyle="bold" />
 </com.example.taxiradar.WidgetPillLayout>
