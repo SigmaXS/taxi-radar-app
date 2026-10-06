@@ -483,13 +483,56 @@ class FloatingWidgetService : Service() {
                 }
             }
         }
-        if (got != null) {
-            driverLat = got.latitude
-            driverLon = got.longitude
+        // Сервисы Google молчат (мультимедиа машин: нет Wi-Fi и вышек для «экономного»
+        // режима) — берём место напрямую у GPS устройства.
+        val fix = got ?: deviceGpsFix()
+        if (fix != null) {
+            driverLat = fix.latitude
+            driverLon = fix.longitude
             lastFixAt = System.currentTimeMillis()
         }
         // Точка не старше 15 минут — годится; иначе надбавка была бы не про это место.
         return System.currentTimeMillis() - lastFixAt < 15 * 60_000
+    }
+
+    /**
+     * Место от самого устройства, без сервисов Google: свежая точка любого
+     * провайдера (не старше 15 минут), иначе ждём одну точку от GPS до 8 секунд.
+     */
+    @SuppressLint("MissingPermission")
+    private suspend fun deviceGpsFix(): android.location.Location? {
+        if (!hasLocationPermission()) return null
+        val lm = getSystemService(android.location.LocationManager::class.java) ?: return null
+        val fresh = try {
+            lm.getProviders(true).mapNotNull { lm.getLastKnownLocation(it) }
+                .filter { System.currentTimeMillis() - it.time < 15 * 60_000 }
+                .maxByOrNull { it.time }
+        } catch (e: Exception) {
+            null
+        }
+        if (fresh != null) return fresh
+        val provider = listOf(android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER)
+            .firstOrNull { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) } ?: return null
+        return kotlinx.coroutines.withTimeoutOrNull(8000) {
+            kotlinx.coroutines.suspendCancellableCoroutine<android.location.Location?> { cont ->
+                val listener = object : android.location.LocationListener {
+                    override fun onLocationChanged(location: android.location.Location) {
+                        lm.removeUpdates(this)
+                        if (cont.isActive) cont.resumeWith(Result.success(location))
+                    }
+                    @Deprecated("Deprecated in Java")
+                    override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
+                    override fun onProviderEnabled(provider: String) {}
+                    override fun onProviderDisabled(provider: String) {}
+                }
+                try {
+                    lm.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper())
+                } catch (e: Exception) {
+                    if (cont.isActive) cont.resumeWith(Result.success(null))
+                }
+                cont.invokeOnCancellation { lm.removeUpdates(listener) }
+            }
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
