@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,7 +23,20 @@ class LiveActivityService {
 
   static Timer? _monitorTimer;
   static Timer? _orderTtlTimer;
+  static AppLifecycleListener? _lifecycleListener;
   static bool _isMonitoring = false;
+
+  /// Возврат из фона должен сразу обновлять остров, иначе водитель смотрит
+  /// на устаревшую надбавку до конца интервала опроса.
+  static void _ensureLifecycleListener() {
+    _lifecycleListener ??= AppLifecycleListener(
+      onResume: () {
+        if (_isMonitoring && Platform.isIOS) {
+          _refreshSurgeAndPushActivity(isStart: false);
+        }
+      },
+    );
+  }
   static final ValueNotifier<ParsedOrder?> latestOrderNotifier = ValueNotifier<ParsedOrder?>(null);
   static final ValueNotifier<String> currentSurgeNotifier = ValueNotifier<String>('+0');
 
@@ -212,6 +226,7 @@ class LiveActivityService {
     _isMonitoring = true;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_monitoring', true);
+    _ensureLifecycleListener();
 
     // Первичное обновление и старт Dynamic Island
     final startRes = await _refreshSurgeAndPushActivity(isStart: true);
@@ -245,6 +260,8 @@ class LiveActivityService {
     _orderTtlTimer?.cancel();
     _orderTtlTimer = null;
     latestOrderNotifier.value = null;
+    _lifecycleListener?.dispose();
+    _lifecycleListener = null;
 
     if (Platform.isIOS) {
       try {

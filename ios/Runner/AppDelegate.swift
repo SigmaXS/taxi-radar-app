@@ -122,65 +122,67 @@ import ActivityKit
 
             let state = AppDelegate.makeContentState(from: args, method: call.method)
 
-            // Проверяем существующие активности
-            var existingActivity: Activity<TaxiRadarAttributes>?
+            // Всегда создаём новую активность. Переиспользование активности от
+            // прошлой установки опасно: виджет декодирует старую схему полей
+            // (zone вместо pointA/pointB) и рисует пустоту вместо содержимого.
+            var staleActivities: [Activity<TaxiRadarAttributes>] = []
             try? NSExceptionCatcher.catchException {
-                existingActivity = Activity<TaxiRadarAttributes>.activities.first
+                staleActivities = Activity<TaxiRadarAttributes>.activities
             }
 
-            if let existing = existingActivity {
-                Task {
+            Task {
+                for stale in staleActivities {
                     do {
                         if #available(iOS 16.2, *) {
-                            try await existing.update(ActivityContent(state: state, staleDate: nil))
+                            try await stale.end(nil, dismissalPolicy: .immediate)
                         } else {
-                            try await existing.update(using: state)
+                            try await stale.end(using: nil, dismissalPolicy: .immediate)
                         }
-                        print("[TaxiRadar] start: reused + updated \(existing.id)")
-                        result(existing.id)
                     } catch {
-                        print("[TaxiRadar] start: reuse update failed: \(error)")
-                        result(FlutterError(code: "START_UPDATE_FAILED", message: "Активность есть, обновление не удалось: \(error.localizedDescription)", details: nil))
+                        print("[TaxiRadar] не удалось завершить \(stale.id): \(error)")
                     }
                 }
-                return
-            }
+                if !staleActivities.isEmpty {
+                    print("[TaxiRadar] завершено старых активностей: \(staleActivities.count)")
+                }
 
-            // Создаем новую активность с перехватом системных исключений
-            var activityId: String?
-            do {
-                try NSExceptionCatcher.catchException {
-                    if #available(iOS 16.2, *) {
-                        if let activity = try? Activity<TaxiRadarAttributes>.request(
-                            attributes: TaxiRadarAttributes(),
-                            content: ActivityContent(state: state, staleDate: nil),
-                            pushType: nil
-                        ) {
-                            activityId = activity.id
-                        }
-                    } else {
-                        if let activity = try? Activity<TaxiRadarAttributes>.request(
-                            attributes: TaxiRadarAttributes(),
-                            contentState: state,
-                            pushType: nil
-                        ) {
-                            activityId = activity.id
+                // Создаем новую активность с перехватом системных исключений
+                var activityId: String?
+                do {
+                    try NSExceptionCatcher.catchException {
+                        if #available(iOS 16.2, *) {
+                            if let activity = try? Activity<TaxiRadarAttributes>.request(
+                                attributes: TaxiRadarAttributes(),
+                                content: ActivityContent(state: state, staleDate: nil),
+                                pushType: nil
+                            ) {
+                                activityId = activity.id
+                            }
+                        } else {
+                            if let activity = try? Activity<TaxiRadarAttributes>.request(
+                                attributes: TaxiRadarAttributes(),
+                                contentState: state,
+                                pushType: nil
+                            ) {
+                                activityId = activity.id
+                            }
                         }
                     }
+                } catch {
+                    print("[TaxiRadar] LiveActivity start exception: \(error)")
+                    result(FlutterError(code: "OBJC_EXCEPTION", message: "Ошибка системы: \(error.localizedDescription)", details: nil))
+                    return
                 }
-            } catch {
-                print("[TaxiRadar] LiveActivity start exception: \(error)")
-                result(FlutterError(code: "OBJC_EXCEPTION", message: "Ошибка системы: \(error.localizedDescription)", details: nil))
-                return
-            }
 
-            if let id = activityId {
-                print("[TaxiRadar] start: NEW activity created id=\(id)")
-                result(id)
-            } else {
-                print("[TaxiRadar] start FAILED: Activity.request returned nil (areActivitiesEnabled=false or system refused)")
-                result(FlutterError(code: "START_FAILED", message: "Не удалось запустить Dynamic Island", details: nil))
+                if let id = activityId {
+                    print("[TaxiRadar] start: NEW activity created id=\(id)")
+                    result(id)
+                } else {
+                    print("[TaxiRadar] start FAILED: Activity.request returned nil (areActivitiesEnabled=false or system refused)")
+                    result(FlutterError(code: "START_FAILED", message: "Не удалось запустить Dynamic Island", details: nil))
+                }
             }
+            return
 
         case "update":
             guard let args = call.arguments as? [String: Any] else {
