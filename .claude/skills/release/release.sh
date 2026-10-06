@@ -9,6 +9,7 @@ GRADLE=app/build.gradle.kts
 KEYS="$ROOT/../TaxiRadar-keys"
 SDK="${ANDROID_HOME:-$LOCALAPPDATA/Android/Sdk}"
 export JAVA_HOME="${JAVA_HOME:-/c/Program Files/Android/Android Studio/jbr}"
+export ANDROID_HOME="$SDK"
 
 [ "$(git branch --show-current)" = main ] || { echo "Нужна ветка main"; exit 1; }
 [ -d "$KEYS" ] || { echo "Нет папки $KEYS"; exit 1; }
