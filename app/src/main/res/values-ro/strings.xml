@@ -329,7 +329,7 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
     <string name="rep_police">Poliție</string>
     <string name="rep_accident">Accident</string>
     <string name="rep_danger">Pericol</string>
-    <string name="widget_here">aici</string>
+    <string name="widget_here">Eu</string>
     <string name="widget_point_b">B</string>
     <string name="widget_report_sent">Marcat: %1$s</string>
     <string name="widget_report_sent_hint">Îi avertizăm pe șoferii care vin încoace</string>

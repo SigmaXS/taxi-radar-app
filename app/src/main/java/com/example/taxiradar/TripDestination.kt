@@ -43,6 +43,15 @@ object TripDestination {
         "comanda finalizată", "comandă finalizată", "comanda a fost finalizată", "cursa s-a încheiat",
         "order completed", "trip completed", "ride completed"
     )
+    // Заказ отменили (клиент или водитель) — Б больше не нужна.
+    private val cancelWords = listOf(
+        "заказ отменён", "заказ отменен", "отменил заказ", "отменила заказ", "клиент отменил", "поездка отменена",
+        "comanda a fost anulată", "comandă anulată", "a anulat comanda", "order cancelled", "order canceled", "ride cancelled"
+    )
+    /** Сколько экранов Яндекс Про подряд без «Б» терпим: открыт Яндекс Про, а Б нигде нет — заказа уже нет. */
+    private const val MISSING_MS = 2 * 60_000L
+    @Volatile private var missingSince = 0L
+
     private val notAddress = Regex("""(?iu)^(я здесь|уточнить|завершить|звонок|ожидание|поехали|б|b|\d+|[\d:]+|.*\d\s*(км|м|мин|km|min)\.?)$""")
 
     fun enabled() = true
@@ -56,14 +65,15 @@ object TripDestination {
         point = null
         seenAt = 0L
         pending = null
+        missingSince = 0L
     }
 
     /** Любой экран Яндекс Про, кроме карточки нового заказа. */
     fun onScreen(context: Context, lines: List<String>) {
         if (!enabled()) return
         val lower = lines.map { it.lowercase() }
-        if (lower.any { l -> endWords.any { l.contains(it) } }) {
-            if (address != null) Log.d(TAG, "Заказ завершён — Б забыли")
+        if (lower.any { l -> endWords.any { l.contains(it) } || cancelWords.any { l.contains(it) } }) {
+            if (address != null || pending != null) Log.d(TAG, "Заказ завершён или отменён — Б забыли")
             clear()
             return
         }
@@ -72,8 +82,18 @@ object TripDestination {
             if (m != "Б" && m != "B") continue
             val next = lines[i + 1].trim()
             if (next.length <= 5 || next.none { it.isLetter() } || notAddress.matches(next)) continue
+            missingSince = 0L
             remember(context.applicationContext, next)
             return
+        }
+        // Яндекс Про открыт, а «Б» на экране нет: заказ отменили или он закончился, а мы
+        // не увидели. Пару минут ждём (Б могла просто свернуться), потом убираем с виджета.
+        if (address == null && pending == null) return
+        val now = System.currentTimeMillis()
+        if (missingSince == 0L) missingSince = now
+        else if (now - missingSince > MISSING_MS) {
+            Log.d(TAG, "Б не видно в Яндекс Про ${MISSING_MS / 60000} мин — убираем")
+            clear()
         }
     }
 
