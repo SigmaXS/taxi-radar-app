@@ -417,6 +417,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.tileChat).setOnClickListener {
             startActivity(Intent(this, ChatActivity::class.java))
         }
+        findViewById<View>(R.id.tileMyTrips).setOnClickListener {
+            startActivity(Intent(this, MyTripsActivity::class.java))
+        }
         // Клиенты и Аэропорт — на вкладке «Радар».
         // Клиенты и аэропорт — и на «Радаре», чтобы не искать.
         findViewById<View>(R.id.rowClients).setOnClickListener {

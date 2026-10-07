@@ -74,6 +74,8 @@ object TripTracker {
                     .put("tariff", tariff).put("stops", route.size - 2).put("surge", surge)
                     .put("est_price", estPrice).put("est_km", estKm).put("est_min", estMin)
                     .put("nav_km", navKm).put("nav_min", navMin).put("nav_price", navPrice)
+                    // Для «Моих поездок» водителя: откуда и куда (сервер хранит 60 дней).
+                    .put("from", route.first().take(120)).put("to", route.last().take(120))
             )
             trip.reportId = r?.optString("id")?.takeIf { it.isNotBlank() }
         }
@@ -147,6 +149,7 @@ object TripTracker {
                 CommunityApi.postBlocking(
                     app, "/api/trips/finish", JSONObject()
                         .put("id", id).put("real_price", price ?: JSONObject.NULL)
+                        .put("real_min", elapsedMin)
                         .put("note", note ?: JSONObject.NULL)
                 )
             }

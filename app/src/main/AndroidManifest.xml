@@ -63,6 +63,7 @@
             android:name=".YandexKeyActivity"
             android:exported="false" />
 
+        <activity android:name=".MyTripsActivity" android:exported="false" />
         <activity
             android:name=".ClientsActivity"
             android:exported="false" />
