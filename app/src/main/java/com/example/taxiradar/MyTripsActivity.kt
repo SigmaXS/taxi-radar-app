@@ -124,7 +124,55 @@ class MyTripsActivity : AppCompatActivity() {
                 setPadding(0, DriverUi.dp(c, 2), 0, DriverUi.dp(c, 2))
             })
         }
+        // «Цена неверная»: сервер сам разберёт, где разошлось, админ поправит (например, точку адреса).
+        if (real != null) {
+            val flagged = o.optBoolean("disputed")
+            DriverUi.button(c, box, if (flagged) t("✓ Отмечено — разбираемся", "✓ Marcat — verificăm") else t("Цена неверная", "Preț greșit")) {
+                if (!flagged) dispute(o.optString("id"))
+            }.apply {
+                isEnabled = !flagged
+                backgroundTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.tr_surface_high))
+                setTextColor(getColor(if (flagged) R.color.tr_success else R.color.tr_text))
+                (layoutParams as LinearLayout.LayoutParams).topMargin = DriverUi.dp(c, 8)
+            }
+        }
         card.addView(box)
         return card
+    }
+
+    private fun dispute(id: String) {
+        val reasons = arrayOf("amount", "route", "other")
+        val labels = arrayOf(
+            t("Яндекс взял другую сумму", "Yandex a luat altă sumă"),
+            t("Маршрут был другой", "Traseul a fost altul"),
+            t("Другое", "Altceva"))
+        var chosen = 0
+        val comment = com.google.android.material.textfield.TextInputEditText(this).apply {
+            hint = t("Что было не так (необязательно)", "Ce n-a fost bine (opțional)")
+            maxLines = 3
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(DriverUi.dp(this@MyTripsActivity, 22), 0, DriverUi.dp(this@MyTripsActivity, 22), 0)
+            addView(comment)
+        }
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(t("Почему цена неверная?", "De ce prețul e greșit?"))
+            .setSingleChoiceItems(labels, 0) { _, i -> chosen = i }
+            .setView(box)
+            .setPositiveButton(t("Отправить", "Trimite")) { _, _ ->
+                lifecycleScope.launch {
+                    val r = CommunityApi.post(this@MyTripsActivity, "/api/trips/dispute", JSONObject()
+                        .put("id", id).put("reason", reasons[chosen]).put("comment", comment.text?.toString().orEmpty()))
+                    val ok = r?.optBoolean("ok") == true
+                    android.widget.Toast.makeText(this@MyTripsActivity,
+                        if (ok) t("Спасибо! Разберём, где ошибся расчёт.", "Mulțumim! Vom verifica unde a greșit estimarea.")
+                        else t("Не отправилось — нет связи.", "Nu s-a trimis — fără conexiune."),
+                        android.widget.Toast.LENGTH_LONG).show()
+                    if (ok) load()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 }
