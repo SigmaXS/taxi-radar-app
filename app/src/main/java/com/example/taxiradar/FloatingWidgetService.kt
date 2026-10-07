@@ -617,6 +617,8 @@ class FloatingWidgetService : Service() {
                 if (!isShowingOrder) {
                     fetchSurgeForAll()
                 }
+                // Что не ушло при плохой связи — досылаем.
+                Outbox.flush(this@FloatingWidgetService)
                 // Едем по заказу — надбавка «здесь» и в Б чаще, раз в 30 секунд.
                 delay(DriverPreferences.number(this@FloatingWidgetService, "refresh", 60.0).toLong().coerceIn(30, 300) * 1000)
             }

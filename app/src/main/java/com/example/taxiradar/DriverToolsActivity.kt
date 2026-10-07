@@ -18,7 +18,6 @@ import java.util.Locale
 class DriverToolsActivity : AppCompatActivity() {
     private lateinit var body: LinearLayout
     private var mode = "settings"
-    private var historyLimit = 30
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLanguage.wrap(newBase))
     private fun t(ru: String, ro: String) = DriverUi.t(this, ru, ro)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,7 +35,72 @@ class DriverToolsActivity : AppCompatActivity() {
         setContentView(root)
         render()
     }
-    private fun render() { body.removeAllViews(); if (mode == "shift") shift() else settings(); DriverUi.arrangeCards(this, body) }
+    private fun render() { body.removeAllViews(); when (mode) { "shift" -> shift(); "archive" -> archive(); else -> settings() }; DriverUi.arrangeCards(this, body) }
+
+    // ---------- архив смен: календарь ----------
+
+    private var archiveDay: Long = System.currentTimeMillis()
+
+    private fun archive() {
+        body.addView(DriverUi.text(this, t("Архив смен", "Arhiva turelor"), 28f))
+        body.addView(DriverUi.text(this, t("Выберите день — покажем доход, расходы, пробег и часы. Все смены хранятся на этом телефоне.",
+            "Alegeți ziua — arătăm venitul, cheltuielile, kilometrajul și orele. Turele rămân pe acest telefon."), 14f, true))
+        val shifts = DriverJournal.shifts(this)
+        val rides = DriverJournal.rides(this)
+        val cal = card("Календарь", "Calendar", "Нажмите на день. Смена относится к дню, когда она началась.", "Apăsați pe o zi. Tura aparține zilei în care a început.", R.drawable.ic_payments)
+        val view = android.widget.CalendarView(this).apply {
+            date = archiveDay
+            maxDate = System.currentTimeMillis()
+            shifts.minOfOrNull { it.start }?.let { minDate = minOf(it, System.currentTimeMillis()) - 24 * 3600_000L }
+        }
+        cal.addView(view, LinearLayout.LayoutParams(-1, -2))
+        val dayBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        cal.addView(dayBox)
+        fun showDay(dayStart: Long) {
+            dayBox.removeAllViews()
+            val dayEnd = dayStart + 24 * 3600_000L
+            val that = shifts.filter { it.start in dayStart until dayEnd }
+            val title = SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(Date(dayStart))
+            dayBox.addView(DriverUi.text(this, title, 18f).apply { setTypeface(null, android.graphics.Typeface.BOLD) })
+            if (that.isEmpty()) { dayBox.addView(DriverUi.text(this, t("В этот день смены не было.", "În această zi nu a fost tură."), 14f, true)); return }
+            that.forEach { s -> shiftSummary(dayBox, DriverJournal.totals(this, s, rides)) }
+        }
+        val start = java.util.Calendar.getInstance().apply { timeInMillis = archiveDay; set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }
+        showDay(start.timeInMillis)
+        view.setOnDateChangeListener { _, y, m, d ->
+            val day = java.util.Calendar.getInstance().apply { clear(); set(y, m, d) }.timeInMillis
+            archiveDay = day
+            showDay(day)
+        }
+        val recent = card("Последние смены", "Ultimele ture", "Новые сверху. Незакрытая смена отмечена «идёт сейчас».", "Cele noi sus. Tura deschisă e marcată «în curs».", R.drawable.ic_payments)
+        if (shifts.isEmpty()) recent.addView(DriverUi.text(this, t("Смен пока нет — нажмите «Начать смену» или примите заказ.", "Încă nu sunt ture — apăsați «Începe tura» sau acceptați o comandă."), 14f, true))
+        shifts.take(14).forEach { shiftSummary(recent, DriverJournal.totals(this, it, rides)) }
+    }
+
+    /** Блок одной смены: когда, часы, оплата, чистыми и расходы, пробег, поездки. */
+    private fun shiftSummary(parent: LinearLayout, s: DriverJournal.ShiftTotals) {
+        val f = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
+        val h = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val sh = s.shift
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(DriverUi.dp(this@DriverToolsActivity, 12), DriverUi.dp(this@DriverToolsActivity, 10), DriverUi.dp(this@DriverToolsActivity, 12), DriverUi.dp(this@DriverToolsActivity, 10))
+            background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = DriverUi.dp(this@DriverToolsActivity, 14).toFloat(); setColor(getColor(R.color.tr_surface_high)) }
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = DriverUi.dp(this@DriverToolsActivity, 8) }
+        }
+        box.addView(DriverUi.text(this, f.format(Date(sh.start)) + " – " + (if (sh.end > 0) h.format(Date(sh.end)) else t("идёт сейчас", "în curs")) +
+            " · " + t("${sh.minutes / 60} ч ${sh.minutes % 60} мин", "${sh.minutes / 60} h ${sh.minutes % 60} min"), 14f, true))
+        box.addView(DriverUi.text(this, t("Оплата: ${s.gross} L · заказов: ${s.rides}", "Plata: ${s.gross} L · curse: ${s.rides}"), 18f))
+        if (s.net != null) {
+            box.addView(DriverUi.text(this, t("Чистыми: ~${s.net} L · расходы: ~${s.gross - s.net} L", "Net: ~${s.net} L · cheltuieli: ~${s.gross - s.net} L")))
+            if (sh.minutes > 0) box.addView(DriverUi.text(this, t("~${s.net * 60 / sh.minutes} L/час смены", "~${s.net * 60 / sh.minutes} L/oră de tură"), 14f, true))
+        } else box.addView(DriverUi.text(this, t("Чистыми — заполните расходы машины в настройках радара", "Net — completați cheltuielile mașinii în setări"), 13f, true))
+        box.addView(DriverUi.text(this, t("С пассажиром: ${fmt(s.paidKm)} км", "Cu pasager: ${fmt(s.paidKm)} km") +
+            (if (sh.odometerKm > 0) t(" · всего: ${fmt(sh.odometerKm)} км", " · total: ${fmt(sh.odometerKm)} km") else "") +
+            (if (sh.rent > 0) t(" · аренда ${sh.rent.toInt()} L", " · chirie ${sh.rent.toInt()} L") else ""), 14f, true))
+        if (s.toCheck > 0) box.addView(DriverUi.text(this, t("Ждут проверки: ${s.toCheck} — откройте «Мои поездки»", "De verificat: ${s.toCheck} — deschideți «Cursele mele»"), 13f, true).apply { setTextColor(getColor(R.color.tr_warning)) })
+        parent.addView(box)
+    }
     private fun card(ru: String, ro: String, helpRu: String, helpRo: String, icon: Int = R.drawable.ic_help) = DriverUi.card(this, body, t(ru, ro), t(helpRu, helpRo), icon)
     private fun flag(box: LinearLayout, key: String, ru: String, ro: String, helpRu: String, helpRo: String, default: Boolean = false) {
         DriverUi.toggle(this, box, t(ru, ro), t(helpRu, helpRo), DriverPreferences.flag(this, key, default)) {
@@ -194,7 +258,10 @@ class DriverToolsActivity : AppCompatActivity() {
             DriverPreferences.flag(this, "auto_shift", true)) { DriverPreferences.set(this, "auto_shift", it) }
         number(summary, "shift_km", "Общий пробег смены по одометру, км", "Kilometraj total al turei, km", 0.0, 0.0, 3000.0)
         DriverUi.button(this, summary, t("Обновить итоги", "Actualizează totalul")) { render() }
-        DriverUi.button(this, summary, t("Добавить поездку / исправить цену", "Adaugă cursă / corectează prețul")) { editRide(null) }
+        DriverUi.button(this, summary, t("Добавить поездку / исправить цену", "Adaugă cursă / corectează prețul")) { RideEditor.show(this, null) { render() } }
+        DriverUi.button(this, summary, t("Архив смен и календарь", "Arhiva turelor și calendar")) {
+            startActivity(android.content.Intent(this, DriverToolsActivity::class.java).putExtra("mode", "archive"))
+        }
         DriverUi.button(this, summary, t("Отправить итог смены", "Trimite totalul turei")) {
             // Обычный «Поделиться»: водитель сам выбирает Telegram, WhatsApp, Viber или заметки.
             val lines = mutableListOf(
@@ -213,14 +280,13 @@ class DriverToolsActivity : AppCompatActivity() {
             startActivity(android.content.Intent.createChooser(send, t("Отправить итог смены", "Trimite totalul turei")))
         }
         offer()
-        val history = card("История и точность", "Istoric și precizie", "Все поездки по порядку. «Проверить» — радар записал поездку сам по экрану Яндекса, сумма может быть неточной. Нажмите на поездку, впишите, сколько реально получили, и сохраните — она станет «подтверждено» и попадёт в итог. Ошибочную запись можно удалить там же.\n\n«Разница» — насколько реальная оплата отличалась от расчёта радара.", "Apăsați o cursă pentru a confirma/corecta suma sau a șterge înregistrarea. Pentru un preț diferit introduceți plata reală. Păstrăm ultimele 500 de înregistrări.", R.drawable.ic_payments)
-        if (rides.isEmpty()) history.addView(DriverUi.text(this, t("Пока нет поездок. Добавьте первую вручную.", "Nu există curse. Adăugați prima manual."), 14f, true))
-        rides.takeLast(historyLimit).reversed().forEach { ride ->
-            val date = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(ride.at))
-            DriverUi.button(this, history, "$date · ${ride.price} L · ${if (ride.confirmed) t("подтверждено", "confirmat") else t("проверить", "verificați")}") { editRide(ride) }
-            if (ride.confirmed && ride.estimate > 0) history.addView(DriverUi.text(this, t("Расчёт ${ride.estimate} L · разница ${ride.price - ride.estimate} L", "Estimare ${ride.estimate} L · diferență ${ride.price - ride.estimate} L"), 13f, true))
+        // История одна — в «Моих поездках»: там и расчёт, и итог Яндекса, и подтверждение суммы.
+        val history = card("Мои поездки", "Cursele mele", "Все поездки в одном месте: маршрут, расчёт радара, цена Яндекса, сколько вы получили, расходы и почему цена отличалась. Поездки с пометкой «проверить» радар записал сам — подтвердите сумму, и они попадут в итог смены.", "Toate cursele într-un loc: traseul, estimarea radarului, prețul Yandex, cât ați încasat, cheltuielile și de ce a diferit prețul. Cursele «de verificat» le-a scris radarul — confirmați suma și intră în total.", R.drawable.ic_payments)
+        val toCheck = rides.count { !it.confirmed }
+        history.addView(DriverUi.text(this, if (toCheck > 0) t("Ждут проверки: $toCheck", "De verificat: $toCheck") else t("Все поездки проверены", "Toate cursele sunt verificate"), 15f, toCheck == 0))
+        DriverUi.button(this, history, t("Открыть мои поездки", "Deschide cursele mele")) {
+            startActivity(android.content.Intent(this, MyTripsActivity::class.java))
         }
-        if (rides.size > historyLimit) DriverUi.button(this, history, t("Показать ещё 30", "Arată încă 30")) { historyLimit += 30; render() }
         val stats = card("Когда и где выгоднее", "Când și unde este mai rentabil", "Ваша личная статистика: в какие часы и в каких районах у вас была лучшая оплата. Район вы пишете сами при подтверждении поездки (например, «Ботаника»). Строка появляется, когда набирается хотя бы 3 подтверждённые поездки. Это ваша история, а не прогноз спроса.", "Statistici personale din curse confirmate. Zona este indicată de dvs. Afișăm grupuri de minimum 3 curse. Venitul pe oră se referă la timpul curselor, nu al turei; este istoric, nu prognoză de cerere.", R.drawable.ic_location_on)
         val all = rides.filter { it.confirmed }
         val groups = all.filter { it.area.isNotBlank() }.groupBy { it.area.trim().lowercase() }
@@ -275,36 +341,5 @@ class DriverToolsActivity : AppCompatActivity() {
         }
     }
 
-    private fun editRide(ride: DriverJournal.Ride?) {
-        val o = if (ride == null) OrderPreview.current() else null
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(DriverUi.dp(this@DriverToolsActivity, 20), 0, DriverUi.dp(this@DriverToolsActivity, 20), 0) }
-        box.addView(DriverUi.text(this, t("Укажите фактически полученную сумму. Добавление подтверждает, что поездка состоялась.", "Introduceți suma primită efectiv. Salvarea confirmă că această cursă a avut loc."), 14f, true))
-        val price = DriverUi.field(this, box, t("Фактическая оплата, L", "Plata reală, L"), (ride?.price ?: o?.price)?.toString().orEmpty())
-        val km = DriverUi.field(this, box, t("Километры поездки", "Kilometrii cursei"), fmt(ride?.km ?: o?.km ?: 0.0))
-        val pickup = DriverUi.field(this, box, t("Подача, км", "Preluare, km"), fmt(ride?.pickup ?: o?.pickup ?: 0.0))
-        val minutes = DriverUi.field(this, box, t("Время поездки, мин", "Durata cursei, min"), (ride?.minutes ?: o?.minutes ?: 0).toString())
-        val area = DriverUi.field(this, box, t("Район (необязательно)", "Zonă (opțional)"), ride?.area.orEmpty(), false)
-        val builder = MaterialAlertDialogBuilder(this).setTitle(t("Подтвердить поездку", "Confirmă cursa")).setView(ScrollView(this).apply { addView(box) }).setPositiveButton(R.string.clients_save, null).setNegativeButton(R.string.cancel, null)
-        if (ride != null) builder.setNeutralButton(t("Удалить", "Șterge")) { _, _ ->
-            MaterialAlertDialogBuilder(this).setMessage(t("Удалить эту запись из истории?", "Ștergeți această înregistrare?"))
-                .setPositiveButton(t("Удалить", "Șterge")) { _, _ -> DriverJournal.remove(this, ride.id); render() }.setNegativeButton(R.string.cancel, null).show()
-        }
-        val dialog = builder.create()
-        dialog.setOnShowListener { dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener {
-            val p = price.text.toString().replace(',', '.').toDoubleOrNull()
-            val distance = km.text.toString().replace(',', '.').toDoubleOrNull()
-            val pickupKm = pickup.text.toString().replace(',', '.').toDoubleOrNull()
-            val duration = minutes.text.toString().toIntOrNull()
-            if (p == null || p !in 1.0..100000.0) { price.error = t("Введите сумму от 1 до 100000 L", "Introduceți 1–100000 L"); return@setOnClickListener }
-            if (distance == null || distance !in 0.0..3000.0) { km.error = t("Проверьте километры", "Verificați distanța"); return@setOnClickListener }
-            if (pickupKm == null || pickupKm !in 0.0..1000.0) { pickup.error = t("Проверьте подачу", "Verificați preluarea"); return@setOnClickListener }
-            if (duration == null || duration !in 1..1440) { minutes.error = t("От 1 до 1440 минут", "De la 1 la 1440 minute"); return@setOnClickListener }
-            val amount = kotlin.math.round(p).toInt()
-            val district = area.text.toString().trim().take(60)
-            if (ride != null) DriverJournal.confirm(this, ride.id, amount, distance, pickupKm, duration, district) else DriverJournal.add(this, amount, o?.price ?: 0, distance, pickupKm, duration, district, true)
-            dialog.dismiss(); render()
-        } }
-        dialog.show()
-    }
     private fun fmt(n: Double) = String.format(Locale.getDefault(), "%.1f", n)
 }

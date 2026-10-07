@@ -55,47 +55,64 @@ class MyTripsActivity : AppCompatActivity() {
         load()
     }
 
+    /** Одна поездка: запись журнала смены (телефон) и/или строка сервера — склеены по номеру поездки. */
+    private class Item(val at: Long, val ride: DriverJournal.Ride?, val server: JSONObject?)
+
     private fun load() {
+        Outbox.flush(this)
         lifecycleScope.launch {
             val json = CommunityApi.post(this@MyTripsActivity, "/api/trips/mine")
             val trips = json?.optJSONArray("trips")
+            val server = (0 until (trips?.length() ?: 0)).map { trips!!.getJSONObject(it) }
+            val local = DriverJournal.rides(this@MyTripsActivity)
+            val byKey = server.filter { it.optString("key").isNotBlank() }.associateBy { it.optString("key") }
+            val items = (local.map { Item(it.at, it, byKey[it.id]) } +
+                server.filter { s -> local.none { it.id == s.optString("key") } }.map { Item(it.optLong("at"), null, it) })
+                .sortedByDescending { it.at }
             list.removeAllViews()
-            when {
-                json == null -> status.text = t("Нет связи с сервером — попробуйте позже.", "Fără conexiune la server — încercați mai târziu.")
-                json.optBoolean("ok").not() -> status.text = json.optString("message").ifBlank { t("Нужна активная подписка.", "Este nevoie de abonament activ.") }
-                trips == null || trips.length() == 0 -> status.text = t(
-                    "Пока поездок нет. Они появятся после первого заказа с запущенным радаром (с версии 1.17).",
-                    "Încă nu sunt curse. Apar după prima comandă cu radarul pornit (de la versiunea 1.17).")
-                else -> {
-                    status.visibility = View.GONE
-                    for (i in 0 until trips.length()) list.addView(card(trips.getJSONObject(i)))
-                }
+            DriverUi.button(this@MyTripsActivity, list, t("+ Добавить поездку вручную", "+ Adaugă cursă manual")) {
+                RideEditor.show(this@MyTripsActivity, null) { load() }
             }
+            val note = when {
+                json == null -> t("Нет связи — показываем то, что сохранено на телефоне. Объяснения цены появятся, когда будет интернет.",
+                    "Fără conexiune — arătăm ce e salvat pe telefon. Explicațiile apar când va fi internet.")
+                !json.optBoolean("ok") -> json.optString("message").ifBlank { t("Объяснения цены — с активной подпиской.", "Explicațiile — cu abonament activ.") }
+                Outbox.size(this@MyTripsActivity) > 0 -> t("Часть поездок ещё отправляется — они появятся здесь целиком, когда дойдут.", "Unele curse încă se trimit — vor apărea complet când ajung.")
+                else -> null
+            }
+            status.visibility = if (note != null || items.isEmpty()) View.VISIBLE else View.GONE
+            status.text = note ?: t("Пока поездок нет. Они появятся после первого заказа с запущенным радаром.", "Încă nu sunt curse. Apar după prima comandă cu radarul pornit.")
+            items.take(80).forEach { list.addView(card(it)) }
         }
     }
 
-    private fun card(o: JSONObject): View {
+    private fun card(item: Item): View {
         val c = this
+        val o = item.server
+        val ride = item.ride
         val card = MaterialCardView(c).apply {
-            radius = DriverUi.dp(c, 20).toFloat(); strokeWidth = DriverUi.dp(c, 1); strokeColor = getColor(R.color.tr_console_border)
+            radius = DriverUi.dp(c, 20).toFloat(); strokeWidth = DriverUi.dp(c, 1)
+            strokeColor = getColor(if (ride != null && !ride.confirmed) R.color.tr_warning else R.color.tr_console_border)
             setCardBackgroundColor(getColor(R.color.tr_surface))
             layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = DriverUi.dp(c, 12) }
         }
         val box = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; setPadding(DriverUi.dp(c, 16), DriverUi.dp(c, 14), DriverUi.dp(c, 16), DriverUi.dp(c, 14)) }
-        val date = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(o.optLong("at")))
-        val tariff = o.optString("tariff").replaceFirstChar { it.uppercase() }
+        val date = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(item.at))
+        val tariff = o?.optString("tariff")?.replaceFirstChar { it.uppercase() }.orEmpty()
         box.addView(TextView(c).apply {
-            text = "$date · $tariff" + (if (o.optInt("surge") > 0) " · +${o.optInt("surge")}" else "")
+            text = listOf(date, tariff, if ((o?.optInt("surge") ?: 0) > 0) "+${o!!.optInt("surge")}" else "").filter { it.isNotBlank() }.joinToString(" · ")
             textSize = 13f; setTextColor(getColor(R.color.tr_text_secondary))
         })
-        val from = o.optString("from"); val to = o.optString("to")
+        val from = o?.optString("from")?.takeIf { it.isNotBlank() } ?: ride?.from.orEmpty()
+        val to = o?.optString("to")?.takeIf { it.isNotBlank() } ?: ride?.to.orEmpty()
         if (from.isNotBlank() || to.isNotBlank()) box.addView(TextView(c).apply {
             text = "$from → $to"; textSize = 15f; setTypeface(null, Typeface.BOLD); setTextColor(getColor(R.color.tr_text))
             setPadding(0, DriverUi.dp(c, 4), 0, DriverUi.dp(c, 8))
         })
-        // Три числа в ряд: радар, Яндекс, разница.
-        val est = o.optInt("est_price")
-        val real = if (o.isNull("real_price")) null else o.optInt("real_price")
+        // Три числа: сколько считал радар, сколько показал Яндекс в конце, сколько вы получили.
+        val est = o?.optInt("est_price") ?: ride?.estimate?.takeIf { it > 0 }
+        val yandex = o?.takeIf { !it.isNull("real_price") }?.optInt("real_price")
+        val got = ride?.takeIf { it.confirmed }?.price
         val row = LinearLayout(c).apply { setPadding(0, DriverUi.dp(c, 4), 0, DriverUi.dp(c, 8)) }
         fun cell(label: String, value: String, color: Int) = LinearLayout(c).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
@@ -104,38 +121,55 @@ class MyTripsActivity : AppCompatActivity() {
             addView(TextView(c).apply { text = value; textSize = 18f; gravity = Gravity.CENTER; setTypeface(null, Typeface.BOLD); setTextColor(color) })
             addView(TextView(c).apply { text = label; textSize = 12f; gravity = Gravity.CENTER; setTextColor(getColor(R.color.tr_text_secondary)) })
         }
+        val compare = yandex ?: got
         val diffColor = when {
-            real == null -> getColor(R.color.tr_text_secondary)
-            abs(real - est) <= 5 -> getColor(R.color.tr_success)
-            abs(real - est) <= 12 -> getColor(R.color.tr_warning)
+            est == null || compare == null -> getColor(R.color.tr_text)
+            abs(compare - est) <= 5 -> getColor(R.color.tr_success)
+            abs(compare - est) <= 12 -> getColor(R.color.tr_warning)
             else -> getColor(R.color.tr_danger)
         }
-        row.addView(cell(t("Радар", "Radar"), "$est L", getColor(R.color.tr_text)), LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = DriverUi.dp(c, 6) })
-        row.addView(cell("Яндекс", if (real == null) "—" else "$real L", getColor(R.color.tr_text)), LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = DriverUi.dp(c, 6) })
-        row.addView(cell(t("Разница", "Diferență"), if (real == null) "—" else "${if (real - est > 0) "+" else ""}${real - est} L", diffColor), LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(cell(t("Радар", "Radar"), est?.let { "$it L" } ?: "—", getColor(R.color.tr_text)), LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = DriverUi.dp(c, 6) })
+        row.addView(cell("Яндекс", yandex?.let { "$it L" } ?: "—", diffColor), LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = DriverUi.dp(c, 6) })
+        row.addView(cell(t("Получено", "Încasat"), got?.let { "$it L" } ?: "—", getColor(if (got != null) R.color.tr_success else R.color.tr_text_secondary)), LinearLayout.LayoutParams(0, -2, 1f))
         box.addView(row)
-        val reasons = o.optJSONArray("reasons")
-        if (reasons != null) for (i in 0 until reasons.length()) {
-            val r = reasons.getJSONObject(i)
-            box.addView(TextView(c).apply {
-                text = "• " + r.optString(if (ro) "ro" else "ru")
-                textSize = 14f; setLineSpacing(DriverUi.dp(c, 2).toFloat(), 1f)
-                setTextColor(getColor(R.color.tr_text))
-                setPadding(0, DriverUi.dp(c, 2), 0, DriverUi.dp(c, 2))
+        if (ride != null) {
+            if (!ride.confirmed) box.addView(TextView(c).apply {
+                text = t("Ждёт проверки: радар записал ${ride.price} L с экрана — подтвердите, сколько получили, и поездка попадёт в итог смены.",
+                    "De verificat: radarul a citit ${ride.price} L — confirmați cât ați încasat ca să intre în totalul turei.")
+                textSize = 14f; setTextColor(getColor(R.color.tr_warning)); setPadding(0, 0, 0, DriverUi.dp(c, 6))
+            }) else if (ride.costsReady) box.addView(TextView(c).apply {
+                text = t("Расходы ~${ride.price - ride.net} L · чистыми ~${ride.net} L", "Cheltuieli ~${ride.price - ride.net} L · net ~${ride.net} L")
+                textSize = 14f; setTextColor(getColor(R.color.tr_text)); setPadding(0, 0, 0, DriverUi.dp(c, 6))
             })
         }
-        // «Цена неверная»: сервер сам разберёт, где разошлось, админ поправит (например, точку адреса).
-        if (real != null) {
-            val flagged = o.optBoolean("disputed")
-            DriverUi.button(c, box, if (flagged) t("✓ Отмечено — разбираемся", "✓ Marcat — verificăm") else t("Цена неверная", "Preț greșit")) {
-                if (!flagged) dispute(o.optString("id"))
-            }.apply {
-                isEnabled = !flagged
-                backgroundTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.tr_surface_high))
-                setTextColor(getColor(if (flagged) R.color.tr_success else R.color.tr_text))
-                (layoutParams as LinearLayout.LayoutParams).topMargin = DriverUi.dp(c, 8)
-            }
+        o?.optJSONArray("reasons")?.let { reasons ->
+            for (i in 0 until reasons.length()) box.addView(TextView(c).apply {
+                text = "• " + reasons.getJSONObject(i).optString(if (ro) "ro" else "ru")
+                textSize = 14f; setLineSpacing(DriverUi.dp(c, 2).toFloat(), 1f)
+                setTextColor(getColor(R.color.tr_text)); setPadding(0, DriverUi.dp(c, 2), 0, DriverUi.dp(c, 2))
+            })
         }
+        // Кнопки: подтвердить/исправить сумму (журнал смены) и «Цена неверная» (разбор на сервере).
+        val buttons = LinearLayout(c).apply { setPadding(0, DriverUi.dp(c, 8), 0, 0) }
+        fun btn(label: String, enabled: Boolean, color: Int, action: () -> Unit) = com.google.android.material.button.MaterialButton(c).apply {
+            text = label; isAllCaps = false; isEnabled = enabled; cornerRadius = DriverUi.dp(c, 14); minHeight = DriverUi.dp(c, 48)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.tr_surface_high))
+            setTextColor(getColor(color)); setOnClickListener { action() }
+        }
+        if (ride != null) buttons.addView(btn(if (ride.confirmed) t("Исправить", "Corectează") else t("Подтвердить сумму", "Confirmă suma"), true,
+            if (ride.confirmed) R.color.tr_text else R.color.tr_accent) { RideEditor.show(this, ride) { load() } },
+            LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = DriverUi.dp(c, 6) })
+        if (o != null && yandex != null) {
+            val status = o.optString("dispute_status")
+            val label = when (status) {
+                "" -> t("Цена неверная", "Preț greșit")
+                "checked" -> t("✓ Проверено", "✓ Verificat")
+                else -> t("✓ Разбираемся", "✓ Verificăm")
+            }
+            buttons.addView(btn(label, status.isEmpty(), if (status.isEmpty()) R.color.tr_text else R.color.tr_success) { dispute(o.optString("id")) },
+                LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        if (buttons.childCount > 0) box.addView(buttons)
         card.addView(box)
         return card
     }

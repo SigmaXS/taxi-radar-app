@@ -38,7 +38,8 @@ object TripTracker {
         val estPrice: Int,
         val navKm: Double,
         val pickupKm: Double,
-        var reportId: String? = null,
+        /** Номер поездки: им же помечена запись в журнале смены и строка на сервере. */
+        val key: String = java.util.UUID.randomUUID().toString(),
         /** Адрес Б, который сейчас на экране поездки (пассажир может его сменить). */
         var currentB: String,
         var routeChanged: Boolean = false,
@@ -68,17 +69,16 @@ object TripTracker {
         active = trip
         Log.d("TRIP", "Поездка началась: $route, наш расчёт $estPrice L, навигатор $navPrice L")
         withLocation(app) { loc -> if (loc != null) scope.launch { learn(app, route.first(), loc, trustWithoutReference = true) } }
-        scope.launch {
-            val r = CommunityApi.postBlocking(
-                app, "/api/trips/start", JSONObject()
-                    .put("tariff", tariff).put("stops", route.size - 2).put("surge", surge)
-                    .put("est_price", estPrice).put("est_km", estKm).put("est_min", estMin)
-                    .put("nav_km", navKm).put("nav_min", navMin).put("nav_price", navPrice)
-                    // Для «Моих поездок» водителя: откуда и куда (сервер хранит 60 дней).
-                    .put("from", route.first().take(120)).put("to", route.last().take(120))
-            )
-            trip.reportId = r?.optString("id")?.takeIf { it.isNotBlank() }
-        }
+        // Через очередь: при плохой связи начало поездки дошлётся позже, а не потеряется.
+        Outbox.send(
+            app, "/api/trips/start", JSONObject()
+                .put("client_id", trip.key).put("at", trip.startedAt)
+                .put("tariff", tariff).put("stops", route.size - 2).put("surge", surge)
+                .put("est_price", estPrice).put("est_km", estKm).put("est_min", estMin)
+                .put("nav_km", navKm).put("nav_min", navMin).put("nav_price", navPrice)
+                // Для «Моих поездок» водителя: откуда и куда (сервер хранит 60 дней).
+                .put("from", route.first().take(120)).put("to", route.last().take(120))
+        )
     }
 
     private val endWords = listOf(
@@ -142,17 +142,16 @@ object TripTracker {
         val elapsedMin = (now - trip.startedAt) / 60_000.0
         // Screen recognition is fallible: add a draft; driver confirms before totals.
         DriverJournal.add(app, price ?: trip.estPrice, trip.estPrice, trip.navKm, trip.pickupKm,
-            elapsedMin.toInt().coerceAtLeast(1), "", confirmed = false)
+            elapsedMin.toInt().coerceAtLeast(1), "", confirmed = false,
+            id = trip.key, from = trip.route.first(), to = trip.currentB)
         val finish: (String?) -> Unit = { note ->
-            scope.launch {
-                val id = trip.reportId ?: return@launch
-                CommunityApi.postBlocking(
-                    app, "/api/trips/finish", JSONObject()
-                        .put("id", id).put("real_price", price ?: JSONObject.NULL)
-                        .put("real_min", elapsedMin)
-                        .put("note", note ?: JSONObject.NULL)
-                )
-            }
+            Outbox.send(
+                app, "/api/trips/finish", JSONObject()
+                    .put("client_id", trip.key).put("at", now)
+                    .put("real_price", price ?: JSONObject.NULL)
+                    .put("real_min", elapsedMin)
+                    .put("note", note ?: JSONObject.NULL)
+            )
         }
         val changedNote = if (trip.routeChanged) "маршрут менялся" else null
         val located = withLocation(app) { loc ->

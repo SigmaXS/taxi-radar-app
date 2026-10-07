@@ -21,9 +21,9 @@ import com.google.android.material.materialswitch.MaterialSwitch
 object LiteMode {
     enum class Feature(val key: String, val short: Pair<String, String>, val title: Pair<String, String>, val why: Pair<String, String>) {
         MAP("map", "карта" to "harta", "Карта" to "Harta",
-            "Вкладка с картой надбавок и меток пропадёт" to "Fila cu harta suplimentelor dispare"),
+            "Вкладка с картой надбавок и меток" to "Fila cu harta suplimentelor și marcajelor"),
         ROAD("road", "метки на дороге" to "marcaje", "Предупреждения о метках" to "Avertizări despre marcaje",
-            "«Через 400 м радар» — нужен постоянный GPS, он садит батарею сильнее всего" to "«Radar peste 400 m» — GPS permanent, consumă cel mai mult"),
+            "«Через 400 м радар» — постоянный GPS, садит батарею сильнее всего" to "«Radar peste 400 m» — GPS permanent, consumă cel mai mult"),
         TRIP("trip", "точка Б и журнал" to "punctul B și jurnalul", "Слежение за поездкой" to "Urmărirea cursei",
             "Надбавка в точке Б, запись поездок в смену, учёт пробок" to "Supliment în B, jurnalul turei, trafic"),
         ALERTS("alerts", "уведомления" to "notificări", "Уведомления о надбавке и рейсах" to "Notificări despre supliment și zboruri",
@@ -56,10 +56,12 @@ object LiteMode {
             Runtime.getRuntime().availableProcessors() <= 4 || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
     }
 
+    /** Готовые варианты: какие функции выключить. */
+    private val PRESET_SAVE = setOf(Feature.ROAD, Feature.ALERTS, Feature.EFFECTS, Feature.LOGS)
+
     fun show(a: Activity, changed: () -> Unit) {
         fun t(ru: String, ro: String) = DriverUi.t(a, ru, ro)
         fun t(p: Pair<String, String>) = t(p.first, p.second)
-        val on = enabled(a)
         val body = LinearLayout(a).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(DriverUi.dp(a, 20), DriverUi.dp(a, 8), DriverUi.dp(a, 20), DriverUi.dp(a, 24))
@@ -70,16 +72,40 @@ object LiteMode {
             setTextColor(a.getColor(R.color.tr_text))
         })
         body.addView(TextView(a).apply {
-            text = when {
-                weakDevice(a) && !on -> t("Для вашего телефона советуем включить. ", "Recomandat pentru telefonul dvs. ")
-                else -> ""
-            } + t("Цена заказа и виджет с надбавкой работают всегда. Выберите, что выключить:",
-                "Prețul și widgetul cu supliment funcționează mereu. Alegeți ce să opriți:")
+            text = (if (weakDevice(a) && !enabled(a)) t("Для вашего телефона советуем «Экономить батарею». ", "Pentru telefonul dvs. recomandăm «Economie baterie». ") else "") +
+                t("Цена заказа и виджет с надбавкой работают всегда.", "Prețul și widgetul cu supliment funcționează mereu.")
             textSize = 14f; gravity = Gravity.CENTER
             setTextColor(a.getColor(R.color.tr_text_secondary))
-            setPadding(0, DriverUi.dp(a, 6), 0, DriverUi.dp(a, 14))
+            setPadding(0, DriverUi.dp(a, 6), 0, DriverUi.dp(a, 12))
         })
-        val switches = Feature.values().map { f ->
+        // Переключатель включён = функция работает.
+        val switches = Feature.values().associateWith { f -> MaterialSwitch(a).apply { isChecked = !cuts(a, f); contentDescription = t(f.title) } }
+        fun apply(off: Set<Feature>) = switches.forEach { (f, sw) -> sw.isChecked = f !in off }
+
+        // Три готовых варианта сверху — одно нажатие вместо шести переключателей.
+        val presets = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL }
+        fun preset(title: String, sub: String, off: Set<Feature>) {
+            val b = com.google.android.material.button.MaterialButton(a).apply {
+                text = "$title\n$sub"; isAllCaps = false; textSize = 14f; cornerRadius = DriverUi.dp(a, 14)
+                minHeight = DriverUi.dp(a, 60)
+                backgroundTintList = android.content.res.ColorStateList.valueOf(a.getColor(R.color.tr_surface_high))
+                setTextColor(a.getColor(R.color.tr_text))
+                setOnClickListener { apply(off) }
+            }
+            presets.addView(b, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = DriverUi.dp(a, 6) })
+        }
+        preset(t("Все функции", "Toate funcțiile"), t("ничего не выключать", "nimic oprit"), emptySet())
+        preset(t("Экономить батарею", "Economie baterie"), t("без постоянного GPS, уведомлений и анимаций", "fără GPS permanent, notificări și animații"), PRESET_SAVE)
+        preset(t("Только цена", "Doar prețul"), t("цена заказа и надбавка — больше ничего", "prețul și suplimentul — nimic altceva"), Feature.values().toSet())
+        body.addView(presets)
+
+        body.addView(TextView(a).apply {
+            text = t("Или по отдельности — включено значит работает:", "Sau separat — activ înseamnă că funcționează:")
+            textSize = 14f; gravity = Gravity.CENTER; setTypeface(null, Typeface.BOLD)
+            setTextColor(a.getColor(R.color.tr_text))
+            setPadding(0, DriverUi.dp(a, 14), 0, DriverUi.dp(a, 8))
+        })
+        switches.forEach { (f, sw) ->
             val row = LinearLayout(a).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(DriverUi.dp(a, 14), DriverUi.dp(a, 10), DriverUi.dp(a, 8), DriverUi.dp(a, 10))
@@ -91,34 +117,22 @@ object LiteMode {
             texts.addView(TextView(a).apply { text = t(f.title); textSize = 15f; setTypeface(null, Typeface.BOLD); setTextColor(a.getColor(R.color.tr_text)) })
             texts.addView(TextView(a).apply { text = t(f.why); textSize = 13f; setTextColor(a.getColor(R.color.tr_text_secondary)) })
             row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
-            val sw = MaterialSwitch(a).apply { isChecked = selected(a, f); contentDescription = t(f.title) }
             row.addView(sw)
             row.setOnClickListener { sw.toggle() }
             body.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = DriverUi.dp(a, 8) })
-            f to sw
         }
-        body.addView(TextView(a).apply {
-            text = t("Включённый переключатель = эта функция будет выключена.", "Comutator activ = funcția va fi oprită.")
-            textSize = 12f; gravity = Gravity.CENTER
-            setTextColor(a.getColor(R.color.tr_text_muted))
-            setPadding(0, DriverUi.dp(a, 2), 0, DriverUi.dp(a, 12))
-        })
         val dialog = BottomSheetDialog(a)
-        fun save(enable: Boolean) {
+        DriverUi.button(a, body, t("Сохранить", "Salvează")) {
+            val off = switches.filterValues { !it.isChecked }.keys
             p(a).edit().apply {
-                putBoolean("lite_mode", enable)
-                switches.forEach { (f, sw) -> putBoolean("lite_${f.key}", sw.isChecked) }
+                // Всё работает = режим выключен.
+                putBoolean("lite_mode", off.isNotEmpty())
+                Feature.values().forEach { putBoolean("lite_${it.key}", it in off) }
             }.apply()
             // Радар работает — применяем сразу: GPS для меток выключится/включится.
             FloatingWidgetService.setRoadAlerts()
             dialog.dismiss(); changed()
-        }
-        DriverUi.button(a, body, if (on) t("Сохранить", "Salvează") else t("Включить лёгкий режим", "Activează modul ușor")) { save(true) }
-        if (on) DriverUi.button(a, body, t("Выключить лёгкий режим", "Dezactivează modul ușor")) { save(false) }.apply {
-            backgroundTintList = android.content.res.ColorStateList.valueOf(a.getColor(R.color.tr_surface_high))
-            setTextColor(a.getColor(R.color.tr_text))
-            (layoutParams as LinearLayout.LayoutParams).topMargin = DriverUi.dp(a, 8)
-        }
+        }.apply { (layoutParams as LinearLayout.LayoutParams).topMargin = DriverUi.dp(a, 8) }
         dialog.setContentView(ScrollView(a).apply { addView(body) })
         dialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED
         dialog.behavior.skipCollapsed = true

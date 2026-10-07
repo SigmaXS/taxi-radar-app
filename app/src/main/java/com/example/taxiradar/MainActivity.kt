@@ -108,6 +108,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         CrashReporter.install(this)
         CrashReporter.sendPending(this)
+        Outbox.flush(this)
         setContentView(R.layout.activity_main)
         DriverUi.adaptDashboard(this, findViewById(android.R.id.content))
 
