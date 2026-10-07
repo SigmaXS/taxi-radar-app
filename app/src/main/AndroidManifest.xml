@@ -64,6 +64,8 @@
             android:exported="false" />
 
         <activity android:name=".MyTripsActivity" android:exported="false" />
+        <activity android:name=".EventsActivity" android:exported="false" />
+        <receiver android:name=".EventReminders$Receiver" android:exported="false" />
         <activity
             android:name=".ClientsActivity"
             android:exported="false" />

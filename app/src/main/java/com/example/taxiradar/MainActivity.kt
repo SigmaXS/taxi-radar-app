@@ -418,6 +418,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.tileChat).setOnClickListener {
             startActivity(Intent(this, ChatActivity::class.java))
         }
+        findViewById<View>(R.id.tileEvents).setOnClickListener {
+            startActivity(Intent(this, EventsActivity::class.java))
+        }
         findViewById<View>(R.id.tileMyTrips).setOnClickListener {
             startActivity(Intent(this, MyTripsActivity::class.java))
         }
@@ -911,6 +914,15 @@ class MainActivity : AppCompatActivity() {
         pendingApk?.let { if (it.exists() && !AppUpdater.needsInstallPermission(this)) installUpdate(it) }
         renderUpdateBanner()
         renderLite()
+        if (EventReminders.any(this)) lifecycleScope.launch {
+            val prefs = getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE)
+            if (System.currentTimeMillis() - prefs.getLong("events_synced", 0) > 30 * 60_000L) {
+                prefs.edit().putLong("events_synced", System.currentTimeMillis()).apply()
+                CommunityApi.post(this@MainActivity, "/api/events/list")?.optJSONArray("events")?.let { arr ->
+                    EventReminders.sync(this@MainActivity, (0 until arr.length()).map { EventReminders.parse(arr.getJSONObject(it)) })
+                }
+            }
+        }
         // Ответ администратора по «Цена неверная» — коротко внизу экрана.
         lifecycleScope.launch {
             DisputeStatus.checkNews(this@MainActivity) { text ->
