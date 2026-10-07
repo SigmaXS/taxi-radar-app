@@ -77,6 +77,8 @@
         </LinearLayout>
     </ScrollView>
 
+    <com.google.android.material.button.MaterialButton android:id="@+id/btnWizardHelp" style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_permission_guide" app:icon="@drawable/ic_help" />
+
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnWizardAction"
         style="@style/TaxiRadar.Button"

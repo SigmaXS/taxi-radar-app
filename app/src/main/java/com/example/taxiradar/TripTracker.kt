@@ -35,6 +35,9 @@ object TripTracker {
         val route: List<String>,
         val startedAt: Long,
         val navMin: Int,
+        val estPrice: Int,
+        val navKm: Double,
+        val pickupKm: Double,
         var reportId: String? = null,
         /** Адрес Б, который сейчас на экране поездки (пассажир может его сменить). */
         var currentB: String,
@@ -59,7 +62,8 @@ object TripTracker {
         estPrice: Int, estKm: Double, estMin: Double, navKm: Double, navMin: Int, navPrice: Int
     ) {
         val app = context.applicationContext
-        val trip = Trip(route, System.currentTimeMillis(), navMin, currentB = route.last())
+        if (active?.route == route && System.currentTimeMillis() - (active?.startedAt ?: 0) < 3 * 3600_000L) return
+        val trip = Trip(route, System.currentTimeMillis(), navMin, estPrice, navKm, OrderPreview.current()?.takeIf { it.route == route }?.pickup ?: 0.0, currentB = route.last())
         active = trip
         Log.d("TRIP", "Поездка началась: $route, наш расчёт $estPrice L, навигатор $navPrice L")
         withLocation(app) { loc -> if (loc != null) scope.launch { learn(app, route.first(), loc, trustWithoutReference = true) } }
@@ -76,7 +80,8 @@ object TripTracker {
 
     private val endWords = listOf(
         "заказ завершён", "заказ завершен", "поездка завершена",
-        "comanda finalizată", "comandă finalizată", "comanda a fost finalizată", "cursa s-a încheiat"
+        "comanda finalizată", "comandă finalizată", "comanda a fost finalizată", "cursa s-a încheiat",
+        "order completed", "trip completed", "ride completed"
     )
     private val changeWords = listOf("изменил промежуточную", "добавил промежуточную", "изменил адрес", "a modificat", "a adăugat")
     private val priceRegex = Regex("""(?i)(\d{1,5})(?:[.,](\d{1,2}))?\s*(?:MDL|lei|лей|L)\b""")
@@ -132,6 +137,9 @@ object TripTracker {
 
         val app = context.applicationContext
         val elapsedMin = (now - trip.startedAt) / 60_000.0
+        // Screen recognition is fallible: add a draft; driver confirms before totals.
+        DriverJournal.add(app, price ?: trip.estPrice, trip.estPrice, trip.navKm, trip.pickupKm,
+            elapsedMin.toInt().coerceAtLeast(1), "", confirmed = false)
         val finish: (String?) -> Unit = { note ->
             scope.launch {
                 val id = trip.reportId ?: return@launch

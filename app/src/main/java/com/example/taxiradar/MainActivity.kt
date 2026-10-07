@@ -179,6 +179,16 @@ class MainActivity : AppCompatActivity() {
         setupContacts()
         setupReferralCard()
         setupWidgetSize()
+        findViewById<View>(R.id.btnDriverSettings).setOnClickListener {
+            startActivity(Intent(this, DriverToolsActivity::class.java).putExtra("mode", "settings"))
+        }
+        findViewById<View>(R.id.btnDriverShift).setOnClickListener {
+            startActivity(Intent(this, DriverToolsActivity::class.java).putExtra("mode", "shift"))
+        }
+        findViewById<View>(R.id.btnDriverInfo).setOnClickListener {
+            MaterialAlertDialogBuilder(this).setTitle(R.string.driver_tools_title).setMessage(R.string.driver_tools_help).setPositiveButton(R.string.got_it, null).show()
+        }
+        fitTariffs()
         findViewById<View>(R.id.btnBell).setOnClickListener { showNotifications() }
 
         setupTabs(savedInstanceState?.getInt(STATE_TAB) ?: R.id.nav_radar)
@@ -262,6 +272,33 @@ class MainActivity : AppCompatActivity() {
         }
         bottomNav.selectedItemId = initial
         showTab(initial)
+    }
+
+    /** Equal-width, single-line tariff chips even on 320dp screens. */
+    private fun fitTariffs() {
+        val group = findViewById<com.google.android.material.chip.ChipGroup>(R.id.groupTariffs)
+        group.isSingleLine = true
+        group.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            val width = ((group.width - group.paddingLeft - group.paddingRight - group.chipSpacingHorizontal * 2) / 3).coerceAtLeast(1)
+            listOf(R.id.cbEconom, R.id.cbComfort, R.id.cbComfortPlus).forEach { id ->
+                val chip = findViewById<com.google.android.material.chip.Chip>(id)
+                if (chip.layoutParams.width != width) {
+                    chip.layoutParams = chip.layoutParams.apply { this.width = width }
+                    chip.isCheckedIconVisible = false
+                    chip.chipStartPadding = 4 * resources.displayMetrics.density
+                    chip.chipEndPadding = 4 * resources.displayMetrics.density
+                    chip.textStartPadding = 0f; chip.textEndPadding = 0f
+                    chip.maxLines = 1
+                }
+                // Chip paints its label through ChipDrawable: TextView autosizing can
+                // leave that drawable at the old size, cutting off the '+' character.
+                val available = (width - chip.paddingLeft - chip.paddingRight - 2 * resources.displayMetrics.density).coerceAtLeast(1f)
+                val maxSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 14f, resources.displayMetrics)
+                val measure = android.text.TextPaint(chip.paint).apply { textSize = maxSize }
+                val size = minOf(maxSize, maxSize * available / measure.measureText(chip.text.toString()).coerceAtLeast(1f))
+                if (kotlin.math.abs(chip.textSize - size) > 0.5f) chip.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, size)
+            }
+        }
     }
 
     private fun showTab(tab: Int) {
@@ -505,15 +542,28 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private var refreshingNet = false
+    private fun refreshNetCard() {
+        refreshingNet = true
+        val s = NetEarnings.load(this)
+        switchNet.isChecked = DriverPreferences.flag(this, "net", s.enabled)
+        etFuelConsumption.setText(formatNumber(s.consumptionPer100Km))
+        etFuelPrice.setText(if (s.fuelPrice > 0) formatNumber(s.fuelPrice) else "")
+        etCommission.setText(formatNumber(s.commissionPercent))
+        refreshingNet = false
+        renderNetVisibility(switchNet.isChecked)
+        updateNetExample()
+    }
     private fun setupNetCard() {
         val s = NetEarnings.load(this)
-        switchNet.isChecked = s.enabled
+        switchNet.isChecked = DriverPreferences.flag(this, "net", s.enabled)
         etFuelConsumption.setText(formatNumber(s.consumptionPer100Km))
         if (s.fuelPrice > 0) etFuelPrice.setText(formatNumber(s.fuelPrice))
         etCommission.setText(formatNumber(s.commissionPercent))
-        renderNetVisibility(s.enabled)
+        renderNetVisibility(switchNet.isChecked)
 
         val save = {
+            if (!refreshingNet) {
             NetEarnings.save(
                 this,
                 NetEarnings.Settings(
@@ -524,8 +574,10 @@ class MainActivity : AppCompatActivity() {
                 )
             )
             updateNetExample()
+            }
         }
         switchNet.setOnCheckedChangeListener { _, checked ->
+            if (!refreshingNet) DriverPreferences.set(this, "net", checked)
             renderNetVisibility(checked)
             save()
         }
@@ -970,6 +1022,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        refreshNetCard()
         renderYandexState()
         renderTraffic()
         renderSetupWarning()

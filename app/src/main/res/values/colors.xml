@@ -3,26 +3,26 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <color name="tr_bg">#0E0E11</color>
-    <color name="tr_surface">#17171C</color>
-    <color name="tr_surface_high">#202027</color>
-    <color name="tr_stroke">#2A2A33</color>
+    <color name="tr_bg">#0C1420</color>
+    <color name="tr_surface">#152231</color>
+    <color name="tr_surface_high">#1D3042</color>
+    <color name="tr_stroke">#34495C</color>
 
     <color name="tr_accent">#FFCC00</color>
     <color name="tr_on_accent">#141414</color>
-    <color name="tr_accent_container">#3A3214</color>
-    <color name="tr_on_accent_container">#FFE27A</color>
+    <color name="tr_accent_container">#243B39</color>
+    <color name="tr_on_accent_container">#BDEDDD</color>
 
     <color name="tr_text">#F4F4F6</color>
-    <color name="tr_text_secondary">#9A9AA5</color>
-    <color name="tr_text_muted">#6B6B76</color>
+    <color name="tr_text_secondary">#B3C0CF</color>
+    <color name="tr_text_muted">#98A8BA</color>
 
     <color name="tr_success">#22C55E</color>
     <color name="tr_warning">#F5B301</color>
     <color name="tr_danger">#EF4444</color>
     <color name="tr_surge">#C084FC</color>
     <color name="tr_yandex">#FC3F1D</color>
-    <color name="tr_nav_bg">#121216</color>
+    <color name="tr_nav_bg">#101C29</color>
     <color name="tr_nav_item">#E4E4EA</color>
     <color name="tr_danger_container">#3A1717</color>
     <color name="tr_success_container">#12301E</color>

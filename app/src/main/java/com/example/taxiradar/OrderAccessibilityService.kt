@@ -658,6 +658,7 @@ class OrderAccessibilityService : AccessibilityService() {
     ) {
         Log.d("FARE_CALC", "calculateAndShow: маршрут=$route tariff=$tariff маршрут_Яндекса=$cardRoute")
         val traffic = TrafficModel.factor(this)
+        var usedYandexRoute = false
         var result = RouteFareCalculator.calculate(
             addresses = route,
             tariffName = tariff,
@@ -688,6 +689,7 @@ class OrderAccessibilityService : AccessibilityService() {
             val ourKm = result.cityKm + result.outOfCityKm
             val plausible = ourKm > 0 && cardRoute.km in (ourKm * 0.6)..(ourKm * 1.8)
             if (plausible) {
+                usedYandexRoute = true
                 val scale = cardRoute.km / ourKm
                 val price = RouteFareCalculator.price(
                     tariff, result.cityKm * scale, result.outOfCityKm * scale, cardRoute.min.toDouble(), surgeBonus
@@ -734,10 +736,11 @@ class OrderAccessibilityService : AccessibilityService() {
                 return@withContext
             }
             if (result != null && result.price > 0) {
+                OrderPreview.latest = OrderPreview.Offer(result.price, result.distanceKm, result.durationMin, pickupKm, surgeBonus, route, usedYandexRoute)
                 // Учимся только на поездках А→Б без заездов: с заездом навигатор
                 // после «Поехали» ведёт до заезда, а не до Б, и время не сравнить.
                 // Цена с заездами считается как обычно, с той же поправкой.
-                if (route.size == 2 && route.joinToString(" -> ") !in learnedCards) {
+                if (route.size == 2) {
                     rememberTrip(
                         PendingTrip(
                             at = System.currentTimeMillis(),
@@ -764,8 +767,13 @@ class OrderAccessibilityService : AccessibilityService() {
                 )
             } else {
                 // Не угадываем цену: если посчитать не вышло — на виджете её просто нет.
+                OrderPreview.latest = null
                 Log.e("FARE_CALC", "Цену посчитать не удалось — на виджет ничего не выводим")
-                FloatingWidgetService.clearOrder()
+                FloatingWidgetService.showNote(
+                    DriverUi.t(this@OrderAccessibilityService, "Цена неизвестна", "Preț necunoscut"),
+                    DriverUi.t(this@OrderAccessibilityService, "Не удалось найти адрес или построить маршрут. Проверьте связь.", "Adresa sau traseul nu au fost găsite. Verificați conexiunea."),
+                    R.color.tr_warning
+                )
             }
         }
     }

@@ -278,6 +278,7 @@ class SetupCheckActivity : AppCompatActivity() {
     private fun render() {
         val checks = buildChecks()
         layoutChecks.removeAllViews()
+        PermissionGuide.add(this, layoutChecks)
         val inflater = LayoutInflater.from(this)
         for (c in checks) {
             val row = inflater.inflate(R.layout.item_setup_check, layoutChecks, false)
@@ -288,6 +289,8 @@ class SetupCheckActivity : AppCompatActivity() {
             }
             row.findViewById<TextView>(R.id.tvCheckTitle).text = c.title
             row.findViewById<TextView>(R.id.tvCheckHint).text = c.hint
+            val infoParent = row.findViewById<TextView>(R.id.tvCheckTitle).parent as LinearLayout
+            DriverUi.expandable(this, infoParent, DriverUi.t(this, "Зачем это нужно", "De ce este necesar"), c.hint)
             val btn = row.findViewById<MaterialButton>(R.id.btnCheckFix)
             if (c.action != null && c.onAction != null) {
                 btn.text = c.action

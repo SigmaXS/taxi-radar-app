@@ -95,7 +95,7 @@ class FloatingWidgetService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
 
-    private val serviceScope = CoroutineScope(Dispatchers.IO)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var autoUpdateJob: Job? = null
     private var orderDisplayJob: Job? = null
     private var isShowingOrder: Boolean = false
@@ -148,6 +148,7 @@ class FloatingWidgetService : Service() {
             startAutoUpdateLoop()
         } catch (e: Exception) {
             e.printStackTrace()
+            stopSelf()
         }
     }
 
@@ -164,15 +165,18 @@ class FloatingWidgetService : Service() {
         orderDisplayJob = serviceScope.launch {
             withContext(Dispatchers.Main) {
                 setOrderSize(true)
-                tvWidgetSurge?.text = "~$price L"
+                val range = OrderEconomics.range(price, DriverPreferences.number(this@FloatingWidgetService, "range_percent", 10.0).toInt())
+                tvWidgetSurge?.text = if (DriverPreferences.flag(this@FloatingWidgetService, "range")) "${range.first}–${range.last} L" else "~$price L"
                 tvWidgetSurge?.setTextColor(getColor(R.color.tr_success))
                 val details = listOfNotNull(
-                    note,
-                    if (km > 0) getString(R.string.widget_km, formatKm(km)) else null,
-                    if (min > 0) getString(R.string.widget_min, min) else null,
+                    if (DriverPreferences.flag(this@FloatingWidgetService, "source", true)) note ?: DriverUi.t(this@FloatingWidgetService, if (OrderPreview.current()?.yandex == true) "По маршруту Яндекса" else "Расчётная цена", if (OrderPreview.current()?.yandex == true) "După ruta Yandex" else "Preț estimat") else null,
+                    if (DriverPreferences.flag(this@FloatingWidgetService, "distance", true) && km > 0) getString(R.string.widget_km, formatKm(km)) else null,
+                    if (DriverPreferences.flag(this@FloatingWidgetService, "minutes", true) && min > 0) getString(R.string.widget_min, min) else null,
+                    if (DriverPreferences.flag(this@FloatingWidgetService, "pickup") && pickupKm > 0) DriverUi.t(this@FloatingWidgetService, "Подача ${formatKm(pickupKm)} км", "Preluare ${formatKm(pickupKm)} km") else null,
+                    if (DriverPreferences.flag(this@FloatingWidgetService, "bonus") && bonus > 0) DriverUi.t(this@FloatingWidgetService, "Надбавка +$bonus L (в цене)", "Supliment +$bonus L (inclus)") else null,
                     // Надбавка уже в цене, а водитель видит её на кнопке «Принять» —
                     // отдельной строкой не пишем, иначе кружок становится слишком широким.
-                    if (stops > 0) resources.getQuantityString(R.plurals.widget_stops, stops, stops) else null
+                    if (DriverPreferences.flag(this@FloatingWidgetService, "stops", true) && stops > 0) resources.getQuantityString(R.plurals.widget_stops, stops, stops) else null
                 ).joinToString(" · ")
                 val sub = SpannableStringBuilder()
                 if (net != null) {
@@ -181,6 +185,18 @@ class FloatingWidgetService : Service() {
                     if (details.isNotEmpty()) sub.append("\n")
                 }
                 sub.append(details)
+                val prefs = this@FloatingWidgetService
+                if (DriverPreferences.flag(prefs, "profit") || DriverPreferences.flag(prefs, "per_km") || DriverPreferences.flag(prefs, "per_hour")) {
+                    if (!DriverPreferences.costsReady(prefs)) sub.append("\n" + DriverUi.t(prefs, "Заполните расходы машины", "Completați cheltuielile mașinii"))
+                    else {
+                        val r = OrderEconomics.calculate(price, km, pickupKm, min, pickupKm / DriverPreferences.number(prefs, "pickup_speed", 25.0).coerceAtLeast(5.0) * 60, DriverPreferences.costs(prefs))
+                        val values = mutableListOf<String>()
+                        if (DriverPreferences.flag(prefs, "profit") && r.perHour != null) values += if (r.perHour >= DriverPreferences.number(prefs, "hour_target", 120.0)) DriverUi.t(prefs, "Выше цели", "Peste țintă") else DriverUi.t(prefs, "Ниже цели", "Sub țintă")
+                        if (DriverPreferences.flag(prefs, "per_km") && r.perKm != null) values += "~${formatKm(r.perKm)} L/km"
+                        if (DriverPreferences.flag(prefs, "per_hour") && r.perHour != null) values += DriverUi.t(prefs, "~${r.perHour} L/час", "~${r.perHour} L/oră")
+                        if (values.isNotEmpty()) sub.append("\n" + values.joinToString(" · "))
+                    }
+                }
                 tvWidgetSub?.text = sub
                 tvWidgetSub?.visibility = if (sub.isEmpty()) View.GONE else View.VISIBLE
             }
@@ -211,7 +227,9 @@ class FloatingWidgetService : Service() {
             setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
             minimumWidth = (72 * dp).toInt()
         }
-        tvWidgetSub?.maxWidth = (220 * dp).toInt()
+        val available = (resources.displayMetrics.widthPixels - 64 * resources.displayMetrics.density).toInt().coerceAtLeast(150)
+        tvWidgetSub?.maxWidth = minOf((250 * dp).toInt(), available)
+        tvWidgetSurge?.maxWidth = available
         btnPlus?.textSize = 20f * scale
         btnPlus?.layoutParams = (btnPlus?.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
             width = (30 * dp).toInt()
@@ -404,6 +422,7 @@ class FloatingWidgetService : Service() {
                 val loc = result.lastLocation ?: return
                 driverLat = loc.latitude
                 driverLon = loc.longitude
+                lastFixAt = System.currentTimeMillis()
                 checkRoadReports(loc.latitude, loc.longitude)
             }
         }
@@ -462,10 +481,10 @@ class FloatingWidgetService : Service() {
         try {
             fusedLocationClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
                 .addOnSuccessListener { loc ->
-                    if (loc != null) {
+                    if (loc != null && System.currentTimeMillis() - loc.time in 0..120000) {
                         driverLat = loc.latitude
                         driverLon = loc.longitude
-                        lastFixAt = System.currentTimeMillis()
+                        lastFixAt = loc.time
                     }
                 }
         } catch (e: Exception) {
@@ -490,14 +509,14 @@ class FloatingWidgetService : Service() {
         }
         // Сервисы Google молчат (мультимедиа машин: нет Wi-Fi и вышек для «экономного»
         // режима) — берём место напрямую у GPS устройства.
-        val fix = got ?: deviceGpsFix()
+        val fix = got?.takeIf { System.currentTimeMillis() - it.time in 0..120000 } ?: deviceGpsFix()
         if (fix != null) {
             driverLat = fix.latitude
             driverLon = fix.longitude
-            lastFixAt = System.currentTimeMillis()
+            lastFixAt = fix.time
         }
         // Точка не старше 15 минут — годится; иначе надбавка была бы не про это место.
-        return System.currentTimeMillis() - lastFixAt < 15 * 60_000
+        return System.currentTimeMillis() - lastFixAt < 2 * 60_000
     }
 
     /**
@@ -510,7 +529,7 @@ class FloatingWidgetService : Service() {
         val lm = getSystemService(android.location.LocationManager::class.java) ?: return null
         val fresh = try {
             lm.getProviders(true).mapNotNull { lm.getLastKnownLocation(it) }
-                .filter { System.currentTimeMillis() - it.time < 15 * 60_000 }
+                .filter { System.currentTimeMillis() - it.time < 2 * 60_000 }
                 .maxByOrNull { it.time }
         } catch (e: Exception) {
             null
@@ -585,17 +604,23 @@ class FloatingWidgetService : Service() {
         autoUpdateJob?.cancel()
         autoUpdateJob = serviceScope.launch {
             while (isActive) {
+                if (!licenseManager.checkDeviceStatusCached(LICENSE_RECHECK_MS)) {
+                    withContext(Dispatchers.Main) { stopSelf() }
+                    break
+                }
                 if (!isShowingOrder) {
-                    val isLicenseValid = licenseManager.checkDeviceStatusCached(LICENSE_RECHECK_MS)
-                    if (!isLicenseValid) {
-                        withContext(Dispatchers.Main) { stopSelf() }
-                        break
-                    }
-
                     fetchSurgeForAll()
                 }
                 // Едем по заказу — надбавка «здесь» и в Б чаще, раз в 30 секунд.
-                delay(if (TripDestination.current() != null) 30_000 else 60_000)
+                delay(DriverPreferences.number(this@FloatingWidgetService, "refresh", 60.0).toLong().coerceIn(30, 300) * 1000)
+            }
+        }
+        serviceScope.launch {
+            val alerts = DriverAlerts()
+            while (isActive) {
+                val fresh = DriverPreferences.flag(this@FloatingWidgetService, "surge_alert") && awaitFix()
+                alerts.check(this@FloatingWidgetService, if (fresh) driverLat else null, if (fresh) driverLon else null, DriverPreferences.selectedTariff(this@FloatingWidgetService))
+                delay(180000)
             }
         }
     }
@@ -614,8 +639,24 @@ class FloatingWidgetService : Service() {
         }
     }
 
+    private val surgeMutex = kotlinx.coroutines.sync.Mutex()
+    private data class SurgeSnapshot(val value: Int, val at: Long, val lat: Double, val lon: Double)
+    private val surgeSnapshots = mutableMapOf<String, SurgeSnapshot>()
     private suspend fun fetchSurgeForAll() {
+        if (isShowingOrder || !surgeMutex.tryLock()) return
+        try { fetchDemand() } finally { surgeMutex.unlock() }
+    }
+
+    private suspend fun fetchDemand() {
         if (isShowingOrder) return
+        if (!DriverPreferences.flag(this, "surge", true)) {
+            withContext(Dispatchers.Main) { if (!isShowingOrder) {
+                setOrderSize(false)
+                tvWidgetSurge?.text = DriverUi.t(this@FloatingWidgetService, "Радар", "Radar")
+                tvWidgetSub?.visibility = View.GONE
+            } }
+            return
+        }
 
         withContext(Dispatchers.Main) {
             if (!isShowingOrder) {
@@ -655,9 +696,19 @@ class FloatingWidgetService : Service() {
             if (showComfort) R.string.tariff_comfort_short to "comfort" else null,
             if (showComfortPlus) R.string.tariff_comfort_plus_short to "comfortplus" else null
         )
+        var staleAge: Long? = null
+        var missing = false
+        var hereValue: Int? = null
+        val lat = driverLat; val lon = driverLon
         val parts = tariffs.map { (label, key) ->
-            val s = YandexTaxiSurgeChecker.getSurgePrice(driverLon, driverLat, key)
-            val value = if (s != null && s > 0) { hasSurge = true; "+$s" } else "0"
+            val s = YandexTaxiSurgeChecker.getSurgePrice(lon, lat, key)
+            val now = System.currentTimeMillis()
+            if (s != null) surgeSnapshots[key] = SurgeSnapshot(s, now, lat, lon)
+            val old = surgeSnapshots[key]?.takeIf { now - it.at <= 10 * 60000 && RouteFareCalculator.distanceKm(lat, lon, it.lat, it.lon) < 0.2 }
+            if (s == null) { missing = true; staleAge = old?.let { (now - it.at) / 60000 } }
+            val shown = s ?: old?.value
+            hereValue = shown
+            val value = when { shown == null -> "?"; shown > 0 -> { hasSurge = true; "+$shown" }; else -> "0" }
             getString(label) to value
         }
         // Буква тарифа — мелко («Э», «К+»), сама надбавка — крупно: её видно с одного взгляда.
@@ -672,10 +723,10 @@ class FloatingWidgetService : Service() {
         }
 
         // Едем по заказу (мультимедиа машины) — две строки: «здесь +15» и «Б +35».
-        val dest = TripDestination.current()
+        val dest = TripDestination.current().takeIf { DriverPreferences.flag(this, "destination", true) }
         val key = tariffs.firstOrNull()?.second
         if (dest != null && key != null) {
-            val here = YandexTaxiSurgeChecker.getSurgePrice(driverLon, driverLat, key)
+            val here = hereValue
             val atB = YandexTaxiSurgeChecker.getSurgePrice(dest.second, dest.first, key)
             fun line(sb: SpannableStringBuilder, label: String, v: Int?) {
                 val hot = v != null && v > 0
@@ -683,7 +734,7 @@ class FloatingWidgetService : Service() {
                 sb.append("$label ")
                 sb.setSpan(android.text.style.RelativeSizeSpan(0.55f), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 val vStart = sb.length
-                sb.append(if (hot) "+$v" else "0")
+                sb.append(if (v == null) "?" else if (hot) "+$v" else "0")
                 sb.setSpan(
                     ForegroundColorSpan(getColor(if (hot) R.color.tr_surge else R.color.tr_accent)),
                     start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -696,7 +747,8 @@ class FloatingWidgetService : Service() {
                 line(it, getString(R.string.widget_point_b), atB)
             }
             hasSurge = (here ?: 0) > 0 || (atB ?: 0) > 0
-        } else if (TripDestination.enabled() && TripDestination.pending != null && key != null) {
+            if (here == null || atB == null) missing = true
+        } else if (DriverPreferences.flag(this, "destination", true) && TripDestination.enabled() && TripDestination.pending != null && key != null) {
             // Б на экране есть, но ещё не найден на карте — показываем, что радар о нём знает.
             displayText = SpannableStringBuilder(displayText).append("\n").also {
                 val start = it.length
@@ -709,7 +761,14 @@ class FloatingWidgetService : Service() {
             if (!isShowingOrder) {
                 setOrderSize(false)
                 tvWidgetSurge?.text = displayText
-                tvWidgetSub?.visibility = View.GONE
+                tvWidgetSub?.text = if (missing) {
+                    if (staleAge != null) DriverUi.t(this@FloatingWidgetService, "Старые данные · $staleAge мин", "Date vechi · $staleAge min")
+                    else DriverUi.t(this@FloatingWidgetService, "Нет данных · проверьте связь", "Fără date · verificați conexiunea")
+                } else {
+                    val checkedAt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+                    DriverUi.t(this@FloatingWidgetService, "Проверено $checkedAt", "Verificat $checkedAt")
+                }
+                tvWidgetSub?.visibility = View.VISIBLE
                 tvWidgetSurge?.setTextColor(getColor(if (hasSurge) R.color.tr_surge else R.color.tr_accent))
                 tintPlus(if (hasSurge) R.color.tr_surge else R.color.tr_accent)
             }
@@ -767,12 +826,13 @@ class FloatingWidgetService : Service() {
         super.onDestroy()
         instance = null
         isRunning = false
+        serviceScope.cancel()
         autoUpdateJob?.cancel()
         orderDisplayJob?.cancel()
         roadJob?.cancel()
         menuCloseJob?.cancel()
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
-        if (floatingView != null) {
+        if (floatingView?.isAttachedToWindow == true) {
             windowManager?.removeView(floatingView)
         }
     }

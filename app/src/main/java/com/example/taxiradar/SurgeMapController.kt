@@ -622,13 +622,13 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
                 lastResult = activity.getString(R.string.map_error)
                 return@launch
             }
-            val econom = surges["econom"] ?: 0
-            val comfort = surges["business"] ?: 0
-            val comfortPlus = surges["comfortplus"] ?: 0
+            val econom = surges["econom"]
+            val comfort = surges["business"] ?: surges["comfort"]
+            val comfortPlus = surges["comfortplus"]
 
             // Только тарифы, включённые в «Спрос в виджете» (ничего — значит Эконом).
             val prefs = activity.getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE)
-            data class Row(val short: Int, val full: Int, val value: Int)
+            data class Row(val short: Int, val full: Int, val value: Int?)
             val rows = listOfNotNull(
                 Row(R.string.tariff_econom_short, R.string.tariff_econom, econom).takeIf { prefs.getBoolean("show_econom", true) },
                 Row(R.string.tariff_comfort_short, R.string.tariff_comfort, comfort).takeIf { prefs.getBoolean("show_comfort", false) },
@@ -638,12 +638,12 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
             moveFlag(
                 point,
                 rows.joinToString("\n") { activity.getString(it.short) + " " + fmt(it.value) },
-                hot = rows.any { it.value > 0 }
+                hot = rows.any { (it.value ?: 0) > 0 }
             )
         }
     }
 
-    private fun fmt(surge: Int): String = if (surge > 0) "+$surge" else "0"
+    private fun fmt(surge: Int?): String = when { surge == null -> "?"; surge > 0 -> "+$surge"; else -> "0" }
 
     /** Пузырёк с цифрой и «хвостиком» вниз — хвостик указывает точно в проверяемую точку. */
     private fun flagDrawable(text: String, hot: Boolean): Drawable {

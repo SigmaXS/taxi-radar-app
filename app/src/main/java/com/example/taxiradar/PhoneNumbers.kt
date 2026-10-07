@@ -13,7 +13,7 @@ object PhoneNumbers {
     /** «+37378123456» или null, если это не похоже на номер телефона. */
     fun normalize(raw: String): String? {
         // Звонилка оборачивает номер в невидимые символы направления текста.
-        val cleaned = raw.replace(Regex("""[‎‏‪-‮⁦-⁩]"""), "")
+        val cleaned = raw.replace(Regex("""[\u200E\u200F\u202A-\u202E\u2066-\u2069]"""), "")
         val hasPlus = cleaned.trim().startsWith("+")
         var digits = cleaned.filter { it.isDigit() }
         val normalized = when {
@@ -30,7 +30,7 @@ object PhoneNumbers {
 
     /** Все номера, найденные в тексте, уже в международном виде. */
     fun findAll(text: String): List<String> =
-        candidateRegex.findAll(text.replace(Regex("""[‎‏‪-‮⁦-⁩]"""), ""))
+        candidateRegex.findAll(text.replace(Regex("""[\u200E\u200F\u202A-\u202E\u2066-\u2069]"""), ""))
             .mapNotNull { normalize(it.value) }
             .toList()
 

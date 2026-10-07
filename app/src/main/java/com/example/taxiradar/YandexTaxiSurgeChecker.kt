@@ -94,7 +94,7 @@ object YandexTaxiSurgeChecker {
             }
 
             val json = requestRouteStats(route) ?: return@withContext null
-            val levels = json.optJSONArray("service_levels") ?: return@withContext 0
+            val levels = json.optJSONArray("service_levels") ?: return@withContext null
 
             for (i in 0 until levels.length()) {
                 val lvl = levels.getJSONObject(i)
@@ -104,7 +104,7 @@ object YandexTaxiSurgeChecker {
                 }
             }
 
-            0
+            null
         } catch (e: Exception) {
             Log.e("TAXI_SURGE", "Ошибка: ${e.message}")
             e.printStackTrace()
@@ -121,7 +121,7 @@ object YandexTaxiSurgeChecker {
             for (i in 0 until levels.length()) {
                 val lvl = levels.getJSONObject(i)
                 val className = lvl.optString("class", "").lowercase()
-                if (className in basePrices) result[className] = surgeForLevel(lvl, className)
+                if (className in basePrices) surgeForLevel(lvl, className)?.let { result[className] = it }
             }
             result
         } catch (e: Exception) {
@@ -130,7 +130,7 @@ object YandexTaxiSurgeChecker {
         }
     }
 
-    private fun surgeForLevel(lvl: JSONObject, className: String): Int {
+    private fun surgeForLevel(lvl: JSONObject, className: String): Int? {
         // 1. Явная надбавка из блока surge, если API отдаёт её напрямую
         val directSurge = lvl.optJSONObject("surge")?.optInt("value", 0) ?: 0
         if (directSurge > 0) return directSurge
@@ -139,7 +139,7 @@ object YandexTaxiSurgeChecker {
         val priceString = lvl.optString("price", "")
         val startPrice = Regex("^\\d+").find(priceString.trim())?.value?.toIntOrNull()
             ?: Regex("\\d+").find(priceString)?.value?.toIntOrNull()
-            ?: 0
+            ?: return null
         val base = basePrices[className] ?: 30
         Log.d("TAXI_SURGE", "[$className] Старт: $startPrice L | База: $base L")
         return maxOf(0, startPrice - base)

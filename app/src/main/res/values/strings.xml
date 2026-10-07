@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">TaxiRadar</string>
+    <string name="app_name" translatable="false">TaxiRadar</string>
 
     <!-- Язык -->
     <string name="lang_button">RU</string>

@@ -39,8 +39,7 @@ object NetEarnings {
     /** null — если «чистыми» выключено или не заполнены данные. */
     fun compute(context: Context, price: Int, tripKm: Double, pickupKm: Double): Int? {
         val s = load(context)
-        if (!s.enabled || s.fuelPrice <= 0 || s.consumptionPer100Km <= 0) return null
-        val fuelCost = (tripKm + pickupKm) * s.consumptionPer100Km / 100.0 * s.fuelPrice
-        return (price * (1 - s.commissionPercent / 100.0) - fuelCost).roundToInt()
+        if (!DriverPreferences.flag(context, "net", s.enabled) || !DriverPreferences.costsReady(context)) return null
+        return OrderEconomics.calculate(price, tripKm, pickupKm, 0, 0.0, DriverPreferences.costs(context)).net
     }
 }

@@ -18,6 +18,8 @@ class HelpActivity : AppCompatActivity() {
     private data class Topic(val icon: Int, val title: Int, val text: Int)
 
     private val topics = listOf(
+        Topic(R.drawable.ic_settings, R.string.help_driver_widget_title, R.string.help_driver_widget_text),
+        Topic(R.drawable.ic_payments, R.string.help_driver_shift_title, R.string.help_driver_shift_text),
         Topic(R.drawable.ic_nav_radar, R.string.help_radar_title, R.string.help_radar_text),
         Topic(R.drawable.ic_map, R.string.help_surge_title, R.string.help_surge_text),
         Topic(R.drawable.ic_check_circle, R.string.help_net_title, R.string.help_net_text),
@@ -38,6 +40,7 @@ class HelpActivity : AppCompatActivity() {
         setContentView(R.layout.activity_help)
         findViewById<View>(R.id.btnHelpBack).setOnClickListener { finish() }
         val list = findViewById<LinearLayout>(R.id.layoutHelpList)
+        PermissionGuide.add(this, list)
         val dp = resources.displayMetrics.density
         for (t in topics) {
             val text = TextView(this).apply {

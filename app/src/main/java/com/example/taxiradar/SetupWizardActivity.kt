@@ -63,6 +63,7 @@ class SetupWizardActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnWizardAction2).setOnClickListener { steps[index].onAction2?.invoke() }
         findViewById<View>(R.id.btnWizardNext).setOnClickListener { next() }
         findViewById<View>(R.id.btnWizardSkip).setOnClickListener { finishWizard() }
+        findViewById<View>(R.id.btnWizardHelp).setOnClickListener { PermissionGuide.show(this) }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

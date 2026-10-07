@@ -12,6 +12,7 @@
         <item name="colorOnSurfaceVariant">@color/tr_text_secondary</item>
         <item name="colorOutline">@color/tr_stroke</item>
         <item name="colorError">@color/tr_danger</item>
+        <item name="elevationOverlayEnabled">false</item>
         <item name="android:colorBackground">@color/tr_bg</item>
         <item name="android:statusBarColor">@color/tr_bg</item>
         <item name="android:navigationBarColor">@color/tr_bg</item>
@@ -75,8 +76,10 @@
     <style name="WidgetReportButton" parent="">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:paddingHorizontal">10dp</item>
-        <item name="android:paddingVertical">6dp</item>
+        <item name="android:paddingLeft">10dp</item>
+        <item name="android:paddingRight">10dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
         <item name="android:textSize">30sp</item>
         <item name="android:includeFontPadding">false</item>
     </style>

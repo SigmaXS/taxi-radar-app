@@ -39,6 +39,7 @@
         android:usesCleartextTraffic="true">
 
         <!-- Главная активность -->
+        <activity android:name=".DriverToolsActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

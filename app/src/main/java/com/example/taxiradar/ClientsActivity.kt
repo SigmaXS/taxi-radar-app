@@ -49,17 +49,29 @@ class ClientsActivity : AppCompatActivity() {
         renderRecent()
     }
 
-    private fun checkTyped() {
+    private var checking = false
+
+    private fun checkTyped(showEditor: Boolean = true) {
+        if (checking) return
         val number = PhoneNumbers.normalize(etPhone.text.toString())
         if (number == null) {
             Toast.makeText(this, getString(R.string.clients_bad_number), Toast.LENGTH_SHORT).show()
             return
         }
         checkedNumber = number
+        checking = true
+        btnTag.visibility = View.GONE
+        findViewById<View>(R.id.btnClientCheck).isEnabled = false
         tvResult.visibility = View.VISIBLE
         tvResult.text = getString(R.string.setup_checking)
         lifecycleScope.launch {
             val s = ClientsManager.check(this@ClientsActivity, number)
+            checking = false
+            findViewById<View>(R.id.btnClientCheck).isEnabled = true
+            if (s != null) {
+                ClientsManager.remember(this@ClientsActivity, number)
+                renderRecent()
+            }
             tvResult.text = buildString {
                 append(PhoneNumbers.pretty(number)).append("\n").append(ClientsManager.describe(this@ClientsActivity, s))
                 if (s != null && s.reviews.isNotEmpty()) append("\n\n").append(ClientsManager.describeReviews(this@ClientsActivity, s))
@@ -74,6 +86,7 @@ class ClientsActivity : AppCompatActivity() {
             val pad = (14 * resources.displayMetrics.density).toInt()
             tvResult.setPadding(pad, pad, pad, pad)
             btnTag.visibility = if (s != null) View.VISIBLE else View.GONE
+            if (showEditor && s != null && !intent.hasExtra("number")) showTagDialog(number)
         }
     }
 
@@ -181,7 +194,7 @@ class ClientsActivity : AppCompatActivity() {
                             getString(if (ok) R.string.clients_saved else R.string.clients_no_connection),
                             Toast.LENGTH_SHORT
                         ).show()
-                        if (number == checkedNumber) checkTyped()
+                        if (number == checkedNumber) checkTyped(false)
                     }
                 }
                 .setNegativeButton(R.string.cancel, null)

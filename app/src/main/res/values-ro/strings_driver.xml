@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="help_driver_widget_title">Personalizați widgetul</string>
+    <string name="help_driver_widget_text">Radar → Asistent de tură → Setările radarului și widgetului. Activați separat kilometrii, minutele, preluarea, opririle, suplimentul, sursa și venitul net. Pentru un singur număr dezactivați rândurile suplimentare. Intervalul folosește procentul ales de dvs. Prețul este estimat, nu garantat. Pentru rentabilitate completați cheltuielile mașinii, ținta pe oră și viteza de preluare. Semnul întrebării deschide explicația.</string>
+    <string name="help_driver_shift_title">Tură, istoric și întoarcere</string>
+    <string name="help_driver_shift_text">Radar → Asistent de tură → Tura mea. Apăsați «Începe tura». Cursele finalizate citite de pe ecran apar ca înregistrări de verificat. Corectați plata, distanța, durata și zona, apoi salvați. Numai sumele confirmate intră în total. Puteți adăuga curse manual. Introduceți rulajul total de pe odometru; includem preluarea, deplasarea fără pasager și chiria setată. Plata se rotunjește la leu. Ultimele 500 de înregistrări rămân pe telefon. Pentru ultima ofertă puteți calcula întoarcerea sau direcția spre casă. Sunt estimări; întoarcerea folosește 30 km/h. Statisticile pe zone apar de la 3 curse confirmate.</string>
+    <string name="driver_tools_title">Asistentul turei</string>
+    <string name="driver_tools_help">Setările radarului: alegeți rândurile widgetului, intervalul de preț, cheltuielile și notificările. Tura mea: începeți tura, confirmați plata și consultați totalul. Verificați sumele citite din Yandex. Estimările nu garantează prețul final.</string>
+    <string name="driver_settings">Setări radar și widget</string>
+    <string name="driver_shift">Tura mea și rentabilitatea</string>
+    <string name="driver_tools_caption">Cheltuielile și ținta dvs., doar cifrele utile</string>
+    <string name="driver_permission_guide">Ghid Samsung / Xiaomi / altele</string>
+    <string name="driver_clients_check">Verifică și adaugă clientul</string>
+    <string name="driver_clients_hint">Introduceți numărul și apăsați «Verifică și adaugă clientul». Numărul rămâne în lista recentă, apoi puteți adăuga etichete sau un comentariu. Eticheta comună apare doar după salvare.</string>
+</resources>

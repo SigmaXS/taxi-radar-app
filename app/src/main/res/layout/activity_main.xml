@@ -251,7 +251,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
-                        app:chipSpacingHorizontal="8dp"
+                        app:chipSpacingHorizontal="4dp"
+                        app:singleLine="true"
                         app:selectionRequired="true"
                         app:singleSelection="true">
 
@@ -280,6 +281,19 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+
+
+            <com.google.android.material.card.MaterialCardView style="@style/TaxiRadar.Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" app:cardBackgroundColor="@color/tr_accent_container">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+                        <TextView style="@style/TaxiRadar.CardTitle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/driver_tools_title" android:textSize="19sp" />
+                        <ImageButton android:id="@+id/btnDriverInfo" android:layout_width="48dp" android:layout_height="48dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_help" android:contentDescription="@string/driver_tools_help" app:tint="@color/tr_on_accent_container" />
+                    </LinearLayout>
+                    <TextView style="@style/TaxiRadar.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_tools_caption" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverSettings" style="@style/TaxiRadar.Button.Tonal" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_settings" app:icon="@drawable/ic_settings" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverShift" style="@style/TaxiRadar.Button.Outlined" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_shift" app:icon="@drawable/ic_payments" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/tileChat"

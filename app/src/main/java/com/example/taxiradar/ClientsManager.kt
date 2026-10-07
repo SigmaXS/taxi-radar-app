@@ -143,7 +143,8 @@ object ClientsManager {
         }
     }
 
-    private fun remember(context: Context, number: String) {
+    @Synchronized
+    fun remember(context: Context, number: String) {
         val list = (listOf(Recent(number, System.currentTimeMillis())) + recent(context).filter { it.number != number }).take(15)
         val a = JSONArray()
         list.forEach { a.put(JSONObject().put("n", it.number).put("t", it.at)) }
