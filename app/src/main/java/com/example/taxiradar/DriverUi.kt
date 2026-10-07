@@ -57,6 +57,9 @@ object DriverUi {
     fun dp(c: Context, n: Int) = (n * c.resources.displayMetrics.density).toInt()
     fun text(c: Context, label: String, size: Float = 15f, muted: Boolean = false) = TextView(c).apply {
         text = label; textSize = size; setTextColor(c.getColor(if (muted) R.color.tr_text_secondary else R.color.tr_text))
+        // Всё по центру: экраны помощника читаются как карточки, а не как список настроек.
+        gravity = Gravity.CENTER_HORIZONTAL; textAlignment = View.TEXT_ALIGNMENT_CENTER
+        if (size >= 22f) setTypeface(null, Typeface.BOLD)
         setLineSpacing(dp(c, 3).toFloat(), 1f)
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(c, 8) }
     }
@@ -67,13 +70,17 @@ object DriverUi {
             layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(c, 14) }
         }
         val box = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(c, if (wide(c)) 24 else 18), dp(c, 16), dp(c, if (wide(c)) 24 else 18), dp(c, 14)) }
+        // Заголовок по центру: слева пустое место той же ширины, что кнопка «?» справа.
         val row = LinearLayout(c).apply { gravity = Gravity.CENTER_VERTICAL }
-        row.addView(ImageView(c).apply { setImageResource(icon); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_cyan)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 26), dp(c, 26)).apply { marginEnd = dp(c, 10) })
-        row.addView(text(c, title, 18f).apply { setTypeface(null, Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(0, -2, 1f) })
+        row.addView(View(c), LinearLayout.LayoutParams(dp(c, 48), 1))
+        val head = LinearLayout(c).apply { gravity = Gravity.CENTER }
+        head.addView(ImageView(c).apply { setImageResource(icon); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_cyan)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 8) })
+        head.addView(text(c, title, 18f).apply { setTypeface(null, Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(-2, -2) })
+        row.addView(head, LinearLayout.LayoutParams(0, -2, 1f))
         row.addView(info(c, title, explanation))
         box.addView(row)
-        box.addView(View(c).apply { setBackgroundColor(c.getColor(R.color.tr_console_border)) }, LinearLayout.LayoutParams(-1, dp(c, 1)).apply { bottomMargin = dp(c, 12) })
-        box.addView(text(c, explanation.substringBefore('\n'), 13f, true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END })
+        box.addView(text(c, explanation.substringBefore('\n'), 13f, true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; (layoutParams as LinearLayout.LayoutParams).bottomMargin = dp(c, 12) })
+        box.addView(View(c).apply { setBackgroundColor(c.getColor(R.color.tr_console_border)) }, LinearLayout.LayoutParams(dp(c, 56), dp(c, 2)).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(c, 14) })
         card.addView(box); parent.addView(card)
         return box
     }
@@ -112,9 +119,9 @@ object DriverUi {
         return field
     }
     fun expandable(c: Context, parent: LinearLayout, title: String, body: String, icon: Int = R.drawable.ic_help) {
-        val row = LinearLayout(c).apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(c, 52); setBackgroundResource(android.R.drawable.list_selector_background); isFocusable = true; isClickable = true }
-        row.addView(ImageView(c).apply { setImageResource(icon); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_accent)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 12) })
-        val label = text(c, "$title  ▾").apply { layoutParams = LinearLayout.LayoutParams(0, -2, 1f) }
+        val row = LinearLayout(c).apply { gravity = Gravity.CENTER; minimumHeight = dp(c, 52); setBackgroundResource(android.R.drawable.list_selector_background); isFocusable = true; isClickable = true }
+        row.addView(ImageView(c).apply { setImageResource(icon); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_accent)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 10) })
+        val label = text(c, "$title  ▾").apply { layoutParams = LinearLayout.LayoutParams(-2, -2) }
         row.addView(label)
         val details = text(c, body, 14f, true).apply { visibility = View.GONE }
         row.setOnClickListener { val open = details.visibility != View.VISIBLE; details.visibility = if (open) View.VISIBLE else View.GONE; label.text = "$title  ${if (open) "▴" else "▾"}" }

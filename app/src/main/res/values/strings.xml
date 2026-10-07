@@ -175,7 +175,7 @@
     <string name="chk_battery_ok">Android не будет усыплять радар</string>
     <string name="chk_battery_fail">Иначе телефон выключит радар в фоне</string>
     <string name="chk_location">Геолокация</string>
-    <string name="chk_location_ok">Надбавка считается по вашему местоположению</string>
+    <string name="chk_location_ok">Разрешена</string>
     <string name="chk_location_fail">Нужна, чтобы показывать надбавку там, где вы стоите</string>
     <string name="acc_self_enabled">Специальные возможности для Taxi Radar включены</string>
     <string name="acc_self_failed">Не получилось включить — откройте настройки вручную</string>
@@ -396,7 +396,7 @@
     <string name="alerts_intro_text">Как в Waze: водители отмечают радары, полицию и опасные места кнопкой «+» на виджете — нажмите на кружок в любом месте.\n\nКогда вы едете к такой отметке, Taxi Radar предупредит заранее: за 400 м и ещё раз за 100 м. Если едете в другую сторону — молчит.\n\nДля этого нужен доступ к геолокации, и, пока радар запущен, он будет сверять место чуть чаще. Батарея может садиться немного быстрее. Выключить — этой же кнопкой.</string>
     <string name="alerts_intro_on">Включить</string>
     <string name="loc_alerts_on">Предупреждения в дороге включены</string>
-    <string name="chk_location_optional">По желанию: нужна для карты, надбавки там, где вы стоите, и предупреждений в дороге</string>
+    <string name="chk_location_optional">Не разрешена — нажмите «Разрешить»</string>
     <string name="wiz_step_of">Шаг %1$d из %2$d</string>
     <string name="wiz_step_done">✓ Готово</string>
     <string name="wiz_skip">Пропустить</string>

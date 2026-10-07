@@ -41,6 +41,9 @@ import java.io.File
  * запросом узнаём надбавку по трём тарифам и ставим туда флажок с цифрой,
  * чтобы «прощупать» соседние районы. Запросы — не чаще раза в секунду.
  */
+/** Метки, которые живут час и продлеваются ответом «Ещё здесь» (как на сервере). */
+private val HOUR_TYPES = setOf("police", "radar", "danger", "accident", "jam")
+
 class SurgeMapController(private val activity: AppCompatActivity, root: View) {
 
     private val map: MapView
@@ -371,8 +374,8 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
         val b = com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
             .setTitle("${type.emoji}  ${activity.getString(type.label)}")
             .setMessage(activity.getString(R.string.map_report_ago, ago) + "\n\n" + DriverUi.t(activity,
-                if (r.type in listOf("police", "radar")) "Живёт час после добавления или подтверждения. «Уже нет» снимает метку с карты." else "Остаётся до удаления. Подтвердите наличие или нажмите «Уже нет», если информация устарела.",
-                if (r.type in listOf("police", "radar")) "Rămâne o oră după adăugare sau confirmare. «Nu mai este» elimină marcajul." else "Rămâne până la eliminare. Confirmați prezența sau apăsați «Nu mai este» dacă informația nu mai este actuală."))
+                if (r.type in HOUR_TYPES) "Живёт час после добавления или подтверждения «Ещё здесь». Метка исчезнет, когда «Уже нет» ответят два водителя." else "Остаётся, пока водители её не уберут: нужно два ответа «Уже нет».",
+                if (r.type in HOUR_TYPES) "Rămâne o oră după adăugare sau confirmarea «Încă aici». Dispare când doi șoferi răspund «Nu mai este»." else "Rămâne până o elimină șoferii: sunt necesare două răspunsuri «Nu mai este»."))
         if (!r.active) {
             b.setMessage(activity.getString(R.string.map_report_ago, ago) + "\n" + DriverUi.t(activity, "Метка уже снята с карты. Это запись вашей истории.", "Marcajul nu mai este activ. Aceasta este o înregistrare din istoric."))
         } else if (r.mine) {
@@ -522,15 +525,7 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
             b.setNeutralButton(if (p.vote == -1) R.string.place_voted_down else R.string.place_down) { _, _ ->
                 act { Places.vote(activity, p.id, if (p.vote == -1) 0 else -1) }
             }
-            val removal = android.widget.LinearLayout(activity).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(DriverUi.dp(activity, 24), 0, DriverUi.dp(activity, 24), 0) }
-            DriverUi.button(activity, removal, DriverUi.t(activity, "Места уже нет — убрать с карты", "Locul nu mai există — elimină de pe hartă")) {
-                com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
-                    .setTitle(DriverUi.t(activity, "Убрать место для всех?", "Eliminați locul pentru toți?"))
-                    .setMessage(DriverUi.t(activity, "Подтверждайте только если место закрылось или отметка ошибочна. Отрицательная оценка сама по себе не удаляет место.", "Confirmați doar dacă locul s-a închis sau marcajul este greșit. O evaluare negativă nu elimină locul."))
-                    .setPositiveButton(R.string.place_delete) { _, _ -> act { Places.delete(activity, p.id) } }
-                    .setNegativeButton(R.string.cancel, null).show()
-            }
-            b.setView(removal)
+            // Удалить «Вашу точку» может только автор (и администратор в админке).
         }
         b.setNegativeButton(R.string.close, null).show()
     }

@@ -172,7 +172,7 @@
     <string name="chk_battery_ok">Android nu va adormi radarul</string>
     <string name="chk_battery_fail">Altfel telefonul va opri radarul în fundal</string>
     <string name="chk_location">Localizare</string>
-    <string name="chk_location_ok">Suplimentul se calculează după locația dvs.</string>
+    <string name="chk_location_ok">Permisă</string>
     <string name="chk_location_fail">Necesară pentru a arăta suplimentul acolo unde stați</string>
     <string name="acc_self_enabled">Accesibilitatea pentru Taxi Radar este activată</string>
     <string name="acc_self_failed">Nu s-a putut activa — deschideți setările manual</string>
@@ -393,7 +393,7 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
     <string name="alerts_intro_text">Ca în Waze: șoferii marchează radarele, poliția și locurile periculoase cu butonul «+» din widget — apăsați oriunde pe cerc.\n\nCând mergeți spre un astfel de marcaj, Taxi Radar vă avertizează din timp: la 400 m și încă o dată la 100 m. Dacă mergeți în altă direcție — tace.\n\nPentru asta e nevoie de acces la localizare și, cât radarul e pornit, va verifica locul ceva mai des. Bateria se poate descărca puțin mai repede. Se oprește din același buton.</string>
     <string name="alerts_intro_on">Pornește</string>
     <string name="loc_alerts_on">Avertizările pe drum sunt pornite</string>
-    <string name="chk_location_optional">Opțional: pentru hartă, suplimentul acolo unde stați și avertizări pe drum</string>
+    <string name="chk_location_optional">Nepermisă — apăsați «Permite»</string>
     <string name="wiz_step_of">Pasul %1$d din %2$d</string>
     <string name="wiz_step_done">✓ Gata</string>
     <string name="wiz_skip">Omite</string>

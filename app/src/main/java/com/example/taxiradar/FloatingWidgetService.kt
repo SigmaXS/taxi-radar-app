@@ -212,7 +212,7 @@ class FloatingWidgetService : Service() {
     /** Цена заказа — крупнее обычного, чтобы читалась с одного взгляда. */
     private fun setOrderSize(order: Boolean) {
         orderSize = order
-        tvWidgetSurge?.textSize = (if (order) 25f else 23f) * scale
+        tvWidgetSurge?.textSize = (if (order) 25f else 28f) * scale
         tvWidgetSub?.textSize = (if (order) 13f else 11f) * scale
     }
 
@@ -592,7 +592,12 @@ class FloatingWidgetService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     // Нажатие в любом месте кружка — меню «+»: попасть пальцем на ходу легко.
-                    if (!isMoved) toggleReportMenu(reportMenu?.visibility != View.VISIBLE)
+                    if (!isMoved) {
+                        val opening = reportMenu?.visibility != View.VISIBLE
+                        toggleReportMenu(opening)
+                        // Заодно обновить надбавку — как раньше по нажатию на кружок.
+                        if (opening) refreshData()
+                    }
                     true
                 }
                 else -> false
@@ -761,14 +766,15 @@ class FloatingWidgetService : Service() {
             if (!isShowingOrder) {
                 setOrderSize(false)
                 tvWidgetSurge?.text = displayText
-                tvWidgetSub?.text = if (missing) {
-                    if (staleAge != null) DriverUi.t(this@FloatingWidgetService, "Старые данные · $staleAge мин", "Date vechi · $staleAge min")
+                // Подпись — только если что-то не так; «проверено в 23:29» не нужно:
+                // надбавка и так обновляется сама.
+                if (missing) {
+                    tvWidgetSub?.text = if (staleAge != null) DriverUi.t(this@FloatingWidgetService, "Старые данные · $staleAge мин", "Date vechi · $staleAge min")
                     else DriverUi.t(this@FloatingWidgetService, "Нет данных · проверьте связь", "Fără date · verificați conexiunea")
+                    tvWidgetSub?.visibility = View.VISIBLE
                 } else {
-                    val checkedAt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
-                    DriverUi.t(this@FloatingWidgetService, "Проверено $checkedAt", "Verificat $checkedAt")
+                    tvWidgetSub?.visibility = View.GONE
                 }
-                tvWidgetSub?.visibility = View.VISIBLE
                 tvWidgetSurge?.setTextColor(getColor(if (hasSurge) R.color.tr_surge else R.color.tr_accent))
                 tintPlus(if (hasSurge) R.color.tr_surge else R.color.tr_accent)
             }
