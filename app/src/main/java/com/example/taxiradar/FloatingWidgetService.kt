@@ -698,8 +698,7 @@ class FloatingWidgetService : Service() {
             hasSurge = (here ?: 0) > 0 || (atB ?: 0) > 0
         } else if (TripDestination.enabled() && TripDestination.pending != null && key != null) {
             // Б на экране есть, но ещё не найден на карте — показываем, что радар о нём знает.
-            displayText = SpannableStringBuilder(displayText).append("
-").also {
+            displayText = SpannableStringBuilder(displayText).append("\n").also {
                 val start = it.length
                 it.append(getString(R.string.widget_point_b) + " ?")
                 it.setSpan(ForegroundColorSpan(getColor(R.color.tr_text_muted)), start, it.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
