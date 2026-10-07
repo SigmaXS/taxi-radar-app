@@ -51,7 +51,7 @@ class OrderAccessibilityService : AccessibilityService() {
         plusAmountRegex.findAll(line).map { it.groupValues[1].toInt() to it.groupValues[2].isNotEmpty() }.toList() +
             plusPrefixRegex.findAll(line).map { it.groupValues[1].toInt() to true }.toList()
 
-    private val paidPickupRegex = Regex("""(?i)(платн\S*\s+подач|pl[aă]t\S*\s+(?:a\s+)?(?:prelu|deplas)|preluare\s+pl[aă]t|paid\s+pick)""")
+    private val paidPickupRegex = Regex("""(?iu)(платн\S*\s+подач|pl[aă]t\S*\s+(?:a\s+)?(?:prelu|deplas)|preluare\s+pl[aă]t|paid\s+pick)""")
 
     // Надбавка, которую уже видели у заказа (ключ — адреса). Цифры на кнопке
     // появляются не сразу и мигают — берём наибольшую за последние 15 минут,
@@ -143,6 +143,14 @@ class OrderAccessibilityService : AccessibilityService() {
             return
         }
 
+        // Свёрнутый Яндекс Про показывает «Ожидание в очереди ~2 ч» в своём кружке поверх
+        // других приложений — читаем прямо из события, экран при этом может быть чужой.
+        if (event.text.any { AirportQueue.mentionsQueue(it?.toString().orEmpty()) }) {
+            val lines = mutableListOf<NodeData>()
+            try { collectNodes(event.source, lines) } catch (_: Exception) {}
+            AirportQueue.onScreen(this, (event.text.mapNotNull { it?.toString() } + lines.map { it.text }).flatMap { it.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() })
+        }
+
         // Экран Яндекс Про меняется десятки раз в секунду. Разбираем его один
         // раз, когда он «успокоился» (150 мс без новых событий), — иначе служба
         // гоняла процессор и грела телефон.
@@ -176,6 +184,8 @@ class OrderAccessibilityService : AccessibilityService() {
                 it.contains("Принять", ignoreCase = true) || it.contains("Accept", ignoreCase = true)
             }
             if (!hasAccept) {
+                // Экран «Ожидание в очереди» в аэропорту — цифры очереди для всех водителей.
+                AirportQueue.onScreen(this, allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() })
                 // Лёгкий режим: экран поездки не разбираем — только карточки заказов.
                 if (LiteMode.cuts(this, LiteMode.Feature.TRIP)) return
                 maybeLearnTraffic(allNodes)
@@ -783,13 +793,13 @@ class OrderAccessibilityService : AccessibilityService() {
     }
 
     // «от 45 L» / «from L 45» — вилка цены тарифа.
-    private val priceRangeRegex = Regex("""(?i)^\s*(от|from)\s*(l\s*)?\d+""")
+    private val priceRangeRegex = Regex("""(?iu)^\s*(от|from)\s*(l\s*)?\d+""")
 
     // Число с единицей: «45 L», «L 45», «3 мин», «1,3 km», «600 м», «35 lei».
     // Раньше хватало буквы: « l» или «мин» внутри строки — и под нож шли адреса
     // вроде «strada Liviu Deleanu», «strada Ismail» или «улица Минская».
     private val unitRegex = Regex(
-        """(?i)(\d\s*(км|м|мин|km|m|min|l|lei|лей)(?![\p{L}]))|((?<![\p{L}])(l|lei)\s*\d)"""
+        """(?iu)(\d\s*(км|м|мин|km|m|min|l|lei|лей)(?![\p{L}]))|((?<![\p{L}])(l|lei)\s*\d)"""
     )
 
     private fun isServiceWord(t: String): Boolean {
@@ -832,9 +842,9 @@ class OrderAccessibilityService : AccessibilityService() {
 
     // Слова, по которым строка похожа на адрес, а не на город или пометку.
     private val streetWordRegex = Regex(
-        """(?i)(^|[\s,.])(str|strada|stradela|bd|bul|bulevardul|șos|şos|sos|soseaua|șoseaua|aleea|piața|piata|calea|ул|улица|пр|проспект|бул|бульвар|шоссе|пер|переулок|село|satul|sat|com)[\s.,]"""
+        """(?iu)(^|[\s,.])(str|strada|stradela|bd|bul|bulevardul|șos|şos|sos|soseaua|șoseaua|aleea|piața|piata|calea|ул|улица|пр|проспект|бул|бульвар|шоссе|пер|переулок|село|satul|sat|com)[\s.,]"""
     )
-    private val entranceRegex = Regex("""(?i)^(entrance|подъезд|scara|scară|poarta|ворота|этаж|etaj|кв|ap)\b""")
+    private val entranceRegex = Regex("""(?iu)^(entrance|подъезд|scara|scară|poarta|ворота|этаж|etaj|кв|ap)\b""")
 
     /**
      * Строка между А и Б — настоящий заезд, а не скрытый дубль адреса, город

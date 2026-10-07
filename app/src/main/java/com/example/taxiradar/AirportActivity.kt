@@ -72,6 +72,7 @@ class AirportActivity : AppCompatActivity() {
             return
         }
         tvQueue.text = s.queue.toString()
+        renderTaxiQueue(s)
         empty.visibility = if (s.flights.isEmpty()) View.VISIBLE else View.GONE
         empty.setText(R.string.airport_no_flights)
 
@@ -95,6 +96,53 @@ class AirportActivity : AppCompatActivity() {
 
         btnAll.visibility = if (rest.isEmpty()) View.GONE else View.VISIBLE
         btnAll.text = getString(if (showAll) R.string.airport_hide_all else R.string.airport_show_all, rest.size)
+    }
+
+    /**
+     * Очередь такси по тарифам (по экрану Яндекс Про у водителей в аэропорту):
+     * «Комфорт: ~31–35 машин · ожидание ~3 ч · 4 мин назад». Нет свежих — так и пишем.
+     */
+    private fun renderTaxiQueue(s: Airport.Status) {
+        fun t(ru: String, ro: String) = DriverUi.t(this, ru, ro)
+        val anchor = (findViewById<TextView>(R.id.tvAirportQueue).parent as View).parent as View
+        val parent = anchor.parent as LinearLayout
+        val old = parent.findViewWithTag<View>("taxiQueue")
+        if (old != null) parent.removeView(old)
+        val card = com.google.android.material.card.MaterialCardView(this).apply {
+            tag = "taxiQueue"; radius = DriverUi.dp(this@AirportActivity, 20).toFloat()
+            setCardBackgroundColor(getColor(R.color.tr_surface)); strokeColor = getColor(R.color.tr_accent); strokeWidth = DriverUi.dp(this@AirportActivity, 1)
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = DriverUi.dp(this@AirportActivity, 12) }
+        }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; val p = DriverUi.dp(this@AirportActivity, 16); setPadding(p, p, p, p) }
+        box.addView(TextView(this).apply {
+            text = t("Очередь такси в аэропорту", "Coada de taxi la aeroport"); textSize = 18f; setTypeface(null, Typeface.BOLD); setTextColor(getColor(R.color.tr_text))
+        })
+        val names = mapOf("econom" to t("Эконом", "Econom"), "comfort" to t("Комфорт", "Confort"), "comfortplus" to t("Комфорт+", "Confort+"))
+        for ((k, label) in names) {
+            val q = s.taxi[k]
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, DriverUi.dp(this@AirportActivity, 10), 0, 0) }
+            row.addView(TextView(this).apply { text = label; textSize = 16f; setTypeface(null, Typeface.BOLD); setTextColor(getColor(R.color.tr_text)) },
+                LinearLayout.LayoutParams(DriverUi.dp(this@AirportActivity, 100), -2))
+            val stale = q != null && q.ageMin > 20
+            row.addView(TextView(this).apply {
+                text = if (q == null) t("нет свежих данных", "fără date recente") else listOfNotNull(
+                    when { q.carsTo != null && q.carsFrom != null && q.carsTo != q.carsFrom -> t("~${q.carsFrom}–${q.carsTo} машин", "~${q.carsFrom}–${q.carsTo} mașini")
+                           q.carsTo != null -> t("~${q.carsTo} машин", "~${q.carsTo} mașini"); else -> null },
+                    q.waitMin?.let { w -> t("ожидание ~${if (w >= 60) "${w / 60} ч${if (w % 60 > 0) " ${w % 60} мин" else ""}" else "$w мин"}", "așteptare ~${if (w >= 60) "${w / 60} h${if (w % 60 > 0) " ${w % 60} min" else ""}" else "$w min"}") },
+                    if (stale) t("данные устарели (${q.ageMin} мин)", "date vechi (${q.ageMin} min)") else t("${q.ageMin} мин назад", "acum ${q.ageMin} min")
+                ).joinToString(" · ")
+                textSize = 15f
+                setTextColor(getColor(when { q == null -> R.color.tr_text_secondary; stale -> R.color.tr_warning; else -> R.color.tr_text }))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            box.addView(row)
+        }
+        box.addView(TextView(this).apply {
+            text = t("Цифры — с экрана «Ожидание в очереди» в Яндекс Про у водителей Taxi Radar, которые стоят в аэропорту. «Машин» — место последнего вставшего в очередь. Сопоставьте с прилётами ниже — решать вам.",
+                "Cifrele — de pe ecranul «Așteptare în coadă» din Yandex Pro al șoferilor Taxi Radar din aeroport. «Mașini» — locul ultimului venit în coadă. Comparați cu sosirile de mai jos.")
+            textSize = 12f; setTextColor(getColor(R.color.tr_text_secondary)); setPadding(0, DriverUi.dp(this@AirportActivity, 10), 0, 0)
+        })
+        card.addView(box)
+        parent.addView(card, parent.indexOfChild(anchor))
     }
 
     private fun sectionLabel(text: String, first: Boolean) = TextView(this).apply {

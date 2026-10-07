@@ -88,10 +88,10 @@ object TripTracker {
         "order completed", "trip completed", "ride completed"
     )
     private val changeWords = listOf("изменил промежуточную", "добавил промежуточную", "изменил адрес", "a modificat", "a adăugat")
-    private val priceRegex = Regex("""(?i)(\d{1,5})(?:[.,](\d{1,2}))?\s*(?:MDL|lei|лей|L)\b""")
+    private val priceRegex = Regex("""(?iu)(\d{1,5})(?:[.,](\d{1,2}))?\s*(?:MDL|lei|лей|L)\b""")
     private val meterRegex = Regex("""^(\d{1,5})(?:[.,]\d{1,2})?\s*(?:L|MDL|lei)$""")
     // Строки на экране поездки, которые не адрес.
-    private val notAddress = Regex("""(?i)^(я здесь|уточнить|завершить|звонок|ожидание|поехали|б|\d+|[\d:]+|.*\d\s*(км|м|мин|km|min)\.?)$""")
+    private val notAddress = Regex("""(?iu)^(я здесь|уточнить|завершить|звонок|ожидание|поехали|б|\d+|[\d:]+|.*\d\s*(км|м|мин|km|min)\.?)$""")
 
     /** Любой экран Яндекс Про, кроме карточки заказа. [pkg] — чьё окно сейчас на экране. */
     fun onScreen(context: Context, pkg: String, texts: List<String>) {

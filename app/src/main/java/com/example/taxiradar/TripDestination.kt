@@ -35,7 +35,7 @@ object TripDestination {
 
     // Улица внутри длинной строки: «Radisson Blu …, Chisinau, strada Mitropolit Varlaam, 77» → «strada …, 77».
     private val streetPart = Regex(
-        """(?i)(strada|str\.|bulevardul|bd\.|șoseaua|soseaua|calea|aleea|piața|ул\.|улица|бульвар|проспект|шоссе)\s.*$"""
+        """(?iu)(strada|str\.|bulevardul|bd\.|șoseaua|soseaua|calea|aleea|piața|ул\.|улица|бульвар|проспект|шоссе)\s.*$"""
     )
 
     private val endWords = listOf(
@@ -43,7 +43,7 @@ object TripDestination {
         "comanda finalizată", "comandă finalizată", "comanda a fost finalizată", "cursa s-a încheiat",
         "order completed", "trip completed", "ride completed"
     )
-    private val notAddress = Regex("""(?i)^(я здесь|уточнить|завершить|звонок|ожидание|поехали|б|b|\d+|[\d:]+|.*\d\s*(км|м|мин|km|min)\.?)$""")
+    private val notAddress = Regex("""(?iu)^(я здесь|уточнить|завершить|звонок|ожидание|поехали|б|b|\d+|[\d:]+|.*\d\s*(км|м|мин|km|min)\.?)$""")
 
     fun enabled() = true
 

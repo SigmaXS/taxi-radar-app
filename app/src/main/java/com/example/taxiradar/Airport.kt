@@ -34,7 +34,9 @@ object Airport {
         val flight: String, val from: String, val time: String, val status: String,
         val approx: Boolean, val delayed: Boolean
     )
-    data class Status(val queue: Int, val flights: List<Flight>)
+    /** Очередь такси по тарифу с экрана Яндекс Про: место последнего вставшего ≈ длина очереди. */
+    data class TaxiQueue(val carsFrom: Int?, val carsTo: Int?, val waitMin: Int?, val ageMin: Int, val drivers: Int)
+    data class Status(val queue: Int, val flights: List<Flight>, val taxi: Map<String, TaxiQueue?> = emptyMap())
 
     suspend fun status(context: Context): Status? {
         val json = CommunityApi.post(context, "/api/airport/status") ?: return null
@@ -47,7 +49,14 @@ object Airport {
                 o.optString("status"), o.optBoolean("approx"), o.optBoolean("delayed")
             )
         }
-        return Status(json.optInt("queue"), flights)
+        val tq = json.optJSONObject("taxi_queue")
+        val taxi = listOf("econom", "comfort", "comfortplus").associateWith { k ->
+            tq?.optJSONObject(k)?.let { o ->
+                fun n(f: String) = if (o.isNull(f)) null else o.optInt(f)
+                TaxiQueue(n("cars_from"), n("cars_to"), n("wait_min"), o.optInt("age_min"), o.optInt("drivers"))
+            }
+        }
+        return Status(json.optInt("queue"), flights, taxi)
     }
 
     /** Коды аэропортов частых рейсов в Кишинёв → город. */

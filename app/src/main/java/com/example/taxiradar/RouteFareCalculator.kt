@@ -542,7 +542,7 @@ object RouteFareCalculator {
     // Подъезд Геокодеру только мешает: «strada Independenței, 42/2, entrance 1»
     // он уводил в Ленинградскую область, а без хвоста находит точно.
     private val entranceRegex =
-        Regex("""(?i)[,\s]*(entrance|scara|scară|подъезд|подъ\.)\s*\S+""")
+        Regex("""(?iu)[,\s]*(entrance|scara|scară|подъезд|подъ\.)\s*\S+""")
 
     // Точка дальше этого от центра Кишинёва — почти наверняка Геокодер ошибся
     // («Gara de Nord» он находит в Бухаресте). Лучше без цены, чем с неверной.
@@ -554,9 +554,9 @@ object RouteFareCalculator {
     private val reportedMisses = LinkedHashSet<String>()
 
     private val airportRegex =
-        Regex("""(?i)(аэропорт|aeroport|airport|\bRMO\b|зона прил[её]та|зона выл[её]та)""")
+        Regex("""(?iu)(аэропорт|aeroport|airport|\bRMO\b|зона прил[её]та|зона выл[её]та)""")
     private val otherCityRegex =
-        Regex("""(?i)(бельц|b[aă]l[tț]i|одесс|ясс|ia[sș]i|бухарест|bucure|киев|kyiv|стамбул)""")
+        Regex("""(?iu)(бельц|b[aă]l[tț]i|одесс|ясс|ia[sș]i|бухарест|bucure|киев|kyiv|стамбул)""")
 
     /** Где адрес: у нас на сервере или у Яндекса (lat to lon); null — не нашёлся. Не из главного потока. */
     fun locate(context: Context, address: String): Pair<Double, Double>? =
@@ -576,7 +576,7 @@ object RouteFareCalculator {
             return LatLng(lat = 46.9350, lon = 28.9330)
         }
         val found = geocodeNear(clean, apiKey, context)
-            ?: if (Regex("(?i)chi[șs]in|кишин").containsMatchIn(clean)) null
+            ?: if (Regex("(?iu)chi[șs]in|кишин").containsMatchIn(clean)) null
             else geocodeNear("Chișinău, $clean", apiKey, context)
         if (found == null) {
             Log.e("FARE_CALC", "Яндекс Геокодер не нашёл адрес рядом с Кишинёвом: \"$address\"")
