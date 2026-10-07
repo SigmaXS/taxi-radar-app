@@ -53,6 +53,11 @@ class FloatingWidgetService : Service() {
             instance?.cancelOrderDisplay()
         }
 
+        /** Узнали точку Б заказа — сразу показать надбавку и там. */
+        fun refreshSurge() {
+            instance?.refreshFromOutside()
+        }
+
         /** Переключатель «Предупреждать в дороге» изменили — включаем/выключаем GPS. */
         fun setRoadAlerts() {
             instance?.applyRoadAlerts()
@@ -589,10 +594,13 @@ class FloatingWidgetService : Service() {
 
                     fetchSurgeForAll()
                 }
-                delay(60_000)
+                // Едем по заказу — надбавка «здесь» и в Б чаще, раз в 30 секунд.
+                delay(if (TripDestination.current() != null) 30_000 else 60_000)
             }
         }
     }
+
+    fun refreshFromOutside() = refreshData()
 
     private fun refreshData() {
         if (isShowingOrder) return
@@ -653,7 +661,7 @@ class FloatingWidgetService : Service() {
             getString(label) to value
         }
         // Буква тарифа — мелко («Э», «К+»), сама надбавка — крупно: её видно с одного взгляда.
-        val displayText: CharSequence = if (parts.isEmpty()) "0" else SpannableStringBuilder().apply {
+        var displayText: CharSequence = if (parts.isEmpty()) "0" else SpannableStringBuilder().apply {
             parts.forEachIndexed { i, (label, value) ->
                 if (i > 0) append("  ")
                 val start = length
@@ -661,6 +669,33 @@ class FloatingWidgetService : Service() {
                 setSpan(android.text.style.RelativeSizeSpan(0.55f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 append(value)
             }
+        }
+
+        // Едем по заказу (мультимедиа машины) — две строки: «здесь +15» и «Б +35».
+        val dest = TripDestination.current()
+        val key = tariffs.firstOrNull()?.second
+        if (dest != null && key != null) {
+            val here = YandexTaxiSurgeChecker.getSurgePrice(driverLon, driverLat, key)
+            val atB = YandexTaxiSurgeChecker.getSurgePrice(dest.second, dest.first, key)
+            fun line(sb: SpannableStringBuilder, label: String, v: Int?) {
+                val hot = v != null && v > 0
+                val start = sb.length
+                sb.append("$label ")
+                sb.setSpan(android.text.style.RelativeSizeSpan(0.55f), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                val vStart = sb.length
+                sb.append(if (hot) "+$v" else "0")
+                sb.setSpan(
+                    ForegroundColorSpan(getColor(if (hot) R.color.tr_surge else R.color.tr_accent)),
+                    start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+                if (vStart == start) return
+            }
+            displayText = SpannableStringBuilder().also {
+                line(it, getString(R.string.widget_here), here)
+                it.append("\n")
+                line(it, getString(R.string.widget_point_b), atB)
+            }
+            hasSurge = (here ?: 0) > 0 || (atB ?: 0) > 0
         }
 
         withContext(Dispatchers.Main) {

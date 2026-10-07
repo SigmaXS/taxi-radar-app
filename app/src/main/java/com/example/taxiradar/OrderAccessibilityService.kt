@@ -41,6 +41,16 @@ class OrderAccessibilityService : AccessibilityService() {
     private val plusAmountRegex = Regex(
         """\+\s*(\d{1,3})(?:[.,]\d+)?\s*(L|Л|лей|lei|MDL)?(?![\p{L}\d])""", RegexOption.IGNORE_CASE
     )
+    // Английский Яндекс Про пишет валюту впереди: «+L55», «+MDL 15».
+    private val plusPrefixRegex = Regex(
+        """\+\s*(?:L|Л|MDL|lei)\s*(\d{1,3})(?![\p{L}\d])""", RegexOption.IGNORE_CASE
+    )
+
+    /** Все суммы «+N» в строке: (сумма, указана ли валюта). */
+    private fun plusAmounts(line: String): List<Pair<Int, Boolean>> =
+        plusAmountRegex.findAll(line).map { it.groupValues[1].toInt() to it.groupValues[2].isNotEmpty() }.toList() +
+            plusPrefixRegex.findAll(line).map { it.groupValues[1].toInt() to true }.toList()
+
     private val paidPickupRegex = Regex("""(?i)(платн\S*\s+подач|pl[aă]t\S*\s+(?:a\s+)?(?:prelu|deplas)|preluare\s+pl[aă]t|paid\s+pick)""")
 
     // Надбавка, которую уже видели у заказа (ключ — адреса). Цифры на кнопке
@@ -68,8 +78,8 @@ class OrderAccessibilityService : AccessibilityService() {
             usedLines += i
             // Сумма — в той же строке или в одной из двух следующих.
             for (j in i..minOf(i + 2, lines.lastIndex)) {
-                val m = plusAmountRegex.find(lines[j]) ?: continue
-                paid = maxOf(paid, m.groupValues[1].toInt())
+                val amount = plusAmounts(lines[j]).firstOrNull() ?: continue
+                paid = maxOf(paid, amount.first)
                 usedLines += j
                 break
             }
@@ -77,9 +87,7 @@ class OrderAccessibilityService : AccessibilityService() {
         var surge = 0
         lines.forEachIndexed { i, line ->
             if (i in usedLines) return@forEachIndexed
-            for (m in plusAmountRegex.findAll(line)) {
-                val v = m.groupValues[1].toInt()
-                val hasUnit = m.groupValues[2].isNotEmpty()
+            for ((v, hasUnit) in plusAmounts(line)) {
                 if ((hasUnit && v in 1..500) || (!hasUnit && v in 5..150)) surge = maxOf(surge, v)
             }
         }
@@ -167,6 +175,7 @@ class OrderAccessibilityService : AccessibilityService() {
             }
             if (!hasAccept) {
                 maybeLearnTraffic(allNodes)
+                TripDestination.onScreen(this, allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() })
                 TripTracker.onScreen(this, root.packageName?.toString().orEmpty(), allTexts)
                 return
             }
@@ -783,6 +792,9 @@ class OrderAccessibilityService : AccessibilityService() {
                 lower.contains("accept") || lower.contains("omite") ||
                 lower.contains("preluare") || lower.contains("accesul la comenzi") ||
                 lower.contains("prioritate") || lower.contains("are you here") ||
+                // Английский Яндекс Про (мультимедиа машин).
+                lower == "skip" || lower.contains("priority") || lower.contains("pickup") ||
+                lower.contains("i'm here") || lower.contains("arrived") ||
                 // Название тарифа само по себе (например, отдельная строка
                 // "Комфорт" в карточке без адреса назначения) — не адрес,
                 // но раньше проходило фильтр и попадало в addrB по ошибке.

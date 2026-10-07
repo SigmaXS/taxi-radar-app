@@ -330,6 +330,8 @@
     <string name="rep_police">Полиция</string>
     <string name="rep_accident">ДТП</string>
     <string name="rep_danger">Опасность</string>
+    <string name="widget_here">здесь</string>
+    <string name="widget_point_b">Б</string>
     <string name="widget_report_sent">Отмечено: %1$s</string>
     <string name="widget_report_sent_hint">Предупредим водителей, которые едут сюда</string>
     <string name="widget_report_no_fix">Не знаю, где вы</string>
