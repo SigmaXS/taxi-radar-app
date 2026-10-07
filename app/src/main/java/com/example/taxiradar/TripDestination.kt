@@ -27,6 +27,17 @@ object TripDestination {
     @Volatile private var point: Pair<Double, Double>? = null
     @Volatile private var seenAt = 0L
     @Volatile private var geocoding: String? = null
+    @Volatile private var failedAt = 0L
+    @Volatile private var failed: String? = null
+
+    /** Б виден на экране, но ещё не найден на карте — на кружке «Б ?». */
+    @Volatile var pending: String? = null
+        private set
+
+    // Улица внутри длинной строки: «Radisson Blu …, Chisinau, strada Mitropolit Varlaam, 77» → «strada …, 77».
+    private val streetPart = Regex(
+        """(?i)(strada|str\.|bulevardul|bd\.|șoseaua|soseaua|calea|aleea|piața|ул\.|улица|бульвар|проспект|шоссе)\s.*$"""
+    )
 
     private val endWords = listOf(
         "заказ завершён", "заказ завершен", "поездка завершена",
@@ -45,6 +56,7 @@ object TripDestination {
         address = null
         point = null
         seenAt = 0L
+        pending = null
     }
 
     /** Любой экран Яндекс Про, кроме карточки нового заказа. */
@@ -72,22 +84,40 @@ object TripDestination {
             seenAt = now
             return
         }
+        // Другой заказ (или пассажир сменил Б) — старую точку не показываем.
+        if (address != null && !b.equals(address, true)) {
+            address = null
+            point = null
+        }
         if (b == geocoding) return
+        // Не нашёлся недавно — не дёргаем поиск на каждом кадре, раз в минуту.
+        if (b == failed && now - failedAt < 60_000) return
         geocoding = b
+        if (pending != b) {
+            pending = b
+            FloatingWidgetService.refreshSurge()
+        }
         scope.launch {
-            val p = try {
-                RouteFareCalculator.locate(context, b)
+            fun find(q: String) = try {
+                RouteFareCalculator.locate(context, q)
             } catch (e: Exception) {
                 null
             }
+            // Название места («Radisson Blu …») геокодеру мешает — тогда ищем по улице.
+            val p = find(b) ?: streetPart.find(b)?.value?.takeIf { it != b }?.let { find(it) }
             geocoding = null
             if (p != null) {
                 address = b
                 point = p
+                pending = null
                 seenAt = System.currentTimeMillis()
                 Log.d(TAG, "Едем в Б: «$b» → $p")
-                FloatingWidgetService.refreshSurge()
+            } else {
+                failed = b
+                failedAt = System.currentTimeMillis()
+                Log.d(TAG, "Б не нашёлся на карте: «$b»")
             }
+            FloatingWidgetService.refreshSurge()
         }
     }
 }
