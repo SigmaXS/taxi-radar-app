@@ -534,4 +534,16 @@
     <string name="lite_desc">Лёгкий режим для слабых телефонов</string>
     <string name="clients_add">Добавить клиента</string>
     <string name="clients_add_review">Добавить клиента и отзыв</string>
+    <string name="update_now">Обновить</string>
+    <string name="update_title">Вышла версия %1$s</string>
+    <string name="update_sub">Нажмите «Обновить» — файл скачается и установится сам</string>
+    <string name="update_loading">Скачиваю… %1$d%%</string>
+    <string name="update_perm_title">Разрешите обновления</string>
+    <string name="update_perm_text">Один раз разрешите Taxi Radar устанавливать обновления: откроются настройки — включите переключатель и вернитесь назад. Установка продолжится сама.</string>
+    <string name="update_perm_go">Открыть настройки</string>
+    <string name="update_ready">Файл готов — нажмите «Установить»</string>
+    <string name="update_install">Установить</string>
+    <string name="whats_new_title">Что нового в версии %1$s</string>
+    <string name="whats_new_1_17">• Обновления прямо в приложении — жёлтая плашка «Обновить», файл скачается и установится сам\n• 🍃 Лёгкий режим для слабых телефонов — кнопка рядом с колокольчиком\n• Помощник на смене: доход, расходы и итог смены, который можно отправить в Telegram или WhatsApp. Смена начинается сама с первого заказа\n• Инструкции с картинками: как включить Taxi Radar на Samsung, Xiaomi и других\n• Клиенты: отдельные кнопки «Проверить» и «Добавить клиента»\n• Оплата подписки через Telegram, WhatsApp или Viber\n• Карта: ДТП и пробки живут час и спрашивают «Ещё здесь?», метку убирают два водителя\n• Нажатие на кружок обновляет надбавку, надбавка крупнее</string>
+    <string name="lite_on_title">Лёгкий режим включён</string>
 </resources>

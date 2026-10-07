@@ -86,13 +86,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
+                        android:baselineAligned="false"
                         android:orientation="horizontal">
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnClientCheck"
                             style="@style/TaxiRadar.Button"
                             android:layout_width="0dp"
-                            android:layout_height="wrap_content"
+                            android:layout_height="match_parent"
                             android:layout_marginEnd="8dp"
                             android:layout_weight="1"
                             android:text="@string/clients_check"
@@ -101,9 +102,9 @@
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnClientAdd"
-                            style="@style/TaxiRadar.Button.Tonal"
+                            style="@style/TaxiRadar.Button"
                             android:layout_width="0dp"
-                            android:layout_height="wrap_content"
+                            android:layout_height="match_parent"
                             android:layout_weight="1"
                             android:text="@string/clients_add"
                             app:icon="@drawable/ic_add"

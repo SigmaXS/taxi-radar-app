@@ -23,6 +23,10 @@ data class AppConfig(
     val latestVersionName: String = "",
     val updateUrl: String = "",
     val updateNotes: String = "",
+    /** Файл обновления на сервере: качаем и ставим из приложения (AppUpdater). */
+    val apkUrl: String = "",
+    val apkSha256: String = "",
+    val apkSize: Int = 0,
     /** Тарифы экрана «Подписка»: дни → цена. */
     val tariffs: List<Tariff> = listOf(Tariff(30, 99)),
     val currency: String = "лей",
@@ -82,6 +86,9 @@ data class AppConfig(
             latestVersionName = j.optString("latest_version_name", ""),
             updateUrl = j.optString("update_url", ""),
             updateNotes = j.optString("update_notes", ""),
+            apkUrl = j.optString("apk_url", ""),
+            apkSha256 = j.optString("apk_sha256", ""),
+            apkSize = j.optInt("apk_size", 0),
             tariffs = parseTariffs(j),
             currency = j.optString("currency", "лей").ifBlank { "лей" },
             surgeBase = j.optJSONObject("surge_base")?.let { o ->

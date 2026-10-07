@@ -174,6 +174,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnLite).setOnClickListener { LiteMode.show(this) { renderLite(); applyEffects() } }
 
         setupTabs(savedInstanceState?.getInt(STATE_TAB) ?: R.id.nav_radar)
+        renderLite()
+        showWhatsNew()
         setupUsefulTiles()
         findViewById<View>(R.id.cardSetupWarning).setOnClickListener {
             startActivity(Intent(this, SetupCheckActivity::class.java))
@@ -899,6 +901,10 @@ class MainActivity : AppCompatActivity() {
         renderTraffic()
         renderSetupWarning()
         if (currentTab == R.id.nav_map) mapController?.onShow()
+        // Вернулись из настроек «Установка приложений» — продолжаем установку сами.
+        pendingApk?.let { if (it.exists() && !AppUpdater.needsInstallPermission(this)) installUpdate(it) }
+        renderUpdateBanner()
+        renderLite()
         checkPendingKeys()
         syncWithServer()
         refreshAppConfig()
@@ -955,8 +961,17 @@ class MainActivity : AppCompatActivity() {
         applyEffects()
     }
 
-    /** Листок зелёный, когда лёгкий режим включён. */
+    /** Листок зелёный, когда лёгкий режим включён; плашка на главной и без вкладки «Карта». */
     private fun renderLite() {
+        val on = LiteMode.enabled(this)
+        findViewById<View>(R.id.cardLite).apply {
+            visibility = if (on) View.VISIBLE else View.GONE
+            setOnClickListener { LiteMode.show(this@MainActivity) { renderLite(); applyEffects() } }
+        }
+        findViewById<TextView>(R.id.tvLiteSub).text = LiteMode.summary(this)
+        val noMap = LiteMode.cuts(this, LiteMode.Feature.MAP)
+        bottomNav.menu.findItem(R.id.nav_map)?.isVisible = !noMap
+        if (noMap && currentTab == R.id.nav_map) bottomNav.selectedItemId = R.id.nav_radar
         findViewById<ImageView>(R.id.ivLite).imageTintList =
             // Зелёный — включён; жёлтый — телефон слабый, режим стоит включить.
             ColorStateList.valueOf(color(when {
@@ -1187,6 +1202,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Версия ниже минимальной с сервера — пишем вместо срока подписки и раз за запуск показываем окно. */
     private fun renderUpdateRequired() {
+        renderUpdateBanner()
         val cfg = AppConfig.load(this)
         if (cfg.minVersionCode <= 0 || currentVersionCode() >= cfg.minVersionCode) return
         tvLicenseStatus.text = getString(R.string.update_required_status)
@@ -1207,8 +1223,89 @@ class MainActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.update_required_title, cfg.latestVersionName.ifBlank { "" }))
             .setMessage(listOf(cfg.updateNotes.trim(), getString(R.string.update_required_text)).filter { it.isNotEmpty() }.joinToString("\n\n"))
-            .setPositiveButton(R.string.bell_update_go) { _, _ -> openUrl(cfg.updateUrl.ifBlank { cfg.groupUrl }) }
+            .setPositiveButton(R.string.bell_update_go) { _, _ -> if (AppUpdater.available(this, cfg)) startUpdate() else openUrl(cfg.updateUrl.ifBlank { cfg.groupUrl }) }
             .setNegativeButton(R.string.bell_later, null)
+            .show()
+    }
+
+    // ---------- обновление из приложения ----------
+
+    private var updating = false
+    /** Скачанный файл ждёт, пока водитель разрешит установку обновлений. */
+    private var pendingApk: java.io.File? = null
+
+    /** Жёлтая плашка «Вышла версия …» — пока есть файл новее установленного. */
+    private fun renderUpdateBanner() {
+        val cfg = AppConfig.load(this)
+        val card = findViewById<View>(R.id.cardUpdate)
+        if (!AppUpdater.available(this, cfg)) { card.visibility = View.GONE; return }
+        card.visibility = View.VISIBLE
+        if (updating) return
+        findViewById<TextView>(R.id.tvUpdateTitle).text = getString(R.string.update_title, cfg.latestVersionName)
+        findViewById<TextView>(R.id.tvUpdateSub).text = if (pendingApk != null) getString(R.string.update_ready) else getString(R.string.update_sub)
+        findViewById<MaterialButton>(R.id.btnUpdate).apply {
+            text = getString(if (pendingApk != null) R.string.update_install else R.string.update_now)
+            isEnabled = true
+            setOnClickListener { startUpdate() }
+        }
+    }
+
+    private fun startUpdate() {
+        pendingApk?.let { if (it.exists()) { installUpdate(it); return } }
+        if (updating) return
+        val cfg = AppConfig.load(this)
+        updating = true
+        val sub = findViewById<TextView>(R.id.tvUpdateSub)
+        val bar = findViewById<com.google.android.material.progressindicator.LinearProgressIndicator>(R.id.progressUpdate)
+        val btn = findViewById<MaterialButton>(R.id.btnUpdate)
+        findViewById<View>(R.id.cardUpdate).visibility = View.VISIBLE
+        findViewById<View>(R.id.scrollMain)?.scrollTo(0, 0)
+        btn.isEnabled = false
+        bar.visibility = View.VISIBLE; bar.isIndeterminate = true
+        sub.text = getString(R.string.update_loading, 0)
+        lifecycleScope.launch {
+            val r = AppUpdater.download(this@MainActivity, cfg) { pct ->
+                bar.isIndeterminate = false; bar.setProgressCompat(pct, true)
+                sub.text = getString(R.string.update_loading, pct)
+            }
+            updating = false
+            bar.visibility = View.GONE
+            when (r) {
+                is AppUpdater.Result.Ok -> { pendingApk = r.file; renderUpdateBanner(); installUpdate(r.file) }
+                is AppUpdater.Result.Failed -> { renderUpdateBanner(); sub.text = r.reason }
+            }
+        }
+    }
+
+    private fun installUpdate(file: java.io.File) {
+        if (AppUpdater.needsInstallPermission(this)) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.update_perm_title)
+                .setMessage(R.string.update_perm_text)
+                .setPositiveButton(R.string.update_perm_go) { _, _ -> AppUpdater.openInstallPermission(this) }
+                .setNegativeButton(R.string.bell_later, null)
+                .show()
+            return
+        }
+        AppUpdater.install(this, file)
+    }
+
+    /** После обновления — один раз «Что нового в версии …». */
+    private fun showWhatsNew() {
+        val prefs = getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE)
+        val current = AppUpdater.currentVersionCode(this)
+        val seen = prefs.getInt("whats_new_seen", 0)
+        if (seen >= current) return
+        prefs.edit().putInt("whats_new_seen", current).apply()
+        // Новая установка — не обновление: окно не нужно.
+        val info = packageManager.getPackageInfo(packageName, 0)
+        if (info.firstInstallTime == info.lastUpdateTime) return
+        val cfg = AppConfig.load(this)
+        val notes = if (cfg.latestVersionCode == current && cfg.updateNotes.isNotBlank()) cfg.updateNotes.trim() else getString(R.string.whats_new_1_17)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.whats_new_title, info.versionName.orEmpty()))
+            .setMessage(notes)
+            .setPositiveButton(R.string.got_it, null)
             .show()
     }
 
@@ -1223,7 +1320,7 @@ class MainActivity : AppCompatActivity() {
                 MaterialAlertDialogBuilder(this)
                     .setTitle(getString(R.string.bell_update_title, cfg.latestVersionName.ifBlank { cfg.latestVersionCode.toString() }))
                     .setMessage(text)
-                    .setPositiveButton(R.string.bell_update_go) { _, _ -> openUrl(cfg.updateUrl) }
+                    .setPositiveButton(R.string.bell_update_go) { _, _ -> if (AppUpdater.available(this, cfg)) startUpdate() else openUrl(cfg.updateUrl) }
                     .setNegativeButton(R.string.bell_later, null)
                     .show()
             }

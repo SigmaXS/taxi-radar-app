@@ -617,9 +617,7 @@ class FloatingWidgetService : Service() {
                     fetchSurgeForAll()
                 }
                 // Едем по заказу — надбавка «здесь» и в Б чаще, раз в 30 секунд.
-                val every = DriverPreferences.number(this@FloatingWidgetService, "refresh", 60.0).toLong().coerceIn(30, 300)
-                // Лёгкий режим: надбавка раз в 3 минуты — меньше сети и процессора.
-                delay((if (LiteMode.cuts(this@FloatingWidgetService, LiteMode.Feature.SURGE)) maxOf(every, 180) else every) * 1000)
+                delay(DriverPreferences.number(this@FloatingWidgetService, "refresh", 60.0).toLong().coerceIn(30, 300) * 1000)
             }
         }
         serviceScope.launch {
