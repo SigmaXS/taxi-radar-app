@@ -27,6 +27,10 @@ data class AppConfig(
     val apkUrl: String = "",
     val apkSha256: String = "",
     val apkSize: Int = 0,
+    /** Сообщение водителям из админки: баннер на главной; belowVersion > 0 — только старым версиям. */
+    val noticeId: Int = 0,
+    val noticeText: String = "",
+    val noticeBelowVersion: Int = 0,
     /** Тарифы экрана «Подписка»: дни → цена. */
     val tariffs: List<Tariff> = listOf(Tariff(30, 99)),
     val currency: String = "лей",
@@ -89,6 +93,9 @@ data class AppConfig(
             apkUrl = j.optString("apk_url", ""),
             apkSha256 = j.optString("apk_sha256", ""),
             apkSize = j.optInt("apk_size", 0),
+            noticeId = j.optJSONObject("announcement")?.optInt("id") ?: 0,
+            noticeText = j.optJSONObject("announcement")?.optString("text").orEmpty(),
+            noticeBelowVersion = j.optJSONObject("announcement")?.optInt("below_version") ?: 0,
             tariffs = parseTariffs(j),
             currency = j.optString("currency", "лей").ifBlank { "лей" },
             surgeBase = j.optJSONObject("surge_base")?.let { o ->

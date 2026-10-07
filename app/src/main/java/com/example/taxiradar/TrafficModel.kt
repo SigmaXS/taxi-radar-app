@@ -131,17 +131,6 @@ object TrafficModel {
         return Stats(samples.size, factorNow, before, after)
     }
 
-    /**
-     * Час пик в Кишинёве по будням, пока своих поездок в этот час мало: 7–9 и
-     * 13–18 — +10 минут (по опыту водителей; OSRM пробок не знает). Когда радар
-     * выучил час по поездкам водителя, эта прибавка не нужна.
-     */
-    fun rushHourExtraMin(c: Calendar = Calendar.getInstance()): Int {
-        if (isWeekend(c)) return 0
-        val h = c.get(Calendar.HOUR_OF_DAY)
-        return if (h in 7..8 || h in 13..17) 10 else 0
-    }
-
     fun isWeekend(c: Calendar): Boolean {
         val d = c.get(Calendar.DAY_OF_WEEK)
         return d == Calendar.SATURDAY || d == Calendar.SUNDAY

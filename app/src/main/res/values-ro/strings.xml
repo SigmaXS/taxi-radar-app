@@ -541,4 +541,5 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
     <string name="whats_new_title">Ce e nou în versiunea %1$s</string>
     <string name="whats_new_1_17">• Actualizări direct din aplicație — banda galbenă «Actualizează», fișierul se descarcă și se instalează singur\n• 🍃 Mod ușor pentru telefoane slabe — butonul de lângă clopoțel\n• Asistentul de tură: venit, cheltuieli și totalul turei, pe care îl puteți trimite în Telegram sau WhatsApp. Tura pornește singură la prima cursă\n• Ghiduri cu imagini: cum activați Taxi Radar pe Samsung, Xiaomi și altele\n• Clienți: butoane separate «Verifică» și «Adaugă client»\n• Plata abonamentului prin Telegram, WhatsApp sau Viber\n• Harta: accidentele și ambuteiajele trăiesc o oră și întreabă «Încă aici?», marcajul îl șterg doi șoferi\n• Apăsarea pe cerc actualizează suplimentul, suplimentul e mai mare</string>
     <string name="lite_on_title">Modul ușor este activ</string>
+    <string name="notice_close">Închide mesajul</string>
 </resources>

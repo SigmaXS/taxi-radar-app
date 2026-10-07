@@ -107,6 +107,7 @@ class FloatingWidgetService : Service() {
     }
 
     override fun onCreate() {
+        CrashReporter.install(this)
         super.onCreate()
         instance = this
         isRunning = true

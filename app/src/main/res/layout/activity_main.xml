@@ -190,6 +190,50 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Сообщение от администратора (из админки), водитель может закрыть -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardNotice"
+                style="@style/TaxiRadar.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/tr_surface_high"
+                app:strokeColor="@color/tr_cyan">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📣"
+                        android:textSize="24sp" />
+
+                    <TextView
+                        android:id="@+id/tvNotice"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:lineSpacingExtra="2dp"
+                        android:textColor="@color/tr_text"
+                        android:textSize="15sp" />
+
+                    <ImageButton
+                        android:id="@+id/btnNoticeClose"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/notice_close"
+                        android:src="@drawable/ic_close"
+                        app:tint="@color/tr_text_secondary" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Зелёная плашка: включён лёгкий режим (видно, что именно выключено) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardLite"

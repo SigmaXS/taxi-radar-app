@@ -106,6 +106,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReporter.install(this)
+        CrashReporter.sendPending(this)
         setContentView(R.layout.activity_main)
         DriverUi.adaptDashboard(this, findViewById(android.R.id.content))
 
@@ -1203,6 +1205,7 @@ class MainActivity : AppCompatActivity() {
     /** Версия ниже минимальной с сервера — пишем вместо срока подписки и раз за запуск показываем окно. */
     private fun renderUpdateRequired() {
         renderUpdateBanner()
+        renderNotice()
         val cfg = AppConfig.load(this)
         if (cfg.minVersionCode <= 0 || currentVersionCode() >= cfg.minVersionCode) return
         tvLicenseStatus.text = getString(R.string.update_required_status)
@@ -1233,6 +1236,21 @@ class MainActivity : AppCompatActivity() {
     private var updating = false
     /** Скачанный файл ждёт, пока водитель разрешит установку обновлений. */
     private var pendingApk: java.io.File? = null
+
+    /** Сообщение из админки — пока водитель его не закрыл. */
+    private fun renderNotice() {
+        val cfg = AppConfig.load(this)
+        val prefs = getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE)
+        val show = cfg.noticeId > 0 && cfg.noticeText.isNotBlank() && prefs.getInt("notice_closed", 0) != cfg.noticeId &&
+            (cfg.noticeBelowVersion <= 0 || AppUpdater.currentVersionCode(this) < cfg.noticeBelowVersion)
+        findViewById<View>(R.id.cardNotice).visibility = if (show) View.VISIBLE else View.GONE
+        if (!show) return
+        findViewById<TextView>(R.id.tvNotice).text = cfg.noticeText
+        findViewById<View>(R.id.btnNoticeClose).setOnClickListener {
+            prefs.edit().putInt("notice_closed", cfg.noticeId).apply()
+            findViewById<View>(R.id.cardNotice).visibility = View.GONE
+        }
+    }
 
     /** Жёлтая плашка «Вышла версия …» — пока есть файл новее установленного. */
     private fun renderUpdateBanner() {

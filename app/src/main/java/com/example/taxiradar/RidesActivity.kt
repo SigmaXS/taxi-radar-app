@@ -89,7 +89,12 @@ class RidesActivity : AppCompatActivity() {
         thread {
             val json = runCatching { get("$API/places?key=$API_KEY") }.getOrNull() ?: return@thread
             val all = json.optJSONArray("all") ?: return@thread
-            val names = List(all.length()) { all.getString(it) }
+            val ru = List(all.length()) { all.getString(it) }
+            // Румынские названия: «Chișinău · Кишинёв» — можно начать вводить и так, и так,
+            // сервер понимает оба написания.
+            val ro = json.optJSONObject("ro")
+            val both = ru.mapNotNull { name -> ro?.optString(name)?.takeIf { it.isNotBlank() }?.let { "$it · $name" } }
+            val names = if (getString(R.string.lang_button) != "RU") both + ru else ru + both
             val regions = listOf(getString(R.string.rides_to_pmr), getString(R.string.rides_to_md),
                 getString(R.string.rides_to_ua), getString(R.string.rides_to_eu))
             runOnUiThread {

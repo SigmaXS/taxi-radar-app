@@ -119,6 +119,7 @@ class OrderAccessibilityService : AccessibilityService() {
     }
 
     override fun onServiceConnected() {
+        CrashReporter.install(this)
         super.onServiceConnected()
         isConnected = true
         Log.d("ORDER_DEBUG", "★★★ Служба ПОДКЛЮЧЕНА системой ★★★")
@@ -671,18 +672,8 @@ class OrderAccessibilityService : AccessibilityService() {
             context = applicationContext
         )
 
-        // Час пик, а свои поездки в этот час ещё не выучены — +10 минут
-        // (на короткой поездке — не больше её собственного времени). Если Яндекс
-        // подписал маршрут на карточке, ниже берём его минуты, там пробки уже есть.
-        if (result != null && cardRoute == null && !traffic.fromDrivers) {
-            val extra = minOf(TrafficModel.rushHourExtraMin(), result.durationMin)
-            if (extra > 0) {
-                val minutes = result.durationMin + extra
-                val price = RouteFareCalculator.price(tariff, result.cityKm, result.outOfCityKm, minutes.toDouble(), surgeBonus)
-                Log.d("FARE_CALC", "Час пик: +$extra мин → $minutes мин, ${result.price} → $price L")
-                result = result.copy(price = price, durationMin = minutes)
-            }
-        }
+        // «Час пик +10 минут» убран: на коротких поездках он удваивал время
+        // (7 мин по карте → 17). Пробки учитывает только поправка по поездкам водителей.
 
         // Яндекс подписал на карточке свой маршрут — это его км и минуты с
         // пробками и с заездами. Считаем цену по ним; наш маршрут нужен только
