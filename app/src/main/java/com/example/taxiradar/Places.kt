@@ -19,7 +19,8 @@ object Places {
         Type("fuel", "⛽", R.string.place_fuel, 0xFF2E7D32.toInt()),
         Type("tire", "🛞", R.string.place_tire, 0xFF455A64.toInt()),
         Type("wc", "🚻", R.string.place_wc, 0xFF5E35B1.toInt()),
-        Type("parking", "🅿️", R.string.place_parking, 0xFF1565C0.toInt())
+        Type("parking", "🅿️", R.string.place_parking, 0xFF1565C0.toInt()),
+        Type("pump", "💨", R.string.place_pump, 0xFF00838F.toInt())
     )
 
     fun type(key: String) = TYPES.firstOrNull { it.key == key }
@@ -27,7 +28,9 @@ object Places {
     data class Place(
         val id: Long, val type: String, val name: String, val note: String,
         val lat: Double, val lon: Double, val up: Int, val down: Int,
-        val mine: Boolean, val vote: Int
+        val mine: Boolean, val vote: Int,
+        /** Часы работы и примерная цена (как написал водитель); confirmedDays — сколько дней назад подтверждали. */
+        val hours: String = "", val price: String = "", val confirmedDays: Int? = null
     )
 
     suspend fun list(context: Context, lat: Double, lon: Double): List<Place>? {
@@ -39,16 +42,19 @@ object Places {
             Place(
                 o.getLong("id"), o.getString("type"), o.optString("name"), o.optString("note"),
                 o.getDouble("lat"), o.getDouble("lon"), o.optInt("up"), o.optInt("down"),
-                o.optBoolean("mine"), o.optInt("vote")
+                o.optBoolean("mine"), o.optInt("vote"),
+                o.optString("hours"), o.optString("price"),
+                if (o.isNull("confirmed_days") || !o.has("confirmed_days")) null else o.optInt("confirmed_days")
             )
         }
     }
 
     /** null — нет связи; иначе ok и текст ошибки, если не приняли. */
-    suspend fun add(context: Context, type: String, name: String, note: String, lat: Double, lon: Double): Pair<Boolean, String>? {
+    suspend fun add(context: Context, type: String, name: String, note: String, lat: Double, lon: Double, hours: String = "", price: String = ""): Pair<Boolean, String>? {
         val json = CommunityApi.post(
             context, "/api/places/add",
             JSONObject().put("type", type).put("name", name).put("note", note).put("lat", lat).put("lon", lon)
+                .put("hours", hours).put("price", price)
         ) ?: return null
         return json.optBoolean("ok") to json.optString("message")
     }

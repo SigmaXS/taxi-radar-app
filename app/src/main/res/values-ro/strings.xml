@@ -544,4 +544,5 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
     <string name="notice_close">Închide mesajul</string>
     <string name="tile_my_trips">Cursele mele</string>
     <string name="tile_my_trips_sub">Estimarea radarului, prețul Yandex și de ce diferă</string>
+    <string name="place_pump">Compresor</string>
 </resources>

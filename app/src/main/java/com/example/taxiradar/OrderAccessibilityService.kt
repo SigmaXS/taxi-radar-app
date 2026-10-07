@@ -751,13 +751,23 @@ class OrderAccessibilityService : AccessibilityService() {
                         )
                     )
                 }
+                // Насколько можно верить цене: км и минуты от Яндекса — точно; иначе — почему примерно.
+                val doubts = mutableListOf<String>()
+                if (!usedYandexRoute) {
+                    result.approxAddresses.firstOrNull()?.let { a ->
+                        doubts += DriverUi.t(this@OrderAccessibilityService, "адрес «${a.take(28)}» найден приблизительно", "adresa «${a.take(28)}» e aproximativă")
+                    }
+                    if (!traffic.fromDrivers) doubts += DriverUi.t(this@OrderAccessibilityService, "пробки в этот час ещё не выучены", "traficul la această oră nu e învățat")
+                    if (doubts.isEmpty()) doubts += DriverUi.t(this@OrderAccessibilityService, "км и минуты посчитал радар", "km și minutele calculate de radar")
+                }
                 FloatingWidgetService.showOrderData(
                     price = result.price,
                     km = result.distanceKm,
                     min = result.durationMin,
                     pickupKm = pickupKm,
                     stops = result.stops,
-                    bonus = surgeBonus
+                    bonus = surgeBonus,
+                    doubts = doubts
                 )
             } else {
                 // Не угадываем цену: если посчитать не вышло — на виджете её просто нет.

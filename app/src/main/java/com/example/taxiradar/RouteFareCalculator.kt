@@ -130,7 +130,9 @@ object RouteFareCalculator {
         val cityKm: Double,
         val outOfCityKm: Double,
         /** Сколько заездов реально вошло в маршрут (сомнительные отброшены). */
-        val stops: Int = 0
+        val stops: Int = 0,
+        /** Адреса, найденные только приблизительно (улица без дома, OpenStreetMap, одна поездка). */
+        val approxAddresses: List<String> = emptyList()
     )
 
     /**
@@ -206,7 +208,8 @@ object RouteFareCalculator {
                 osrmMin = route.durationMin,
                 cityKm = route.cityKm,
                 outOfCityKm = route.outOfCityKm,
-                stops = stops.size
+                stops = stops.size,
+                approxAddresses = points.indices.filter { points[it]?.approx == true }.map { addresses[it] }
             )
         } catch (e: Exception) {
             Log.e("FARE_CALC", "Исключение при расчёте цены: ${e.message}", e)
@@ -232,7 +235,8 @@ object RouteFareCalculator {
         return Math.round(rawPrice).toInt() + surgeBonus
     }
 
-    private data class LatLng(val lat: Double, val lon: Double)
+    /** approx — найден не дом, а улица/район или точка из одной поездки. */
+    private data class LatLng(val lat: Double, val lon: Double, val approx: Boolean = false)
     private data class RouteZoneSplit(val cityKm: Double, val outOfCityKm: Double, val durationMin: Double)
 
     /**
@@ -481,7 +485,7 @@ object RouteFareCalculator {
         if (context != null && AppConfig.load(context).sharedGeocoder) {
             val r = CommunityApi.postBlocking(context, "/api/geocode", JSONObject().put("q", address))
             if (r != null && r.optBoolean("ok")) {
-                return if (r.optBoolean("found")) LatLng(lat = r.getDouble("lat"), lon = r.getDouble("lon")) else null
+                return if (r.optBoolean("found")) LatLng(lat = r.getDouble("lat"), lon = r.getDouble("lon"), approx = r.optBoolean("approx")) else null
             }
             Log.e("FARE_CALC", "Общий геокодер недоступен: ${r?.optString("message")}")
         }
@@ -519,7 +523,8 @@ object RouteFareCalculator {
                         ?.optJSONObject("GeocoderMetaData")?.optString("precision").orEmpty()
                     LatLng(lat = parts[1].toDouble(), lon = parts[0].toDouble()) to precision
                 }.filter { haversineKm(it.first.lat, it.first.lon, CITY_CENTER_LAT, CITY_CENTER_LON) <= MAX_DISTANCE_KM }
-                return (candidates.firstOrNull { it.second in GOOD_PRECISION } ?: candidates.firstOrNull())?.first
+                val exact = candidates.firstOrNull { it.second in GOOD_PRECISION }
+                return exact?.first ?: candidates.firstOrNull()?.first?.copy(approx = true)
             }
         } catch (e: Exception) {
             Log.e("FARE_CALC", "Яндекс Геокодер: исключение ${e.message}")

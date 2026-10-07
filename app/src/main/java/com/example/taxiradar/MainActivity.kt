@@ -911,6 +911,14 @@ class MainActivity : AppCompatActivity() {
         pendingApk?.let { if (it.exists() && !AppUpdater.needsInstallPermission(this)) installUpdate(it) }
         renderUpdateBanner()
         renderLite()
+        // Ответ администратора по «Цена неверная» — коротко внизу экрана.
+        lifecycleScope.launch {
+            DisputeStatus.checkNews(this@MainActivity) { text ->
+                com.google.android.material.snackbar.Snackbar.make(findViewById(android.R.id.content), text, com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
+                    .setAction(R.string.bell_hint_open) { DisputeStatus.open(this@MainActivity) }
+                    .setAnchorView(bottomNav).show()
+            }
+        }
         checkPendingKeys()
         syncWithServer()
         refreshAppConfig()

@@ -472,7 +472,17 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
             filters = arrayOf(android.text.InputFilter.LengthFilter(200))
             minLines = 2
         }
+        val hours = android.widget.EditText(activity).apply {
+            hint = DriverUi.t(activity, "Часы работы (8:00–20:00, круглосуточно)", "Program (8:00–20:00, non-stop)")
+            filters = arrayOf(android.text.InputFilter.LengthFilter(40)); isSingleLine = true
+        }
+        val price = android.widget.EditText(activity).apply {
+            hint = DriverUi.t(activity, "Цена (бесплатно, 10 лей…)", "Preț (gratuit, 10 lei…)")
+            filters = arrayOf(android.text.InputFilter.LengthFilter(40)); isSingleLine = true
+        }
         box.addView(name)
+        box.addView(hours)
+        box.addView(price)
         box.addView(note)
         com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
             .setTitle(R.string.place_add_title)
@@ -480,7 +490,8 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
             .setPositiveButton(R.string.clients_save) { _, _ ->
                 val type = Places.TYPES[selected]
                 scope.launch {
-                    val r = Places.add(activity, type.key, name.text.toString().trim(), note.text.toString().trim(), point.latitude, point.longitude)
+                    val r = Places.add(activity, type.key, name.text.toString().trim(), note.text.toString().trim(), point.latitude, point.longitude,
+                        hours.text.toString().trim(), price.text.toString().trim())
                     val msg = when {
                         r == null -> activity.getString(R.string.clients_no_connection)
                         !r.first -> r.second
@@ -498,8 +509,19 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
         val type = Places.type(p.type) ?: return
         val text = buildString {
             append(activity.getString(type.label))
+            if (p.hours.isNotBlank()) append("\n🕒 ").append(p.hours)
+            if (p.price.isNotBlank()) append("\n💰 ").append(p.price)
             if (p.note.isNotBlank()) append("\n\n").append(p.note)
             append("\n\n👍 ${p.up}   👎 ${p.down}")
+            // Свежесть: давно никто не подтверждал — место могло закрыться.
+            p.confirmedDays?.let { d ->
+                append("\n").append(when {
+                    d == 0 -> DriverUi.t(activity, "✓ Подтверждали сегодня", "✓ Confirmat azi")
+                    d == 1 -> DriverUi.t(activity, "✓ Подтверждали вчера", "✓ Confirmat ieri")
+                    d <= 30 -> DriverUi.t(activity, "Подтверждали $d дн. назад", "Confirmat acum $d zile")
+                    else -> DriverUi.t(activity, "⚠ Давно не подтверждали — может, уже не работает", "⚠ Neconfirmat de mult — poate nu mai funcționează")
+                })
+            }
         }
         val act = { block: suspend () -> Boolean ->
             scope.launch {
@@ -519,8 +541,9 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
         if (p.mine) {
             b.setPositiveButton(R.string.place_delete) { _, _ -> act { Places.delete(activity, p.id) } }
         } else {
-            b.setPositiveButton(if (p.vote == 1) R.string.place_voted_up else R.string.place_up) { _, _ ->
-                act { Places.vote(activity, p.id, if (p.vote == 1) 0 else 1) }
+            // Уже советовали — повторное нажатие подтверждает, что место работает сегодня.
+            b.setPositiveButton(if (p.vote == 1) DriverUi.t(activity, "Работает сегодня", "Funcționează azi") else activity.getString(R.string.place_up)) { _, _ ->
+                act { Places.vote(activity, p.id, 1) }
             }
             b.setNeutralButton(if (p.vote == -1) R.string.place_voted_down else R.string.place_down) { _, _ ->
                 act { Places.vote(activity, p.id, if (p.vote == -1) 0 else -1) }

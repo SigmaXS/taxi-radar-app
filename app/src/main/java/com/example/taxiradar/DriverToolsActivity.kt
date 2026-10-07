@@ -41,6 +41,55 @@ class DriverToolsActivity : AppCompatActivity() {
 
     private var archiveDay: Long = System.currentTimeMillis()
 
+    // Файлы копии и таблицы: система спрашивает, куда сохранить / что открыть.
+    private var pendingCsv: String = ""
+    private val saveBackup = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) writeFile(uri, Backup.export(this), t("Копия сохранена. Перенесите файл на новый телефон и нажмите там «Восстановить».", "Copia e salvată. Mutați fișierul pe telefonul nou și apăsați «Restaurează»."))
+    }
+    private val saveCsv = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) writeFile(uri, pendingCsv, t("Таблица сохранена — откройте её в Excel или Google Таблицах.", "Tabelul e salvat — deschideți-l în Excel sau Google Sheets."))
+    }
+    private val openBackup = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        val text = try { contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } } catch (_: Exception) { null }
+        val n = text?.let { Backup.restore(this, it) }
+        Toast.makeText(this, if (n == null) t("Это не копия Taxi Radar", "Nu e o copie Taxi Radar") else t("Восстановлено. Поездок: $n", "Restaurat. Curse: $n"), Toast.LENGTH_LONG).show()
+        render()
+    }
+
+    private fun writeFile(uri: android.net.Uri, text: String, done: String) {
+        try {
+            contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+            Toast.makeText(this, done, Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, t("Не удалось сохранить файл", "Fișierul nu a putut fi salvat"), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun backupCard() {
+        val box = card("Копия и выгрузка", "Copie și export", "Копия — все поездки, смены, расходы и настройки радара в одном файле: сохраните его в Telegram «Избранное» или на Google Диск и восстановите на новом телефоне. Подписка в копию не входит — она привязана к телефону, перенос делает администратор.\nТаблица — доходы за месяц для Excel.",
+            "Copia — toate cursele, turele, cheltuielile și setările într-un fișier: salvați-l în Telegram sau Google Drive și restaurați pe telefonul nou. Abonamentul nu intră în copie.\nTabelul — veniturile pe lună pentru Excel.", R.drawable.ic_payments)
+        val day = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        DriverUi.button(this, box, t("Сохранить копию", "Salvează copia")) { saveBackup.launch("TaxiRadar-copy-$day.json") }
+        DriverUi.button(this, box, t("Восстановить из копии", "Restaurează din copie")) {
+            MaterialAlertDialogBuilder(this).setTitle(t("Восстановить из копии?", "Restaurați din copie?"))
+                .setMessage(t("Поездки, смены и настройки на этом телефоне заменятся данными из файла.", "Cursele, turele și setările de pe acest telefon vor fi înlocuite cu cele din fișier."))
+                .setPositiveButton(t("Выбрать файл", "Alege fișierul")) { _, _ -> openBackup.launch(arrayOf("application/json", "application/octet-stream", "*/*")) }
+                .setNegativeButton(R.string.cancel, null).show()
+        }
+        DriverUi.button(this, box, t("Выгрузить месяц в таблицу", "Exportă luna în tabel")) {
+            val months = Backup.months(this)
+            if (months.isEmpty()) { Toast.makeText(this, t("Поездок пока нет", "Încă nu sunt curse"), Toast.LENGTH_SHORT).show(); return@button }
+            val names = months.map { (y, m) -> SimpleDateFormat("LLLL yyyy", Locale.getDefault()).format(java.util.Calendar.getInstance().apply { clear(); set(y, m, 1) }.time) }
+            MaterialAlertDialogBuilder(this).setTitle(t("Какой месяц?", "Ce lună?"))
+                .setItems(names.toTypedArray()) { _, i ->
+                    val (y, m) = months[i]
+                    pendingCsv = Backup.monthCsv(this, y, m)
+                    saveCsv.launch("TaxiRadar-%04d-%02d.csv".format(y, m + 1))
+                }.setNegativeButton(R.string.cancel, null).show()
+        }
+    }
+
     private fun archive() {
         body.addView(DriverUi.text(this, t("Архив смен", "Arhiva turelor"), 28f))
         body.addView(DriverUi.text(this, t("Выберите день — покажем доход, расходы, пробег и часы. Все смены хранятся на этом телефоне.",
@@ -75,6 +124,7 @@ class DriverToolsActivity : AppCompatActivity() {
         val recent = card("Последние смены", "Ultimele ture", "Новые сверху. Незакрытая смена отмечена «идёт сейчас».", "Cele noi sus. Tura deschisă e marcată «în curs».", R.drawable.ic_payments)
         if (shifts.isEmpty()) recent.addView(DriverUi.text(this, t("Смен пока нет — нажмите «Начать смену» или примите заказ.", "Încă nu sunt ture — apăsați «Începe tura» sau acceptați o comandă."), 14f, true))
         shifts.take(14).forEach { shiftSummary(recent, DriverJournal.totals(this, it, rides)) }
+        backupCard()
     }
 
     /** Блок одной смены: когда, часы, оплата, чистыми и расходы, пробег, поездки. */
@@ -93,7 +143,8 @@ class DriverToolsActivity : AppCompatActivity() {
         box.addView(DriverUi.text(this, t("Оплата: ${s.gross} L · заказов: ${s.rides}", "Plata: ${s.gross} L · curse: ${s.rides}"), 18f))
         if (s.net != null) {
             box.addView(DriverUi.text(this, t("Чистыми: ~${s.net} L · расходы: ~${s.gross - s.net} L", "Net: ~${s.net} L · cheltuieli: ~${s.gross - s.net} L")))
-            if (sh.minutes > 0) box.addView(DriverUi.text(this, t("~${s.net * 60 / sh.minutes} L/час смены", "~${s.net * 60 / sh.minutes} L/oră de tură"), 14f, true))
+            if (sh.minutes > 0) box.addView(DriverUi.text(this, t("~${s.net * 60 / sh.minutes} L/час смены", "~${s.net * 60 / sh.minutes} L/oră de tură") +
+                (if (sh.pausedMin > 0 && sh.workMinutes > 0) t(" · ~${s.net * 60 / sh.workMinutes} L/час работы (перерывы ${sh.pausedMin} мин)", " · ~${s.net * 60 / sh.workMinutes} L/oră de lucru (pauze ${sh.pausedMin} min)") else ""), 14f, true))
         } else box.addView(DriverUi.text(this, t("Чистыми — заполните расходы машины в настройках радара", "Net — completați cheltuielile mașinii în setări"), 13f, true))
         box.addView(DriverUi.text(this, t("С пассажиром: ${fmt(s.paidKm)} км", "Cu pasager: ${fmt(s.paidKm)} km") +
             (if (sh.odometerKm > 0) t(" · всего: ${fmt(sh.odometerKm)} км", " · total: ${fmt(sh.odometerKm)} km") else "") +
@@ -152,7 +203,11 @@ class DriverToolsActivity : AppCompatActivity() {
         flag(profit, "profit", "Оценка выгодности на виджете", "Rentabilitate în widget", "Оценка сравнивается с вашей целью. Не принимает и не отклоняет заказы.", "Evaluarea se compară cu ținta dvs. Nu acceptă și nu refuză curse.")
         flag(profit, "per_km", "Чистыми за километр", "Net pe kilometru", "Делим прогноз чистого дохода на поездку плюс подачу.", "Împărțim venitul net estimat la distanța cursei și preluării.")
         flag(profit, "per_hour", "Прогноз чистыми за час", "Net estimat pe oră", "Делим доход на время поездки и ориентировочной подачи. Простой между заказами сюда не входит.", "Raportăm venitul la durata cursei și preluării. Așteptarea dintre curse nu este inclusă.")
-        number(profit, "hour_target", "Моя цель, L/час", "Ținta mea, L/oră", 120.0, 1.0, 2000.0)
+        profit.addView(DriverUi.text(this, t("Мои желаемые показатели — заказ, который им не дотягивает, виджет отметит «ниже цели». 0 — не проверять.",
+            "Indicatorii doriți — oferta sub ei e marcată «sub țintă». 0 — nu verifica."), 13f, true))
+        number(profit, "hour_target", "Чистыми в час — от, L", "Net pe oră — de la, L", 120.0, 0.0, 2000.0)
+        number(profit, "order_min_net", "Чистыми за заказ — от, L", "Net pe cursă — de la, L", 0.0, 0.0, 2000.0)
+        number(profit, "pickup_max_km", "Подача — не дальше, км", "Preluare — maxim, km", 0.0, 0.0, 50.0)
         number(profit, "pickup_speed", "Средняя скорость подачи, км/ч", "Viteza medie de preluare, km/h", 25.0, 5.0, 90.0)
         val costs = card("Моя машина и расходы", "Mașina și cheltuielile", "Эти значения нужны для прогноза. Расход можно указать в литрах или кВт·ч на 100 км. Здесь находятся все настройки чистого дохода; второй карточки с теми же параметрами больше нет.", "Valorile sunt necesare pentru estimare. Consumul poate fi în litri sau kWh/100 km. Toate setările venitului net se află aici, fără un al doilea formular duplicat.", R.drawable.ic_payments)
         val types = arrayOf(t("Бензин", "Benzină"), t("Дизель", "Diesel"), t("Газ", "Gaz"), t("Электричество", "Electricitate"))
@@ -232,10 +287,21 @@ class DriverToolsActivity : AppCompatActivity() {
         summary.addView(DriverUi.text(this, t("Подтверждённая оплата", "Plata confirmată"), 14f, true))
         summary.addView(DriverUi.text(this, "$gross L", 30f))
         summary.addView(DriverUi.text(this, t("Заказов: ${confirmed.size} · ждут проверки: ${current.count { !it.confirmed }}", "Curse: ${confirmed.size} · de verificat: ${current.count { !it.confirmed }}")))
-        summary.addView(DriverUi.text(this, t("Время смены: $elapsed мин", "Durata turei: $elapsed min")))
+        val pausedMin = DriverJournal.pausedMinutes(this)
+        val workMin = (elapsed - pausedMin).coerceAtLeast(0)
+        summary.addView(DriverUi.text(this, t("Время смены: ${elapsed / 60} ч ${elapsed % 60} мин", "Durata turei: ${elapsed / 60} h ${elapsed % 60} min") +
+            (if (pausedMin > 0) t(" · перерывы ${pausedMin} мин", " · pauze ${pausedMin} min") else "") +
+            (if (DriverJournal.paused(this)) t(" · сейчас перерыв", " · acum pauză") else "")))
         if (DriverPreferences.costsReady(this) && confirmed.all { it.costsReady }) {
             summary.addView(DriverUi.text(this, t("После заданных расходов: ~${net.toInt()} L", "După cheltuielile setate: ~${net.toInt()} L")))
-            if (elapsed > 0) summary.addView(DriverUi.text(this, t("В среднем за смену: ~${(net * 60 / elapsed).toInt()} L/час", "Media turei: ~${(net * 60 / elapsed).toInt()} L/oră")))
+            if (elapsed > 0) {
+                summary.addView(DriverUi.text(this, t("За всю смену: ~${(net * 60 / elapsed).toInt()} L/час", "Pe toată tura: ~${(net * 60 / elapsed).toInt()} L/oră")))
+                if (pausedMin > 0 && workMin > 0) {
+                    summary.addView(DriverUi.text(this, t("За рабочее время: ~${(net * 60 / workMin).toInt()} L/час", "Pe timpul de lucru: ~${(net * 60 / workMin).toInt()} L/oră")))
+                    summary.addView(DriverUi.text(this, t("Первое — доход за весь день вместе с перерывами. Второе — сколько вы зарабатываете, пока реально работаете: так честнее сравнивать смены.",
+                        "Primul — venitul pe toată ziua cu pauze. Al doilea — cât câștigați cât lucrați efectiv: așa comparați corect turele."), 13f, true))
+                }
+            }
             val remaining = (DriverPreferences.number(this, "daily_target", 600.0) - net).coerceAtLeast(0.0).toInt()
             summary.addView(DriverUi.text(this, t("До цели: $remaining L", "Până la țintă: $remaining L")))
         } else summary.addView(DriverUi.text(this, t("Для чистого дохода заполните расходы машины. Старые записи сохраняют расчёт на момент подтверждения.", "Pentru venitul net completați cheltuielile. Înregistrările păstrează calculul din momentul confirmării."), 13f, true))
@@ -244,6 +310,10 @@ class DriverToolsActivity : AppCompatActivity() {
         summary.addView(DriverUi.text(this, t("С пассажиром: ${fmt(paidKm)} км", "Cu pasager: ${fmt(paidKm)} km")))
         if (totalKm >= paidKm && totalKm > 0) {
             summary.addView(DriverUi.text(this, t("Общий пробег: ${fmt(totalKm)} км · без пассажира: ${fmt(totalKm - paidKm)} км", "Total: ${fmt(totalKm)} km · fără pasager: ${fmt(totalKm - paidKm)} km")))
+        }
+        if (DriverJournal.active(this).isNotEmpty()) DriverUi.button(this, summary, if (DriverJournal.paused(this)) t("▶ Продолжить работу", "▶ Continuă lucrul") else t("⏸ Перерыв", "⏸ Pauză")) {
+            if (DriverJournal.paused(this)) DriverJournal.resume(this) else DriverJournal.pause(this)
+            render()
         }
         DriverUi.button(this, summary, if (DriverJournal.active(this).isEmpty()) t("Начать смену", "Începe tura") else t("Закончить смену", "Încheie tura")) {
             val starting = DriverJournal.active(this).isEmpty()

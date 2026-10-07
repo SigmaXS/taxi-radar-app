@@ -35,20 +35,23 @@ object DriverJournal {
     @Synchronized fun remove(c: Context, id: String) { write(c, rides(c).filterNot { it.id == id }) }
     fun active(c: Context) = p(c).getString("active", "").orEmpty()
     fun selected(c: Context) = active(c).ifEmpty { p(c).getString("last", "").orEmpty() }
-    fun start(c: Context) { if (active(c).isEmpty()) p(c).edit().putString("active", UUID.randomUUID().toString()).putLong("started", System.currentTimeMillis()).putLong("ended", 0).putFloat("rent", DriverPreferences.number(c, "rent").toFloat()).apply() }
+    fun start(c: Context) { if (active(c).isEmpty()) p(c).edit().putString("active", UUID.randomUUID().toString()).putLong("started", System.currentTimeMillis()).putLong("ended", 0).putLong("paused_ms", 0).putLong("paused_at", 0).putFloat("rent", DriverPreferences.number(c, "rent").toFloat()).apply() }
     fun stop(c: Context) { close(c, System.currentTimeMillis()) }
 
     /** Закрыть смену и положить её в архив: начало, конец, аренда, пробег по одометру. */
     private fun close(c: Context, end: Long) {
         val id = active(c)
-        if (id.isNotEmpty()) archive(c, Shift(id, p(c).getLong("started", end), end, rent(c), DriverPreferences.number(c, "shift_km")))
+        if (paused(c)) resume(c, end)
+        if (id.isNotEmpty()) archive(c, Shift(id, p(c).getLong("started", end), end, rent(c), DriverPreferences.number(c, "shift_km"), pausedMinutes(c)))
         p(c).edit().putString("last", id).putString("active", "").putLong("ended", end).apply()
     }
 
     // ---------- архив смен ----------
 
-    data class Shift(val id: String, val start: Long, val end: Long, val rent: Double, val odometerKm: Double) {
+    /** minutes — вся смена; pausedMin — перерывы; workMinutes — рабочее время без перерывов. */
+    data class Shift(val id: String, val start: Long, val end: Long, val rent: Double, val odometerKm: Double, val pausedMin: Long = 0) {
         val minutes: Long get() = ((if (end > 0) end else System.currentTimeMillis()) - start).coerceAtLeast(0) / 60000
+        val workMinutes: Long get() = (minutes - pausedMin).coerceAtLeast(0)
     }
 
     /** Итог смены: оплата, чистыми (если заданы расходы), расходы, пробег, поездки. */
@@ -57,7 +60,7 @@ object DriverJournal {
     @Synchronized private fun archive(c: Context, s: Shift) {
         val a = try { JSONArray(p(c).getString("shifts", "[]")) } catch (_: Exception) { JSONArray() }
         val list = (0 until a.length()).map { a.getJSONObject(it) }.filter { it.optString("id") != s.id } +
-            JSONObject().put("id", s.id).put("start", s.start).put("end", s.end).put("rent", s.rent).put("km", s.odometerKm)
+            JSONObject().put("id", s.id).put("start", s.start).put("end", s.end).put("rent", s.rent).put("km", s.odometerKm).put("paused", s.pausedMin)
         p(c).edit().putString("shifts", JSONArray(list.takeLast(400)).toString()).apply()
     }
 
@@ -65,9 +68,9 @@ object DriverJournal {
     fun shifts(c: Context): List<Shift> {
         val a = try { JSONArray(p(c).getString("shifts", "[]")) } catch (_: Exception) { JSONArray() }
         val list = (0 until a.length()).map { a.getJSONObject(it) }.map {
-            Shift(it.getString("id"), it.getLong("start"), it.getLong("end"), it.optDouble("rent", 0.0), it.optDouble("km", 0.0))
+            Shift(it.getString("id"), it.getLong("start"), it.getLong("end"), it.optDouble("rent", 0.0), it.optDouble("km", 0.0), it.optLong("paused"))
         }.toMutableList()
-        if (active(c).isNotEmpty()) list += Shift(active(c), p(c).getLong("started", 0), 0, rent(c), DriverPreferences.number(c, "shift_km"))
+        if (active(c).isNotEmpty()) list += Shift(active(c), p(c).getLong("started", 0), 0, rent(c), DriverPreferences.number(c, "shift_km"), pausedMinutes(c))
         // Смена, закрытая до появления архива (1.17), — восстанавливаем из того, что помнили.
         val last = p(c).getString("last", "").orEmpty()
         if (active(c).isEmpty() && last.isNotEmpty() && list.none { it.id == last } && p(c).getLong("ended", 0) > 0)
@@ -86,6 +89,22 @@ object DriverJournal {
         } else null
         return ShiftTotals(s, ok.size, mine.size - ok.size, gross, net, paidKm)
     }
+    // ---------- перерыв ----------
+
+    fun paused(c: Context) = active(c).isNotEmpty() && p(c).getLong("paused_at", 0) > 0
+    fun pause(c: Context) { if (active(c).isNotEmpty() && !paused(c)) p(c).edit().putLong("paused_at", System.currentTimeMillis()).apply() }
+    fun resume(c: Context, at: Long = System.currentTimeMillis()) {
+        val since = p(c).getLong("paused_at", 0)
+        if (since <= 0) return
+        p(c).edit().putLong("paused_ms", p(c).getLong("paused_ms", 0) + (at - since).coerceAtLeast(0)).putLong("paused_at", 0).apply()
+    }
+    /** Перерывы текущей (или последней) смены, вместе с идущим сейчас. */
+    fun pausedMinutes(c: Context): Long {
+        val since = p(c).getLong("paused_at", 0)
+        val running = if (since > 0) System.currentTimeMillis() - since else 0
+        return (p(c).getLong("paused_ms", 0) + running).coerceAtLeast(0) / 60000
+    }
+
     fun elapsedMinutes(c: Context): Long = if (selected(c).isEmpty()) 0 else ((if (active(c).isEmpty()) p(c).getLong("ended", 0) else System.currentTimeMillis()) - p(c).getLong("started", 0)).coerceAtLeast(0) / 60000
     fun rent(c: Context) = p(c).getFloat("rent", 0f).toDouble()
 

@@ -45,8 +45,8 @@ class FloatingWidgetService : Service() {
         var driverLat: Double = 47.0245
         var driverLon: Double = 28.8353
 
-        fun showOrderData(price: Int, km: Double, min: Int, pickupKm: Double, stops: Int, bonus: Int = 0) {
-            instance?.displayOrder(price, km, min, pickupKm, stops, bonus = bonus)
+        fun showOrderData(price: Int, km: Double, min: Int, pickupKm: Double, stops: Int, bonus: Int = 0, doubts: List<String> = emptyList()) {
+            instance?.displayOrder(price, km, min, pickupKm, stops, bonus = bonus, doubts = doubts)
         }
 
         fun clearOrder() {
@@ -157,7 +157,9 @@ class FloatingWidgetService : Service() {
         price: Int, km: Double, min: Int, pickupKm: Double, stops: Int,
         bonus: Int = 0,
         note: String? = null,
-        showMs: Long = 16_000
+        showMs: Long = 16_000,
+        /** Пусто — цена по маршруту Яндекса (точно); иначе — почему она примерная. */
+        doubts: List<String>? = null
     ) {
         orderDisplayJob?.cancel()
         isShowingOrder = true
@@ -169,8 +171,15 @@ class FloatingWidgetService : Service() {
                 val range = OrderEconomics.range(price, DriverPreferences.number(this@FloatingWidgetService, "range_percent", 10.0).toInt())
                 tvWidgetSurge?.text = if (DriverPreferences.flag(this@FloatingWidgetService, "range")) "${range.first}–${range.last} L" else "~$price L"
                 tvWidgetSurge?.setTextColor(getColor(R.color.tr_success))
+                // Надёжность: «✓ точно» — км и минуты Яндекса; «≈ примерно: …» — главная причина.
+                val source = when {
+                    note != null -> note
+                    doubts == null -> DriverUi.t(this@FloatingWidgetService, if (OrderPreview.current()?.yandex == true) "По маршруту Яндекса" else "Расчётная цена", if (OrderPreview.current()?.yandex == true) "După ruta Yandex" else "Preț estimat")
+                    doubts.isEmpty() -> DriverUi.t(this@FloatingWidgetService, "✓ Точно: км и минуты Яндекса", "✓ Exact: km și minute Yandex")
+                    else -> DriverUi.t(this@FloatingWidgetService, "≈ Примерно: ", "≈ Aproximativ: ") + doubts.first()
+                }
                 val details = listOfNotNull(
-                    if (DriverPreferences.flag(this@FloatingWidgetService, "source", true)) note ?: DriverUi.t(this@FloatingWidgetService, if (OrderPreview.current()?.yandex == true) "По маршруту Яндекса" else "Расчётная цена", if (OrderPreview.current()?.yandex == true) "După ruta Yandex" else "Preț estimat") else null,
+                    if (DriverPreferences.flag(this@FloatingWidgetService, "source", true)) source else null,
                     if (DriverPreferences.flag(this@FloatingWidgetService, "distance", true) && km > 0) getString(R.string.widget_km, formatKm(km)) else null,
                     if (DriverPreferences.flag(this@FloatingWidgetService, "minutes", true) && min > 0) getString(R.string.widget_min, min) else null,
                     if (DriverPreferences.flag(this@FloatingWidgetService, "pickup") && pickupKm > 0) DriverUi.t(this@FloatingWidgetService, "Подача ${formatKm(pickupKm)} км", "Preluare ${formatKm(pickupKm)} km") else null,
@@ -188,14 +197,29 @@ class FloatingWidgetService : Service() {
                 sub.append(details)
                 val prefs = this@FloatingWidgetService
                 if (DriverPreferences.flag(prefs, "profit") || DriverPreferences.flag(prefs, "per_km") || DriverPreferences.flag(prefs, "per_hour")) {
-                    if (!DriverPreferences.costsReady(prefs)) sub.append("\n" + DriverUi.t(prefs, "Заполните расходы машины", "Completați cheltuielile mașinii"))
+                    if (!DriverPreferences.costsReady(prefs)) sub.append("\n" + DriverUi.t(prefs, "Оценки нет: заполните расходы машины", "Fără evaluare: completați cheltuielile"))
                     else {
                         val r = OrderEconomics.calculate(price, km, pickupKm, min, pickupKm / DriverPreferences.number(prefs, "pickup_speed", 25.0).coerceAtLeast(5.0) * 60, DriverPreferences.costs(prefs))
+                        // «После расходов ≈ 65 L · подача 3 км · ≈ 110 L/час» и сверка с желаемыми показателями.
                         val values = mutableListOf<String>()
-                        if (DriverPreferences.flag(prefs, "profit") && r.perHour != null) values += if (r.perHour >= DriverPreferences.number(prefs, "hour_target", 120.0)) DriverUi.t(prefs, "Выше цели", "Peste țintă") else DriverUi.t(prefs, "Ниже цели", "Sub țintă")
+                        if (DriverPreferences.flag(prefs, "profit")) values += DriverUi.t(prefs, "После расходов ≈ ${r.net} L", "După cheltuieli ≈ ${r.net} L")
+                        if (DriverPreferences.flag(prefs, "profit") && pickupKm > 0) values += DriverUi.t(prefs, "подача ${formatKm(pickupKm)} км", "preluare ${formatKm(pickupKm)} km")
                         if (DriverPreferences.flag(prefs, "per_km") && r.perKm != null) values += "~${formatKm(r.perKm)} L/km"
-                        if (DriverPreferences.flag(prefs, "per_hour") && r.perHour != null) values += DriverUi.t(prefs, "~${r.perHour} L/час", "~${r.perHour} L/oră")
+                        if ((DriverPreferences.flag(prefs, "per_hour") || DriverPreferences.flag(prefs, "profit")) && r.perHour != null) values += DriverUi.t(prefs, "≈ ${r.perHour} L/час", "≈ ${r.perHour} L/oră")
                         if (values.isNotEmpty()) sub.append("\n" + values.joinToString(" · "))
+                        if (DriverPreferences.flag(prefs, "profit")) {
+                            val misses = mutableListOf<String>()
+                            val hourGoal = DriverPreferences.number(prefs, "hour_target", 120.0)
+                            val orderGoal = DriverPreferences.number(prefs, "order_min_net", 0.0)
+                            val pickupGoal = DriverPreferences.number(prefs, "pickup_max_km", 0.0)
+                            if (hourGoal > 0 && r.perHour != null && r.perHour < hourGoal) misses += DriverUi.t(prefs, "в час < ${hourGoal.toInt()}", "pe oră < ${hourGoal.toInt()}")
+                            if (orderGoal > 0 && r.net < orderGoal) misses += DriverUi.t(prefs, "за заказ < ${orderGoal.toInt()}", "pe cursă < ${orderGoal.toInt()}")
+                            if (pickupGoal > 0 && pickupKm > pickupGoal) misses += DriverUi.t(prefs, "подача > ${formatKm(pickupGoal)} км", "preluare > ${formatKm(pickupGoal)} km")
+                            val start = sub.length
+                            sub.append("\n" + if (misses.isEmpty()) DriverUi.t(prefs, "✓ Подходит под ваши цели", "✓ Corespunde țintelor") else DriverUi.t(prefs, "Ниже цели: ", "Sub țintă: ") + misses.joinToString(", "))
+                            sub.setSpan(ForegroundColorSpan(getColor(if (misses.isEmpty()) R.color.tr_success else R.color.tr_warning)), start, sub.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            if (misses.isNotEmpty()) tvWidgetSurge?.setTextColor(getColor(R.color.tr_warning))
+                        }
                     }
                 }
                 tvWidgetSub?.text = sub

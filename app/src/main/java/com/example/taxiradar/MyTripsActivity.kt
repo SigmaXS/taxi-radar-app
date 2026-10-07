@@ -161,11 +161,14 @@ class MyTripsActivity : AppCompatActivity() {
             LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = DriverUi.dp(c, 6) })
         if (o != null && yandex != null) {
             val status = o.optString("dispute_status")
-            val label = when (status) {
-                "" -> t("Цена неверная", "Preț greșit")
-                "checked" -> t("✓ Проверено", "✓ Verificat")
-                else -> t("✓ Разбираемся", "✓ Verificăm")
+            DisputeStatus.text(this, status)?.let { (title, more) ->
+                box.addView(TextView(c).apply {
+                    text = "$title — $more"; textSize = 14f
+                    setTextColor(getColor(if (status == "need_info") R.color.tr_warning else R.color.tr_success))
+                    setPadding(0, DriverUi.dp(c, 6), 0, 0)
+                })
             }
+            val label = if (status.isEmpty()) t("Цена неверная", "Preț greșit") else DisputeStatus.text(this, status)!!.first
             buttons.addView(btn(label, status.isEmpty(), if (status.isEmpty()) R.color.tr_text else R.color.tr_success) { dispute(o.optString("id")) },
                 LinearLayout.LayoutParams(0, -2, 1f))
         }
