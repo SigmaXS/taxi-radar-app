@@ -35,10 +35,9 @@ object PermissionGuide {
         }
     }
 
-    // Ссылки: видео показывают ровно наш случай; инструкция Касперского — на русском, со скриншотами.
+    // Ссылки: видео показывают ровно наш случай.
     private const val VIDEO_SAMSUNG = "https://www.youtube.com/watch?v=6ilFOvyYg8w"
     private const val VIDEO_HYPEROS = "https://www.youtube.com/watch?v=91B72lEpcqc"
-    private const val GUIDE_RU = "https://support.kaspersky.com/help/KSMM/4.1/ru-RU/237468.htm"
     private const val GUIDE_XIAOMI = "https://www.mi.com/global/support/faq/details/KA-507611/"
 
     fun add(activity: Activity, parent: LinearLayout) {
@@ -214,7 +213,6 @@ object PermissionGuide {
             }
             Brand.OTHER -> {}
         }
-        link(t("Инструкция со скриншотами (рус.)", "Ghid cu capturi (rus.)"), GUIDE_RU)
 
         val dialog = BottomSheetDialog(c)
         dialog.setContentView(ScrollView(c).apply { addView(body) })

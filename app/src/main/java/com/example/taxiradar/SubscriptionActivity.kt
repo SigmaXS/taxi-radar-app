@@ -141,8 +141,30 @@ class SubscriptionActivity : AppCompatActivity() {
             promo.ifEmpty { getString(R.string.sub_no_promo) },
             licenseManager.deviceId
         )
+        // Водитель сам выбирает, где ему удобнее написать; текст заявки уже готов.
+        val text = URLEncoder.encode(message, "UTF-8").replace("+", "%20")
+        val digits = { v: String -> v.filter { it.isDigit() } }
+        val options = mutableListOf<Pair<String, () -> Unit>>()
         val tg = config.telegram.ifBlank { "sigmalxl" }
-        val url = "https://t.me/$tg?text=" + URLEncoder.encode(message, "UTF-8").replace("+", "%20")
+        options += "Telegram" to { open("https://t.me/$tg?text=$text") }
+        if (config.whatsapp.isNotBlank()) options += "WhatsApp  ${config.whatsapp}" to { open("https://wa.me/${digits(config.whatsapp)}?text=$text") }
+        if (config.viber.isNotBlank()) options += "Viber  ${config.viber}" to {
+            // Viber не принимает готовый текст в ссылке — кладём заявку в буфер, водитель вставляет.
+            (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Taxi Radar", message))
+            Toast.makeText(this, R.string.sub_pay_copied, Toast.LENGTH_LONG).show()
+            open("viber://chat?number=%2B${digits(config.viber)}")
+        }
+        if (config.phone.isNotBlank()) options += getString(R.string.contact_call, config.phone) to {
+            try { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${config.phone}"))) } catch (_: Exception) {}
+        }
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.sub_pay_where)
+            .setItems(options.map { it.first }.toTypedArray()) { _, which -> options[which].second() }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun open(url: String) {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (e: Exception) {

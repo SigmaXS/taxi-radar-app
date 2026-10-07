@@ -7,8 +7,15 @@
     android:layout_marginBottom="10dp"
     app:contentPaddingBottom="12dp"
     app:contentPaddingLeft="16dp"
-    app:contentPaddingRight="10dp"
+    app:contentPaddingRight="16dp"
     app:contentPaddingTop="14dp">
+
+    <!-- Строка статуса сверху, «Зачем это нужно» — на всю ширину карточки под ней. -->
+    <LinearLayout
+        android:id="@+id/checkBody"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -52,5 +59,6 @@
                 android:layout_marginStart="-12dp"
                 android:textColor="@color/tr_accent" />
         </LinearLayout>
+    </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

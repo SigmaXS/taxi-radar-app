@@ -109,6 +109,8 @@
     <string name="group">Grupul radarului</string>
     <string name="contact_title">Contactați-ne</string>
     <string name="contact_call">Sună %1$s</string>
+    <string name="sub_pay_where">Unde scrieți pentru plată?</string>
+    <string name="sub_pay_copied">Textul cererii a fost copiat — lipiți-l în chatul Viber</string>
     <string name="msg_question">Bună ziua! Am o întrebare despre Taxi Radar. ID-ul meu: %1$s</string>
     <string name="msg_renew">Vreau să prelungesc abonamentul Taxi Radar. ID-ul meu: %1$s</string>
     <string name="msg_yandex_help">Nu reușesc să conectez cheia Yandex în Taxi Radar. ID-ul meu: %1$s</string>

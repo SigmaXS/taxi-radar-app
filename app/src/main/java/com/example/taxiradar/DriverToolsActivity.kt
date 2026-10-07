@@ -54,6 +54,19 @@ class DriverToolsActivity : AppCompatActivity() {
     private fun settings() {
         body.addView(DriverUi.text(this, t("Ваш радар", "Radarul dvs."), 28f))
         body.addView(DriverUi.text(this, t("Оставьте только то, что помогает вам на смене. Настройки сохраняются сразу.", "Păstrați doar informațiile utile în tură. Setările se salvează imediat."), 14f, true))
+        DriverUi.guide(this, body, t("Что здесь настраивается", "Ce se setează aici"), if (t("ru", "ro") == "ru") listOf(
+            "«Цена на виджете» — какие строки показывать на карточке заказа: километры, минуты, подачу. Меньше строк — проще читать на ходу.",
+            "«Спрос между заказами» — какой тариф смотреть для надбавки, когда заказа нет.",
+            "«Моя машина и расходы» — расход, цена топлива, комиссия. Нужны, чтобы радар считал «чистыми» и выгодность заказа.",
+            "«Выгодность заказа» — по желанию покажет на виджете, сколько останется чистыми, за км и за час.",
+            "Остальное (дорога домой, аэропорт) включайте, только если пользуетесь. Всё сохраняется сразу, кнопки «Сохранить» нет."
+        ) else listOf(
+            "«Prețul în widget» — ce rânduri apar pe ofertă: kilometri, minute, preluare. Mai puține rânduri — mai ușor de citit în mers.",
+            "«Cererea între curse» — ce categorie urmărim pentru supliment când nu aveți ofertă.",
+            "«Mașina și cheltuielile» — consum, preț carburant, comision. Necesare ca radarul să calculeze «net» și rentabilitatea.",
+            "«Rentabilitatea cursei» — opțional arată în widget cât rămâne net, pe km și pe oră.",
+            "Restul (drumul spre casă, aeroport) activați doar dacă le folosiți. Totul se salvează imediat, fără buton «Salvează»."
+        ))
         val widget = card("Цена на виджете", "Prețul în widget", "Можно оставить только примерную цену. Дополнительные строки включаются отдельно.", "Puteți păstra doar prețul estimat. Rândurile suplimentare sunt opționale.", R.drawable.ic_visibility)
         flag(widget, "distance", "Километры", "Kilometri", "Длина поездки. Подача включается отдельно.", "Distanța cursei. Preluarea se activează separat.", true)
         flag(widget, "minutes", "Минуты", "Minute", "Прогноз времени поездки, не время ожидания пассажира.", "Durata estimată a cursei, fără așteptarea pasagerului.", true)
@@ -127,7 +140,24 @@ class DriverToolsActivity : AppCompatActivity() {
 
     private fun shift() {
         body.addView(DriverUi.text(this, t("Моя смена", "Tura mea"), 28f))
-        val summary = card("Результат смены", "Rezultatul turei", "В итогах только подтверждённые суммы. Записи с экрана Яндекса сначала нужно проверить. Общий пробег вводится по одометру; пустой пробег — разница с подтверждёнными поездками.", "Totalul include doar sumele confirmate. Verificați înregistrările citite din Yandex. Kilometrajul total se introduce de pe odometru; diferența față de curse este rulaj fără pasager.", R.drawable.ic_payments)
+        DriverUi.guide(this, body, t("Как это работает", "Cum funcționează"),
+            if (t("ru", "ro") == "ru") listOf(
+            "Перед первой сменой откройте «Настройки радара» → «Моя машина и расходы» и впишите расход на 100 км, цену топлива и комиссию. Без этого видна только сумма, без «чистыми».",
+            "Нажмите «Начать смену». Время смены пойдёт само.",
+            "Работайте как обычно. Когда поездка заканчивается в Яндекс Про, радар сам записывает её в «Историю» с ценой с экрана и пометкой «проверить».",
+            "Нажмите на поездку в «Истории», впишите сумму, которую реально получили, и сохраните. В итог попадают только подтверждённые поездки.",
+            "Поездка не записалась (например, радар был выключен)? Нажмите «Добавить поездку» и впишите её вручную.",
+            "В конце смены по желанию впишите общий пробег по одометру — так видно, сколько км вы проехали пустым. Нажмите «Закончить смену»."
+        ) else listOf(
+            "Înainte de prima tură deschideți «Setările radarului» → «Mașina și cheltuielile» și completați consumul la 100 km, prețul carburantului și comisionul. Fără ele vedeți doar suma, fără «net».",
+            "Apăsați «Începe tura». Timpul turei pornește singur.",
+            "Lucrați ca de obicei. Când cursa se termină în Yandex Pro, radarul o scrie singur în «Istoric» cu prețul de pe ecran și eticheta «verificați».",
+            "Apăsați cursa în «Istoric», introduceți suma primită efectiv și salvați. Doar cursele confirmate intră în total.",
+            "Cursa nu s-a înregistrat (de ex. radarul era oprit)? Apăsați «Adaugă cursă» și introduceți-o manual.",
+            "La sfârșitul turei, opțional, introduceți kilometrajul total de pe odometru — vedeți câți km ați mers gol. Apăsați «Încheie tura»."
+        ),
+            t("«Подтверждённая оплата» — сколько вы получили. «После расходов» — минус комиссия, топливо, обслуживание и аренда. «L/час» — чистыми за час смены. «До цели» — сколько осталось до цели смены из настроек. Всё хранится только на этом телефоне.", "«Plata confirmată» — cât ați încasat. «După cheltuieli» — minus comision, carburant, întreținere și chirie. «L/oră» — net pe oră de tură. «Până la țintă» — cât rămâne până la ținta din setări. Totul rămâne doar pe acest telefon."))
+        val summary = card("Результат смены", "Rezultatul turei", "Здесь итог вашей смены. Считаются только поездки, которые вы подтвердили в «Истории» (нажали на поездку и сохранили сумму). Поездки с пометкой «проверить» радар записал сам — проверьте их, и они добавятся.\n\nЧистыми = оплата минус комиссия, топливо, обслуживание и аренда из «Моя машина и расходы».\n\nПробег по одометру необязателен: если впишете, увидите, сколько км проехали без пассажира.", "Totalul include doar sumele confirmate. Verificați înregistrările citite din Yandex. Kilometrajul total se introduce de pe odometru; diferența față de curse este rulaj fără pasager.", R.drawable.ic_payments)
         val rides = DriverJournal.rides(this)
         val current = rides.filter { it.shift == DriverJournal.selected(this) && it.shift.isNotEmpty() }
         val confirmed = current.filter { it.confirmed }
@@ -162,7 +192,7 @@ class DriverToolsActivity : AppCompatActivity() {
         DriverUi.button(this, summary, t("Обновить итоги", "Actualizează totalul")) { render() }
         DriverUi.button(this, summary, t("Добавить поездку / исправить цену", "Adaugă cursă / corectează prețul")) { editRide(null) }
         offer()
-        val history = card("История и точность", "Istoric și precizie", "Нажмите на поездку, чтобы подтвердить или исправить сумму, либо удалить ошибочную запись. «Цена не совпала» — укажите фактическую оплату. История хранит последние 500 записей.", "Apăsați o cursă pentru a confirma/corecta suma sau a șterge înregistrarea. Pentru un preț diferit introduceți plata reală. Păstrăm ultimele 500 de înregistrări.", R.drawable.ic_payments)
+        val history = card("История и точность", "Istoric și precizie", "Все поездки по порядку. «Проверить» — радар записал поездку сам по экрану Яндекса, сумма может быть неточной. Нажмите на поездку, впишите, сколько реально получили, и сохраните — она станет «подтверждено» и попадёт в итог. Ошибочную запись можно удалить там же.\n\n«Разница» — насколько реальная оплата отличалась от расчёта радара.", "Apăsați o cursă pentru a confirma/corecta suma sau a șterge înregistrarea. Pentru un preț diferit introduceți plata reală. Păstrăm ultimele 500 de înregistrări.", R.drawable.ic_payments)
         if (rides.isEmpty()) history.addView(DriverUi.text(this, t("Пока нет поездок. Добавьте первую вручную.", "Nu există curse. Adăugați prima manual."), 14f, true))
         rides.takeLast(historyLimit).reversed().forEach { ride ->
             val date = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(ride.at))
@@ -170,7 +200,7 @@ class DriverToolsActivity : AppCompatActivity() {
             if (ride.confirmed && ride.estimate > 0) history.addView(DriverUi.text(this, t("Расчёт ${ride.estimate} L · разница ${ride.price - ride.estimate} L", "Estimare ${ride.estimate} L · diferență ${ride.price - ride.estimate} L"), 13f, true))
         }
         if (rides.size > historyLimit) DriverUi.button(this, history, t("Показать ещё 30", "Arată încă 30")) { historyLimit += 30; render() }
-        val stats = card("Когда и где выгоднее", "Când și unde este mai rentabil", "Личная статистика по подтверждённым поездкам. Район задаётся вами. Показываем группы от 3 поездок. Доход за час здесь относится к времени поездок, а не всей смены; это история, не прогноз спроса.", "Statistici personale din curse confirmate. Zona este indicată de dvs. Afișăm grupuri de minimum 3 curse. Venitul pe oră se referă la timpul curselor, nu al turei; este istoric, nu prognoză de cerere.", R.drawable.ic_location_on)
+        val stats = card("Когда и где выгоднее", "Când și unde este mai rentabil", "Ваша личная статистика: в какие часы и в каких районах у вас была лучшая оплата. Район вы пишете сами при подтверждении поездки (например, «Ботаника»). Строка появляется, когда набирается хотя бы 3 подтверждённые поездки. Это ваша история, а не прогноз спроса.", "Statistici personale din curse confirmate. Zona este indicată de dvs. Afișăm grupuri de minimum 3 curse. Venitul pe oră se referă la timpul curselor, nu al turei; este istoric, nu prognoză de cerere.", R.drawable.ic_location_on)
         val all = rides.filter { it.confirmed }
         val groups = all.filter { it.area.isNotBlank() }.groupBy { it.area.trim().lowercase() }
         val hours = all.groupBy { java.util.Calendar.getInstance().apply { timeInMillis = it.at }.get(java.util.Calendar.HOUR_OF_DAY) }
@@ -186,7 +216,7 @@ class DriverToolsActivity : AppCompatActivity() {
 
     private fun offer() {
         val o = OrderPreview.current() ?: return
-        val box = card("Последний заказ", "Ultima ofertă", "Это предложение, а не заработанная сумма. Расходы на пустой возврат добавляются только к этому прогнозу.", "Este o ofertă, nu un venit încasat. Costul întoarcerii se adaugă doar acestei estimări.", R.drawable.ic_location_on)
+        val box = card("Последний заказ", "Ultima ofertă", "Последний заказ, который вы видели в Яндекс Про. Впишите, сколько км придётся ехать пустым обратно, — радар покажет, сколько останется чистыми и сколько это в час. Это прогноз, а не заработанные деньги.", "Este o ofertă, nu un venit încasat. Costul întoarcerii se adaugă doar acestei estimări.", R.drawable.ic_location_on)
         box.addView(DriverUi.text(this, "~${o.price} L · ${fmt(o.km)} ${t("км", "km")} · ${o.minutes} ${t("мин", "min")}", 22f))
         box.addView(DriverUi.text(this, o.route.joinToString(" → "), 14f, true))
         val back = DriverUi.field(this, box, t("Пустой возврат, км", "Întoarcere fără pasager, km"), "0")

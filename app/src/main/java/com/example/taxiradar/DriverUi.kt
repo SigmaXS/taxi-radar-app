@@ -118,12 +118,46 @@ object DriverUi {
         outline.addView(field); parent.addView(outline)
         return field
     }
+    /**
+     * Свёрнутая инструкция «Как это работает»: по нажатию раскрываются пронумерованные шаги.
+     * Шаги — строки «кружок с номером + текст», так их легче читать, чем один абзац.
+     */
+    fun guide(c: Context, parent: LinearLayout, title: String, steps: List<String>, footer: String? = null) {
+        val card = MaterialCardView(c).apply {
+            radius = dp(c, 22).toFloat(); strokeWidth = dp(c, 1); strokeColor = c.getColor(R.color.tr_accent)
+            setCardBackgroundColor(c.getColor(R.color.tr_surface))
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(c, 14) }
+        }
+        val box = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(c, 16), dp(c, 6), dp(c, 16), dp(c, 6)) }
+        val head = LinearLayout(c).apply { gravity = Gravity.CENTER; minimumHeight = dp(c, 52); setBackgroundResource(android.R.drawable.list_selector_background); isClickable = true; isFocusable = true }
+        head.addView(ImageView(c).apply { setImageResource(R.drawable.ic_help); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_accent)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 10) })
+        val label = text(c, "$title  ▾", 16f).apply { setTypeface(null, Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(-2, -2) }
+        head.addView(label)
+        box.addView(head)
+        val list = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; setPadding(0, dp(c, 4), 0, dp(c, 10)) }
+        steps.forEachIndexed { i, s ->
+            val row = LinearLayout(c).apply { setPadding(0, dp(c, 6), 0, dp(c, 6)) }
+            row.addView(TextView(c).apply {
+                text = "${i + 1}"; textSize = 14f; gravity = Gravity.CENTER; setTypeface(null, Typeface.BOLD)
+                setTextColor(c.getColor(R.color.tr_on_accent))
+                background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(c.getColor(R.color.tr_accent)) }
+            }, LinearLayout.LayoutParams(dp(c, 26), dp(c, 26)).apply { marginEnd = dp(c, 12) })
+            row.addView(TextView(c).apply {
+                text = s; textSize = 15f; setTextColor(c.getColor(R.color.tr_text)); setLineSpacing(dp(c, 2).toFloat(), 1f)
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            list.addView(row)
+        }
+        if (footer != null) list.addView(text(c, footer, 13f, true).apply { (layoutParams as LinearLayout.LayoutParams).topMargin = dp(c, 8) })
+        box.addView(list)
+        head.setOnClickListener { val open = list.visibility != View.VISIBLE; list.visibility = if (open) View.VISIBLE else View.GONE; label.text = "$title  ${if (open) "▴" else "▾"}" }
+        card.addView(box); parent.addView(card)
+    }
     fun expandable(c: Context, parent: LinearLayout, title: String, body: String, icon: Int = R.drawable.ic_help) {
         val row = LinearLayout(c).apply { gravity = Gravity.CENTER; minimumHeight = dp(c, 52); setBackgroundResource(android.R.drawable.list_selector_background); isFocusable = true; isClickable = true }
         row.addView(ImageView(c).apply { setImageResource(icon); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_accent)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 10) })
         val label = text(c, "$title  ▾").apply { layoutParams = LinearLayout.LayoutParams(-2, -2) }
         row.addView(label)
-        val details = text(c, body, 14f, true).apply { visibility = View.GONE }
+        val details = text(c, body, 14f, true).apply { visibility = View.GONE; setPadding(dp(c, 6), dp(c, 2), dp(c, 6), dp(c, 6)) }
         row.setOnClickListener { val open = details.visibility != View.VISIBLE; details.visibility = if (open) View.VISIBLE else View.GONE; label.text = "$title  ${if (open) "▴" else "▾"}" }
         parent.addView(row); parent.addView(details)
     }
