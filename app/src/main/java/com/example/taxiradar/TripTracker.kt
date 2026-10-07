@@ -63,6 +63,7 @@ object TripTracker {
     ) {
         val app = context.applicationContext
         if (active?.route == route && System.currentTimeMillis() - (active?.startedAt ?: 0) < 3 * 3600_000L) return
+        DriverJournal.autoStart(app)
         val trip = Trip(route, System.currentTimeMillis(), navMin, estPrice, navKm, OrderPreview.current()?.takeIf { it.route == route }?.pickup ?: 0.0, currentB = route.last())
         active = trip
         Log.d("TRIP", "Поездка началась: $route, наш расчёт $estPrice L, навигатор $navPrice L")

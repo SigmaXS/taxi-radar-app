@@ -20,6 +20,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -170,6 +171,7 @@ class MainActivity : AppCompatActivity() {
             MaterialAlertDialogBuilder(this).setTitle(R.string.driver_tools_title).setMessage(R.string.driver_tools_help).setPositiveButton(R.string.got_it, null).show()
         }
         findViewById<View>(R.id.btnBell).setOnClickListener { showNotifications() }
+        findViewById<View>(R.id.btnLite).setOnClickListener { LiteMode.show(this) { renderLite(); applyEffects() } }
 
         setupTabs(savedInstanceState?.getInt(STATE_TAB) ?: R.id.nav_radar)
         setupUsefulTiles()
@@ -396,6 +398,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         chatJob?.cancel()
+        GlowBorder.stop(findViewById(R.id.cardDriverTools))
+        GlowBorder.stop(btnLaunchWidget)
         mapController?.onHide()
         super.onPause()
     }
@@ -947,6 +951,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
         if (btnLaunchWidget.visibility != View.VISIBLE) tvLaunchHint.visibility = View.GONE
+        renderLite()
+        applyEffects()
+    }
+
+    /** Листок зелёный, когда лёгкий режим включён. */
+    private fun renderLite() {
+        findViewById<ImageView>(R.id.ivLite).imageTintList =
+            // Зелёный — включён; жёлтый — телефон слабый, режим стоит включить.
+            ColorStateList.valueOf(color(when {
+                LiteMode.enabled(this) -> R.color.tr_success
+                LiteMode.weakDevice(this) -> R.color.tr_warning
+                else -> R.color.tr_text
+            }))
+    }
+
+    /** Бегущая подсветка «Помощника» и кнопки радара — только Android 14+ и не в лёгком режиме. */
+    private fun applyEffects() {
+        GlowBorder.apply(findViewById(R.id.cardDriverTools), color(R.color.tr_accent), color(R.color.tr_cyan), 20)
+        GlowBorder.apply(btnLaunchWidget, color(if (FloatingWidgetService.isRunning) R.color.white else R.color.tr_cyan), color(R.color.tr_accent), 18)
     }
 
     private fun styleLaunchButton(text: String, icon: Int, @ColorRes background: Int, @ColorRes content: Int) {

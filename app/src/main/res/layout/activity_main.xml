@@ -61,18 +61,10 @@
                         android:textStyle="bold" />
 
                     <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="@string/main_subtitle"
-                        android:textColor="@color/tr_text_secondary"
-                        android:textSize="13sp" />
-
-                    <TextView
                         android:id="@+id/tvHeaderDays"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="4dp"
                         android:background="@drawable/bg_widget_pill"
                         android:backgroundTint="@color/tr_surface_high"
                         android:paddingHorizontal="10dp"
@@ -81,6 +73,29 @@
                         android:textStyle="bold"
                         android:visibility="gone" />
                 </LinearLayout>
+
+                <!-- Лёгкий режим для слабых телефонов -->
+                <FrameLayout
+                    android:id="@+id/btnLite"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginEnd="10dp"
+                    android:background="@drawable/bg_status_dot"
+                    android:backgroundTint="@color/tr_surface_high"
+                    android:clickable="true"
+                    android:contentDescription="@string/lite_desc"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackgroundBorderless">
+
+                    <ImageView
+                        android:id="@+id/ivLite"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_lite"
+                        app:tint="@color/tr_text" />
+                </FrameLayout>
 
                 <!-- Колокольчик: новая версия, конец подписки -->
                 <FrameLayout

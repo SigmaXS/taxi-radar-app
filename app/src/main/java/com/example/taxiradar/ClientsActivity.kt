@@ -34,7 +34,9 @@ class ClientsActivity : AppCompatActivity() {
         btnTag = findViewById(R.id.btnClientTag)
 
         findViewById<View>(R.id.btnClientsBack).setOnClickListener { finish() }
-        findViewById<View>(R.id.btnClientCheck).setOnClickListener { checkTyped() }
+        // «Проверить» — только посмотреть отзывы; «Добавить» — сразу открыть отметки и отзыв.
+        findViewById<View>(R.id.btnClientCheck).setOnClickListener { checkTyped(showEditor = false) }
+        findViewById<View>(R.id.btnClientAdd).setOnClickListener { checkTyped(showEditor = true) }
         btnTag.setOnClickListener { checkedNumber?.let { showTagDialog(it) } }
 
         // Открыли из уведомления о звонке — сразу этот клиент.
@@ -62,12 +64,14 @@ class ClientsActivity : AppCompatActivity() {
         checking = true
         btnTag.visibility = View.GONE
         findViewById<View>(R.id.btnClientCheck).isEnabled = false
+        findViewById<View>(R.id.btnClientAdd).isEnabled = false
         tvResult.visibility = View.VISIBLE
         tvResult.text = getString(R.string.setup_checking)
         lifecycleScope.launch {
             val s = ClientsManager.check(this@ClientsActivity, number)
             checking = false
             findViewById<View>(R.id.btnClientCheck).isEnabled = true
+            findViewById<View>(R.id.btnClientAdd).isEnabled = true
             if (s != null) {
                 ClientsManager.remember(this@ClientsActivity, number)
                 renderRecent()
@@ -86,6 +90,8 @@ class ClientsActivity : AppCompatActivity() {
             val pad = (14 * resources.displayMetrics.density).toInt()
             tvResult.setPadding(pad, pad, pad, pad)
             btnTag.visibility = if (s != null) View.VISIBLE else View.GONE
+            // Клиента ещё никто не отмечал — предлагаем добавить его и оставить отзыв.
+            btnTag.text = getString(if (s != null && s.tags.isEmpty() && s.reviews.isEmpty()) R.string.clients_add_review else R.string.clients_tag)
             if (showEditor && s != null && !intent.hasExtra("number")) showTagDialog(number)
         }
     }

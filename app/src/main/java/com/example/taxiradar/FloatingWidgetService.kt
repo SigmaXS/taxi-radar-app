@@ -444,7 +444,7 @@ class FloatingWidgetService : Service() {
     fun applyRoadAlerts() {
         val granted = checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
                 checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        val want = granted && RoadReports.alertsEnabled(this)
+        val want = granted && RoadReports.alertsEnabled(this) && !LiteMode.cuts(this, LiteMode.Feature.ROAD)
         val callback = locationCallback ?: return
         if (want && !trackingLocation) {
             // Разрешение могли дать уже после запуска радара — добавляем службе тип «location».
@@ -617,12 +617,15 @@ class FloatingWidgetService : Service() {
                     fetchSurgeForAll()
                 }
                 // Едем по заказу — надбавка «здесь» и в Б чаще, раз в 30 секунд.
-                delay(DriverPreferences.number(this@FloatingWidgetService, "refresh", 60.0).toLong().coerceIn(30, 300) * 1000)
+                val every = DriverPreferences.number(this@FloatingWidgetService, "refresh", 60.0).toLong().coerceIn(30, 300)
+                // Лёгкий режим: надбавка раз в 3 минуты — меньше сети и процессора.
+                delay((if (LiteMode.cuts(this@FloatingWidgetService, LiteMode.Feature.SURGE)) maxOf(every, 180) else every) * 1000)
             }
         }
         serviceScope.launch {
             val alerts = DriverAlerts()
             while (isActive) {
+                if (LiteMode.cuts(this@FloatingWidgetService, LiteMode.Feature.ALERTS)) { delay(180000); continue }
                 val fresh = DriverPreferences.flag(this@FloatingWidgetService, "surge_alert") && awaitFix()
                 alerts.check(this@FloatingWidgetService, if (fresh) driverLat else null, if (fresh) driverLon else null, DriverPreferences.selectedTariff(this@FloatingWidgetService))
                 delay(180000)

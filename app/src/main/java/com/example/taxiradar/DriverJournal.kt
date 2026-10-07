@@ -37,4 +37,20 @@ object DriverJournal {
     fun stop(c: Context) { p(c).edit().putString("last", active(c)).putString("active", "").putLong("ended", System.currentTimeMillis()).apply() }
     fun elapsedMinutes(c: Context): Long = if (selected(c).isEmpty()) 0 else ((if (active(c).isEmpty()) p(c).getLong("ended", 0) else System.currentTimeMillis()) - p(c).getLong("started", 0)).coerceAtLeast(0) / 60000
     fun rent(c: Context) = p(c).getFloat("rent", 0f).toDouble()
+
+    /**
+     * «Начинать смену автоматически»: первая поездка без открытой смены открывает её.
+     * Смену, забытую со вчера (старше 16 часов), закрываем временем её последней поездки.
+     */
+    fun autoStart(c: Context) {
+        if (!DriverPreferences.flag(c, "auto_shift", true)) return
+        val now = System.currentTimeMillis()
+        if (active(c).isNotEmpty()) {
+            if (now - p(c).getLong("started", now) < 16 * 3600_000L) return
+            val last = rides(c).filter { it.shift == active(c) }.maxOfOrNull { it.at } ?: p(c).getLong("started", now)
+            p(c).edit().putString("last", active(c)).putString("active", "").putLong("ended", last).apply()
+        }
+        start(c)
+        DriverPreferences.set(c, "shift_km", 0.0)
+    }
 }

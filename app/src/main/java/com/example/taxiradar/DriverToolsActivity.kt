@@ -143,14 +143,14 @@ class DriverToolsActivity : AppCompatActivity() {
         DriverUi.guide(this, body, t("Как это работает", "Cum funcționează"),
             if (t("ru", "ro") == "ru") listOf(
             "Перед первой сменой откройте «Настройки радара» → «Моя машина и расходы» и впишите расход на 100 км, цену топлива и комиссию. Без этого видна только сумма, без «чистыми».",
-            "Нажмите «Начать смену». Время смены пойдёт само.",
+            "Смена начнётся сама, когда вы примете первый заказ (или нажмите «Начать смену» вручную).",
             "Работайте как обычно. Когда поездка заканчивается в Яндекс Про, радар сам записывает её в «Историю» с ценой с экрана и пометкой «проверить».",
             "Нажмите на поездку в «Истории», впишите сумму, которую реально получили, и сохраните. В итог попадают только подтверждённые поездки.",
             "Поездка не записалась (например, радар был выключен)? Нажмите «Добавить поездку» и впишите её вручную.",
             "В конце смены по желанию впишите общий пробег по одометру — так видно, сколько км вы проехали пустым. Нажмите «Закончить смену»."
         ) else listOf(
             "Înainte de prima tură deschideți «Setările radarului» → «Mașina și cheltuielile» și completați consumul la 100 km, prețul carburantului și comisionul. Fără ele vedeți doar suma, fără «net».",
-            "Apăsați «Începe tura». Timpul turei pornește singur.",
+            "Tura pornește singură la prima ofertă acceptată (sau apăsați «Începe tura» manual).",
             "Lucrați ca de obicei. Când cursa se termină în Yandex Pro, radarul o scrie singur în «Istoric» cu prețul de pe ecran și eticheta «verificați».",
             "Apăsați cursa în «Istoric», introduceți suma primită efectiv și salvați. Doar cursele confirmate intră în total.",
             "Cursa nu s-a înregistrat (de ex. radarul era oprit)? Apăsați «Adaugă cursă» și introduceți-o manual.",
@@ -188,9 +188,30 @@ class DriverToolsActivity : AppCompatActivity() {
                 .setPositiveButton(R.string.got_it) { _, _ -> if (starting) { DriverJournal.start(this); DriverPreferences.set(this, "shift_km", 0.0) } else DriverJournal.stop(this); render() }
                 .setNegativeButton(R.string.cancel, null).show()
         }
+        DriverUi.toggle(this, summary, t("Начинать смену автоматически", "Pornește tura automat"),
+            t("Смена откроется сама, когда вы примете первый заказ. Если забыли закрыть смену вчера, она закроется сама и начнётся новая.",
+                "Tura pornește singură la prima ofertă acceptată. Dacă ați uitat să închideți tura de ieri, se închide singură și începe una nouă."),
+            DriverPreferences.flag(this, "auto_shift", true)) { DriverPreferences.set(this, "auto_shift", it) }
         number(summary, "shift_km", "Общий пробег смены по одометру, км", "Kilometraj total al turei, km", 0.0, 0.0, 3000.0)
         DriverUi.button(this, summary, t("Обновить итоги", "Actualizează totalul")) { render() }
         DriverUi.button(this, summary, t("Добавить поездку / исправить цену", "Adaugă cursă / corectează prețul")) { editRide(null) }
+        DriverUi.button(this, summary, t("Отправить итог смены", "Trimite totalul turei")) {
+            // Обычный «Поделиться»: водитель сам выбирает Telegram, WhatsApp, Viber или заметки.
+            val lines = mutableListOf(
+                t("Taxi Radar · итог смены", "Taxi Radar · totalul turei") + " " + SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date()),
+                t("Время: ${elapsed / 60} ч ${elapsed % 60} мин", "Durata: ${elapsed / 60} h ${elapsed % 60} min"),
+                t("Заказов: ${confirmed.size}", "Curse: ${confirmed.size}"),
+                t("Оплата: $gross L", "Plata: $gross L")
+            )
+            if (DriverPreferences.costsReady(this) && confirmed.all { it.costsReady }) {
+                lines += t("Чистыми: ~${net.toInt()} L", "Net: ~${net.toInt()} L")
+                if (elapsed > 0) lines += t("В час: ~${(net * 60 / elapsed).toInt()} L", "Pe oră: ~${(net * 60 / elapsed).toInt()} L")
+            }
+            lines += t("С пассажиром: ${fmt(paidKm)} км", "Cu pasager: ${fmt(paidKm)} km")
+            if (totalKm >= paidKm && totalKm > 0) lines += t("Общий пробег: ${fmt(totalKm)} км", "Kilometraj total: ${fmt(totalKm)} km")
+            val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, lines.joinToString("\n"))
+            startActivity(android.content.Intent.createChooser(send, t("Отправить итог смены", "Trimite totalul turei")))
+        }
         offer()
         val history = card("История и точность", "Istoric și precizie", "Все поездки по порядку. «Проверить» — радар записал поездку сам по экрану Яндекса, сумма может быть неточной. Нажмите на поездку, впишите, сколько реально получили, и сохраните — она станет «подтверждено» и попадёт в итог. Ошибочную запись можно удалить там же.\n\n«Разница» — насколько реальная оплата отличалась от расчёта радара.", "Apăsați o cursă pentru a confirma/corecta suma sau a șterge înregistrarea. Pentru un preț diferit introduceți plata reală. Păstrăm ultimele 500 de înregistrări.", R.drawable.ic_payments)
         if (rides.isEmpty()) history.addView(DriverUi.text(this, t("Пока нет поездок. Добавьте первую вручную.", "Nu există curse. Adăugați prima manual."), 14f, true))

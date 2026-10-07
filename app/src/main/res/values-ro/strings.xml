@@ -526,4 +526,7 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
         <item quantity="few">%d mesaje noi</item>
         <item quantity="other">%d de mesaje noi</item>
     </plurals>
+    <string name="lite_desc">Mod ușor pentru telefoane slabe</string>
+    <string name="clients_add">Adaugă client</string>
+    <string name="clients_add_review">Adaugă clientul și o recenzie</string>
 </resources>

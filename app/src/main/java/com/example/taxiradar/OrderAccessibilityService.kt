@@ -146,7 +146,8 @@ class OrderAccessibilityService : AccessibilityService() {
         // раз, когда он «успокоился» (150 мс без новых событий), — иначе служба
         // гоняла процессор и грела телефон.
         handler.removeCallbacks(processScreen)
-        handler.postDelayed(processScreen, 150)
+        // Лёгкий режим: ждём дольше, экран разбирается реже.
+        handler.postDelayed(processScreen, if (LiteMode.enabled(this)) 400 else 150)
     }
 
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -174,6 +175,8 @@ class OrderAccessibilityService : AccessibilityService() {
                 it.contains("Принять", ignoreCase = true) || it.contains("Accept", ignoreCase = true)
             }
             if (!hasAccept) {
+                // Лёгкий режим: экран поездки не разбираем — только карточки заказов.
+                if (LiteMode.cuts(this, LiteMode.Feature.TRIP)) return
                 maybeLearnTraffic(allNodes)
                 TripDestination.onScreen(this, allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() })
                 TripTracker.onScreen(this, root.packageName?.toString().orEmpty(), allTexts)
@@ -181,7 +184,7 @@ class OrderAccessibilityService : AccessibilityService() {
             }
             // Полный список текстов — только для карточки заказа (для разбора ошибок).
             // Строка лога обрезается после ~4 КБ — пишем кусками.
-            allTexts.mapIndexed { i, t -> "[$i]\"$t\"" }.joinToString(" | ").chunked(3000).forEachIndexed { i, part ->
+            if (!LiteMode.cuts(this, LiteMode.Feature.LOGS)) allTexts.mapIndexed { i, t -> "[$i]\"$t\"" }.joinToString(" | ").chunked(3000).forEachIndexed { i, part ->
                 Log.d("ORDER_DEBUG", "Все тексты с экрана (${allTexts.size} шт) [${i + 1}]: $part")
             }
             // Новая карточка заказа: способ оплаты прошлого клиента больше не наш.
