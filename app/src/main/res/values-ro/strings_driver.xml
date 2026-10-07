@@ -8,8 +8,10 @@
     <string name="driver_tools_help">Setările radarului: alegeți rândurile widgetului, intervalul de preț, cheltuielile și notificările. Tura mea: începeți tura, confirmați plata și consultați totalul. Verificați sumele citite din Yandex. Estimările nu garantează prețul final.</string>
     <string name="driver_settings">Setări radar și widget</string>
     <string name="driver_shift">Tura mea și rentabilitatea</string>
-    <string name="driver_tools_caption">Cheltuielile și ținta dvs., doar cifrele utile</string>
+    <string name="driver_tools_caption">Cerere · cheltuieli · istoric</string>
     <string name="driver_permission_guide">Ghid Samsung / Xiaomi / altele</string>
     <string name="driver_clients_check">Verifică și adaugă clientul</string>
     <string name="driver_clients_hint">Introduceți numărul și apăsați «Verifică și adaugă clientul». Numărul rămâne în lista recentă, apoi puteți adăuga etichete sau un comentariu. Eticheta comună apare doar după salvare.</string>
+    <string name="driver_settings_short">Radar și widget</string>
+    <string name="driver_shift_short">Tură și venit</string>
 </resources>

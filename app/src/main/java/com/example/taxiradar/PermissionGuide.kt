@@ -29,6 +29,16 @@ object PermissionGuide {
             try { activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${activity.packageName}"))) } catch (_: Exception) {}
         }
         DriverUi.button(activity, box, t("Открыть Специальные возможности", "Deschide Accesibilitate")) { AccessibilityAccess.open(activity) }
+        val links = DriverUi.card(activity, parent, t("Инструкции и видео", "Ghiduri și video"), t("Видео на английском; расположение пунктов зависит от прошивки. Для HyperOS используйте актуальную инструкцию Xiaomi, а не старый экран MIUI.", "Videouri în engleză; meniurile diferă după sistem. Pentru HyperOS folosiți ghidul actual Xiaomi, nu vechiul ecran MIUI."), R.drawable.ic_play)
+        fun link(label: String, url: String) = DriverUi.button(activity, links, label) {
+            try { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: android.content.ActivityNotFoundException) {
+                android.widget.Toast.makeText(activity, t("Установите браузер для открытия ссылки", "Instalați un browser pentru link"), android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        link(t("Видео: Samsung — ограниченные настройки", "Video: Samsung — setări restricționate"), "https://www.youtube.com/watch?v=6ilFOvyYg8w")
+        link(t("Видео: Xiaomi MIUI 12 — автозапуск", "Video: Xiaomi MIUI 12 — pornire automată"), "https://www.youtube.com/watch?v=00ybP-fuEJo")
+        link(t("Xiaomi HyperOS — инструкция производителя", "Xiaomi HyperOS — ghidul producătorului"), "https://www.mi.com/global/support/faq/details/KA-507611/")
+        link(t("Samsung — инструкция производителя", "Samsung — ghidul producătorului"), "https://www.samsung.com/us/support/answer/ANS10001906/")
     }
     fun show(activity: Activity) {
         val body = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(DriverUi.dp(activity, 12), 0, DriverUi.dp(activity, 12), 0) }

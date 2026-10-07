@@ -65,12 +65,6 @@ class MainActivity : AppCompatActivity() {
     private var mapController: SurgeMapController? = null
     private var currentTab = R.id.nav_radar
 
-    private lateinit var switchNet: MaterialSwitch
-    private lateinit var layoutNetFields: View
-    private lateinit var etFuelConsumption: EditText
-    private lateinit var etFuelPrice: EditText
-    private lateinit var etCommission: EditText
-    private lateinit var tvNetExample: TextView
 
     private lateinit var cardReferral: View
     private lateinit var tvReferralCaption: TextView
@@ -91,9 +85,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnYandexSave: MaterialButton
     private lateinit var btnYandexDisconnect: MaterialButton
 
-    private lateinit var cbEconom: CheckBox
-    private lateinit var cbComfort: CheckBox
-    private lateinit var cbComfortPlus: CheckBox
 
 
     private val overlayPermissionLauncher = registerForActivityResult(
@@ -115,6 +106,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        DriverUi.adaptDashboard(this, findViewById(android.R.id.content))
 
         // Первый запуск — мастер настройки шаг за шагом.
         if (!SetupWizardActivity.isDone(this)) {
@@ -142,12 +134,6 @@ class MainActivity : AppCompatActivity() {
             R.id.nav_profile to findViewById(R.id.pageProfile)
         )
 
-        switchNet = findViewById(R.id.switchNet)
-        layoutNetFields = findViewById(R.id.layoutNetFields)
-        etFuelConsumption = findViewById(R.id.etFuelConsumption)
-        etFuelPrice = findViewById(R.id.etFuelPrice)
-        etCommission = findViewById(R.id.etCommission)
-        tvNetExample = findViewById(R.id.tvNetExample)
 
         cardReferral = findViewById(R.id.cardReferral)
         tvReferralCaption = findViewById(R.id.tvReferralCaption)
@@ -168,14 +154,9 @@ class MainActivity : AppCompatActivity() {
         btnYandexSave = findViewById(R.id.btnYandexSave)
         btnYandexDisconnect = findViewById(R.id.btnYandexDisconnect)
 
-        cbEconom = findViewById(R.id.cbEconom)
-        cbComfort = findViewById(R.id.cbComfort)
-        cbComfortPlus = findViewById(R.id.cbComfortPlus)
 
-        loadSelectedTariffs()
         checkIfAppUpdated()
         setupYandexCard()
-        setupNetCard()
         setupContacts()
         setupReferralCard()
         setupWidgetSize()
@@ -188,7 +169,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnDriverInfo).setOnClickListener {
             MaterialAlertDialogBuilder(this).setTitle(R.string.driver_tools_title).setMessage(R.string.driver_tools_help).setPositiveButton(R.string.got_it, null).show()
         }
-        fitTariffs()
         findViewById<View>(R.id.btnBell).setOnClickListener { showNotifications() }
 
         setupTabs(savedInstanceState?.getInt(STATE_TAB) ?: R.id.nav_radar)
@@ -203,16 +183,6 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SetupCheckActivity::class.java))
         }
         findViewById<View>(R.id.btnLanguage).setOnClickListener { showLanguageChooser() }
-
-        // Один тариф: несколько надбавок в виджете — длинная строка, а пользы мало.
-        findViewById<com.google.android.material.chip.ChipGroup>(R.id.groupTariffs).setOnCheckedStateChangeListener { _, ids ->
-            val id = ids.firstOrNull() ?: return@setOnCheckedStateChangeListener
-            getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE).edit()
-                .putBoolean("show_econom", id == R.id.cbEconom)
-                .putBoolean("show_comfort", id == R.id.cbComfort)
-                .putBoolean("show_comfortplus", id == R.id.cbComfortPlus)
-                .apply()
-        }
 
         btnActivate.setOnClickListener {
             val key = etLicenseKey.text.toString().trim()
@@ -272,33 +242,6 @@ class MainActivity : AppCompatActivity() {
         }
         bottomNav.selectedItemId = initial
         showTab(initial)
-    }
-
-    /** Equal-width, single-line tariff chips even on 320dp screens. */
-    private fun fitTariffs() {
-        val group = findViewById<com.google.android.material.chip.ChipGroup>(R.id.groupTariffs)
-        group.isSingleLine = true
-        group.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            val width = ((group.width - group.paddingLeft - group.paddingRight - group.chipSpacingHorizontal * 2) / 3).coerceAtLeast(1)
-            listOf(R.id.cbEconom, R.id.cbComfort, R.id.cbComfortPlus).forEach { id ->
-                val chip = findViewById<com.google.android.material.chip.Chip>(id)
-                if (chip.layoutParams.width != width) {
-                    chip.layoutParams = chip.layoutParams.apply { this.width = width }
-                    chip.isCheckedIconVisible = false
-                    chip.chipStartPadding = 4 * resources.displayMetrics.density
-                    chip.chipEndPadding = 4 * resources.displayMetrics.density
-                    chip.textStartPadding = 0f; chip.textEndPadding = 0f
-                    chip.maxLines = 1
-                }
-                // Chip paints its label through ChipDrawable: TextView autosizing can
-                // leave that drawable at the old size, cutting off the '+' character.
-                val available = (width - chip.paddingLeft - chip.paddingRight - 2 * resources.displayMetrics.density).coerceAtLeast(1f)
-                val maxSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 14f, resources.displayMetrics)
-                val measure = android.text.TextPaint(chip.paint).apply { textSize = maxSize }
-                val size = minOf(maxSize, maxSize * available / measure.measureText(chip.text.toString()).coerceAtLeast(1f))
-                if (kotlin.math.abs(chip.textSize - size) > 0.5f) chip.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, size)
-            }
-        }
     }
 
     private fun showTab(tab: Int) {
@@ -541,69 +484,6 @@ class MainActivity : AppCompatActivity() {
             }
             .show()
     }
-
-    private var refreshingNet = false
-    private fun refreshNetCard() {
-        refreshingNet = true
-        val s = NetEarnings.load(this)
-        switchNet.isChecked = DriverPreferences.flag(this, "net", s.enabled)
-        etFuelConsumption.setText(formatNumber(s.consumptionPer100Km))
-        etFuelPrice.setText(if (s.fuelPrice > 0) formatNumber(s.fuelPrice) else "")
-        etCommission.setText(formatNumber(s.commissionPercent))
-        refreshingNet = false
-        renderNetVisibility(switchNet.isChecked)
-        updateNetExample()
-    }
-    private fun setupNetCard() {
-        val s = NetEarnings.load(this)
-        switchNet.isChecked = DriverPreferences.flag(this, "net", s.enabled)
-        etFuelConsumption.setText(formatNumber(s.consumptionPer100Km))
-        if (s.fuelPrice > 0) etFuelPrice.setText(formatNumber(s.fuelPrice))
-        etCommission.setText(formatNumber(s.commissionPercent))
-        renderNetVisibility(switchNet.isChecked)
-
-        val save = {
-            if (!refreshingNet) {
-            NetEarnings.save(
-                this,
-                NetEarnings.Settings(
-                    enabled = switchNet.isChecked,
-                    consumptionPer100Km = parseNumber(etFuelConsumption),
-                    fuelPrice = parseNumber(etFuelPrice),
-                    commissionPercent = parseNumber(etCommission).coerceIn(0.0, 100.0)
-                )
-            )
-            updateNetExample()
-            }
-        }
-        switchNet.setOnCheckedChangeListener { _, checked ->
-            if (!refreshingNet) DriverPreferences.set(this, "net", checked)
-            renderNetVisibility(checked)
-            save()
-        }
-        listOf(etFuelConsumption, etFuelPrice, etCommission).forEach { it.doAfterTextChanged { save() } }
-        updateNetExample()
-    }
-
-    private fun renderNetVisibility(enabled: Boolean) {
-        layoutNetFields.visibility = if (enabled) View.VISIBLE else View.GONE
-        tvNetExample.visibility = if (enabled) View.VISIBLE else View.GONE
-    }
-
-    private fun updateNetExample() {
-        val net = NetEarnings.compute(this, price = 100, tripKm = 10.0, pickupKm = 1.0)
-        tvNetExample.text = if (net == null) {
-            getString(R.string.net_need_fuel_price)
-        } else {
-            getString(R.string.net_example, net)
-        }
-    }
-
-    private fun parseNumber(field: EditText): Double =
-        field.text.toString().replace(',', '.').trim().toDoubleOrNull() ?: 0.0
-
-    private fun formatNumber(value: Double): String =
-        if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
 
     private fun setupContacts() {
         tileContact.setOnClickListener {
@@ -1009,20 +889,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadSelectedTariffs() {
-        val prefs = getSharedPreferences("taxi_radar_prefs", Context.MODE_PRIVATE)
-        // Раньше можно было выбрать несколько — оставляем первый из выбранных.
-        when {
-            prefs.getBoolean("show_econom", true) -> cbEconom
-            prefs.getBoolean("show_comfort", false) -> cbComfort
-            prefs.getBoolean("show_comfortplus", false) -> cbComfortPlus
-            else -> cbEconom
-        }.isChecked = true
-    }
-
     override fun onResume() {
         super.onResume()
-        refreshNetCard()
         renderYandexState()
         renderTraffic()
         renderSetupWarning()

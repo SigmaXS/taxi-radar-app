@@ -57,19 +57,42 @@ class DriverToolsTest {
         }
     }
     @Test fun tariffChipsStayInOneRowOnNarrowScreen() {
-        DriverPreferences.prefs(c).edit().putBoolean("wizard_done", true).putInt("last_app_version", 9999).commit()
-        ActivityScenario.launch<MainActivity>(Intent(c, MainActivity::class.java)).use { scenario ->
+        ActivityScenario.launch<DriverToolsActivity>(Intent(c, DriverToolsActivity::class.java)).use { scenario ->
             InstrumentationRegistry.getInstrumentation().waitForIdleSync()
             scenario.onActivity { activity ->
-                val chips = listOf(R.id.cbEconom, R.id.cbComfort, R.id.cbComfortPlus).map { activity.findViewById<com.google.android.material.chip.Chip>(it) }
+                val chips = listOf(R.id.cbEconom, R.id.cbComfort, R.id.cbComfortPlus).map { activity.findViewById<com.google.android.material.button.MaterialButton>(it) }
                 assertEquals(chips[0].top, chips[1].top)
                 assertEquals(chips[0].top, chips[2].top)
                 val group = activity.findViewById<android.view.View>(R.id.groupTariffs)
                 assertTrue(chips[2].right <= group.width)
                 assertTrue(chips.all { it.width > 0 })
                 assertTrue("Tariff names, including +, must fit in full", chips.all { it.paint.measureText(it.text.toString()) <= it.width - it.paddingLeft - it.paddingRight + 1 })
+                assertTrue(chips.all { it.gravity and android.view.Gravity.HORIZONTAL_GRAVITY_MASK == android.view.Gravity.CENTER_HORIZONTAL })
+                chips[2].performClick()
+                assertTrue(DriverPreferences.prefs(c).getBoolean("show_comfortplus", false))
+                assertFalse(DriverPreferences.prefs(c).getBoolean("show_econom", true))
                 group.requestRectangleOnScreen(android.graphics.Rect(0, 0, group.width, group.height), true)
             }
+            screenshot("tariffs")
+        }
+    }
+    @Test fun dashboardOrderLanguageAndExplanations() {
+        DriverPreferences.prefs(c).edit().putBoolean("wizard_done", true).putInt("last_app_version", c.packageManager.getPackageInfo(c.packageName, 0).versionCode).commit()
+        ActivityScenario.launch<MainActivity>(Intent(c, MainActivity::class.java)).use { scenario ->
+            scenario.onActivity { activity ->
+                val helper = activity.findViewById<android.view.View>(R.id.cardDriverTools)
+                val check = activity.findViewById<android.view.View>(R.id.btnSetupCheck)
+                val parent = helper.parent as android.view.ViewGroup
+                assertEquals(parent.indexOfChild(helper) + 1, parent.indexOfChild(check))
+                assertNull(activity.findViewById<android.view.View>(R.id.groupTariffs))
+                val language = activity.findViewById<android.view.View>(R.id.btnLanguage)
+                assertEquals(1, (language.parent as android.view.ViewGroup).indexOfChild(language))
+                assertTrue(TripDestination.enabled())
+                val explanation = PermissionExplanations.forTitle(activity, activity.getString(R.string.chk_overlay))
+                assertTrue(explanation.length > 300)
+                assertNotEquals(activity.getString(R.string.chk_overlay_ok), explanation)
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
             screenshot("radar")
         }
     }

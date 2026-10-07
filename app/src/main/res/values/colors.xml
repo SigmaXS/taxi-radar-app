@@ -3,15 +3,15 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <color name="tr_bg">#0C1420</color>
-    <color name="tr_surface">#152231</color>
-    <color name="tr_surface_high">#1D3042</color>
-    <color name="tr_stroke">#34495C</color>
+    <color name="tr_bg">#090F1C</color>
+    <color name="tr_surface">#121F32</color>
+    <color name="tr_surface_high">#1B3049</color>
+    <color name="tr_stroke">#35516A</color>
 
     <color name="tr_accent">#FFCC00</color>
     <color name="tr_on_accent">#141414</color>
-    <color name="tr_accent_container">#243B39</color>
-    <color name="tr_on_accent_container">#BDEDDD</color>
+    <color name="tr_accent_container">#183647</color>
+    <color name="tr_on_accent_container">#B8EFF5</color>
 
     <color name="tr_text">#F4F4F6</color>
     <color name="tr_text_secondary">#B3C0CF</color>

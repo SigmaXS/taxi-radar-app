@@ -1,0 +1,8 @@
+<resources>
+    <color name="tr_cyan">#67E5F2</color>
+    <color name="tr_console_border">#37576D</color>
+    <item name="groupTariffs" type="id" />
+    <item name="cbEconom" type="id" />
+    <item name="cbComfort" type="id" />
+    <item name="cbComfortPlus" type="id" />
+</resources>

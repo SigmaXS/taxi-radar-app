@@ -175,7 +175,84 @@
 
 
             <!-- Не всё настроено: ведёт в «Проверку настроек» -->
-            <com.google.android.material.card.MaterialCardView
+
+            <!-- Тарифы -->
+
+
+
+
+            <com.google.android.material.card.MaterialCardView android:id="@+id/cardDriverTools" style="@style/TaxiRadar.Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" app:cardBackgroundColor="@color/tr_surface" app:strokeColor="@color/tr_cyan">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_driver_console" android:padding="8dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+                        <TextView style="@style/TaxiRadar.CardTitle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/driver_tools_title" android:textSize="19sp" />
+                        <ImageButton android:id="@+id/btnDriverInfo" android:layout_width="48dp" android:layout_height="48dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_help" android:contentDescription="@string/driver_tools_help" app:tint="@color/tr_on_accent_container" />
+                    </LinearLayout>
+                    <TextView style="@style/TaxiRadar.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_tools_caption" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverSettings" style="@style/TaxiRadar.Button" app:backgroundTint="@color/tr_cyan" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_settings_short" android:gravity="center" app:iconGravity="textStart" app:icon="@drawable/ic_settings" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverShift" style="@style/TaxiRadar.Button.Outlined" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_shift_short" android:gravity="center" app:iconGravity="textStart" app:strokeColor="@color/tr_cyan" app:icon="@drawable/ic_payments" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+<com.google.android.material.card.MaterialCardView
+                android:id="@+id/btnSetupCheck"
+                style="@style/TaxiRadar.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                app:contentPaddingBottom="14dp"
+                app:contentPaddingTop="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:background="@drawable/bg_status_dot"
+                        android:backgroundTint="@color/ic_green_bg"
+                        android:contentDescription="@null"
+                        android:padding="10dp"
+                        android:src="@drawable/ic_checklist"
+                        app:tint="@color/ic_green" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setup_check"
+                            android:textColor="@color/tr_text"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvSetupSub"
+                            style="@style/TaxiRadar.Caption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/setup_checking" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/tr_text_muted" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+<com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardSetupWarning"
                 style="@style/TaxiRadar.Card"
                 android:layout_width="match_parent"
@@ -219,79 +296,6 @@
                         android:textColor="@color/tr_accent"
                         android:textSize="14sp"
                         android:textStyle="bold" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-            <!-- Тарифы -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/TaxiRadar.Card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <TextView
-                        style="@style/TaxiRadar.CardTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/tariffs_title" />
-
-                    <TextView
-                        style="@style/TaxiRadar.Caption"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="@string/tariffs_caption" />
-
-                    <com.google.android.material.chip.ChipGroup
-                        android:id="@+id/groupTariffs"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        app:chipSpacingHorizontal="4dp"
-                        app:singleLine="true"
-                        app:selectionRequired="true"
-                        app:singleSelection="true">
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/cbEconom"
-                            style="@style/Widget.Material3.Chip.Filter"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:checked="true"
-                            android:text="@string/tariff_econom" />
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/cbComfort"
-                            style="@style/Widget.Material3.Chip.Filter"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/tariff_comfort" />
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/cbComfortPlus"
-                            style="@style/Widget.Material3.Chip.Filter"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/tariff_comfort_plus" />
-                    </com.google.android.material.chip.ChipGroup>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-
-
-            <com.google.android.material.card.MaterialCardView style="@style/TaxiRadar.Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" app:cardBackgroundColor="@color/tr_accent_container">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
-                        <TextView style="@style/TaxiRadar.CardTitle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/driver_tools_title" android:textSize="19sp" />
-                        <ImageButton android:id="@+id/btnDriverInfo" android:layout_width="48dp" android:layout_height="48dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_help" android:contentDescription="@string/driver_tools_help" app:tint="@color/tr_on_accent_container" />
-                    </LinearLayout>
-                    <TextView style="@style/TaxiRadar.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_tools_caption" />
-                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverSettings" style="@style/TaxiRadar.Button.Tonal" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_settings" app:icon="@drawable/ic_settings" />
-                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverShift" style="@style/TaxiRadar.Button.Outlined" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_shift" app:icon="@drawable/ic_payments" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -493,66 +497,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/btnSetupCheck"
-                style="@style/TaxiRadar.Card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
-                app:contentPaddingBottom="14dp"
-                app:contentPaddingTop="14dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:background="@drawable/bg_status_dot"
-                        android:backgroundTint="@color/ic_green_bg"
-                        android:contentDescription="@null"
-                        android:padding="10dp"
-                        android:src="@drawable/ic_checklist"
-                        app:tint="@color/ic_green" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="14dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/setup_check"
-                            android:textColor="@color/tr_text"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvSetupSub"
-                            style="@style/TaxiRadar.Caption"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="@string/setup_checking" />
-                    </LinearLayout>
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:contentDescription="@null"
-                        android:src="@drawable/ic_chevron_right"
-                        app:tint="@color/tr_text_muted" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
             </LinearLayout>
         </ScrollView>
@@ -635,125 +580,7 @@
                 android:textSize="13sp"
                 android:textStyle="bold" />
             <!-- Чистый заработок -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/TaxiRadar.Card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                style="@style/TaxiRadar.CardTitle"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/net_title" />
-
-                            <TextView
-                                style="@style/TaxiRadar.Caption"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="@string/net_caption" />
-                        </LinearLayout>
-
-                        <com.google.android.material.materialswitch.MaterialSwitch
-                            android:id="@+id/switchNet"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/layoutNetFields"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="6dp"
-                            android:layout_weight="1"
-                            android:hint="@string/net_consumption"
-                            app:boxCornerRadiusBottomEnd="12dp"
-                            app:boxCornerRadiusBottomStart="12dp"
-                            app:boxCornerRadiusTopEnd="12dp"
-                            app:boxCornerRadiusTopStart="12dp">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etFuelConsumption"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="numberDecimal"
-                                android:singleLine="true" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginHorizontal="3dp"
-                            android:layout_weight="1"
-                            android:hint="@string/net_fuel_price"
-                            app:boxCornerRadiusBottomEnd="12dp"
-                            app:boxCornerRadiusBottomStart="12dp"
-                            app:boxCornerRadiusTopEnd="12dp"
-                            app:boxCornerRadiusTopStart="12dp">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etFuelPrice"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="numberDecimal"
-                                android:singleLine="true" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:hint="@string/net_commission"
-                            app:boxCornerRadiusBottomEnd="12dp"
-                            app:boxCornerRadiusBottomStart="12dp"
-                            app:boxCornerRadiusTopEnd="12dp"
-                            app:boxCornerRadiusTopStart="12dp">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etCommission"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:inputType="numberDecimal"
-                                android:singleLine="true" />
-                        </com.google.android.material.textfield.TextInputLayout>
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvNetExample"
-                        style="@style/TaxiRadar.Caption"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
 
             <!-- Попутчики: лента заявок из бота (группы Telegram и Viber) -->
@@ -1036,7 +863,67 @@
                 android:textColor="@color/tr_text"
                 android:textSize="26sp"
                 android:textStyle="bold" />
-            <!-- Статус подписки -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/btnLanguage"
+                style="@style/TaxiRadar.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                app:contentPaddingBottom="14dp"
+                app:contentPaddingTop="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:background="@drawable/bg_status_dot"
+                        android:backgroundTint="@color/ic_pink_bg"
+                        android:contentDescription="@null"
+                        android:padding="10dp"
+                        android:src="@drawable/ic_language"
+                        app:tint="@color/ic_pink" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="14dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/lang_title"
+                            android:textColor="@color/tr_text"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvLanguageSub"
+                            style="@style/TaxiRadar.Caption"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/lang_system" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/tr_text_muted" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+<!-- Статус подписки -->
             <com.google.android.material.card.MaterialCardView
                 style="@style/TaxiRadar.Card"
                 android:layout_width="match_parent"
@@ -1442,66 +1329,7 @@
             </com.google.android.material.card.MaterialCardView>
 
 
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/btnLanguage"
-                style="@style/TaxiRadar.Card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
-                app:contentPaddingBottom="14dp"
-                app:contentPaddingTop="14dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:background="@drawable/bg_status_dot"
-                        android:backgroundTint="@color/ic_pink_bg"
-                        android:contentDescription="@null"
-                        android:padding="10dp"
-                        android:src="@drawable/ic_language"
-                        app:tint="@color/ic_pink" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="14dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/lang_title"
-                            android:textColor="@color/tr_text"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvLanguageSub"
-                            style="@style/TaxiRadar.Caption"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="@string/lang_system" />
-                    </LinearLayout>
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:contentDescription="@null"
-                        android:src="@drawable/ic_chevron_right"
-                        app:tint="@color/tr_text_muted" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
             <TextView
                 android:id="@+id/tvVersion"

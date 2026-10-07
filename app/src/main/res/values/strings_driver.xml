@@ -8,8 +8,10 @@
     <string name="driver_tools_help">Настройки радара: выберите строки виджета, диапазон цены, расходы машины и уведомления. Моя смена: начните смену, подтверждайте оплату и смотрите итоги. Суммы с экрана Яндекса требуют проверки. Прогнозы не гарантируют окончательную цену.</string>
     <string name="driver_settings">Настройки радара и виджета</string>
     <string name="driver_shift">Моя смена и выгодность заказов</string>
-    <string name="driver_tools_caption">Ваши расходы, ваша цель, только нужные цифры</string>
+    <string name="driver_tools_caption">Спрос · расходы · история</string>
     <string name="driver_permission_guide">Инструкция Samsung / Xiaomi / другие</string>
     <string name="driver_clients_check">Проверить и добавить клиента</string>
     <string name="driver_clients_hint">Введите номер вручную и нажмите «Проверить и добавить клиента». Номер сохранится в последних клиентах, а вы сразу сможете поставить отметку или написать отзыв. Общая отметка появляется только после сохранения.</string>
+    <string name="driver_settings_short">Радар и виджет</string>
+    <string name="driver_shift_short">Смена и доход</string>
 </resources>

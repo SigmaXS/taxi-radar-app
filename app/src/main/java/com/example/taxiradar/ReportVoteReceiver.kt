@@ -16,10 +16,14 @@ class ReportVoteReceiver : BroadcastReceiver() {
         val still = intent.getBooleanExtra("still", true)
         val app = context.applicationContext
         app.getSystemService(NotificationManager::class.java)?.cancel(RoadReports.ROAD_NOTIFICATION_ID)
+        app.getSystemService(NotificationManager::class.java)?.cancel(RoadReports.ROAD_ALERT_ID)
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                RoadReports.vote(app, id, still)
+                val ok = RoadReports.vote(app, id, still)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(app, app.getString(if (ok) R.string.map_vote_thanks else R.string.clients_no_connection), android.widget.Toast.LENGTH_SHORT).show()
+                }
             } finally {
                 pending.finish()
             }

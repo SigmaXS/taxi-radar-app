@@ -44,11 +44,16 @@ object RoadReports {
 
     data class Report(
         val id: Long, val type: String, val lat: Double, val lon: Double,
-        val createdMs: Long, val mine: Boolean, val voted: Boolean
+        val createdMs: Long, val mine: Boolean, val voted: Boolean, val active: Boolean = true
     )
 
-    suspend fun list(context: Context, lat: Double, lon: Double): List<Report>? {
-        val json = CommunityApi.post(context, "/api/reports/list", JSONObject().put("lat", lat).put("lon", lon)) ?: return null
+    suspend fun list(context: Context, lat: Double, lon: Double): List<Report>? =
+        load(context, "/api/reports/list", JSONObject().put("lat", lat).put("lon", lon))
+
+    suspend fun mine(context: Context): List<Report>? = load(context, "/api/reports/mine", JSONObject())
+
+    private suspend fun load(context: Context, endpoint: String, body: JSONObject): List<Report>? {
+        val json = CommunityApi.post(context, endpoint, body) ?: return null
         if (!json.optBoolean("ok")) return null
         val arr = json.optJSONArray("reports") ?: return emptyList()
         val iso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
@@ -58,7 +63,7 @@ object RoadReports {
             Report(
                 o.getLong("id"), o.getString("type"), o.getDouble("lat"), o.getDouble("lon"),
                 try { iso.parse(o.optString("created").take(19))?.time ?: 0L } catch (e: Exception) { 0L },
-                o.optBoolean("mine"), o.optBoolean("voted")
+                o.optBoolean("mine"), o.optBoolean("voted"), o.optBoolean("active", true)
             )
         }
     }
@@ -114,6 +119,14 @@ object RoadReports {
 
     const val ROAD_NOTIFICATION_ID = 303
 
+    private fun voteAction(context: Context, r: Report, still: Boolean): androidx.core.app.NotificationCompat.Action {
+        val intent = android.content.Intent(context, ReportVoteReceiver::class.java)
+            .putExtra("id", r.id).putExtra("still", still)
+        val pi = android.app.PendingIntent.getBroadcast(context, (r.id * 2 + if (still) 1 else 0).toInt(), intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        return androidx.core.app.NotificationCompat.Action(0, context.getString(if (still) R.string.map_still_here else R.string.map_not_here), pi)
+    }
+
     /** «📸 Радар через 400 м» — со звуком, видно поверх навигатора. */
     fun notifyAhead(context: Context, r: Report, meters: Int) {
         val type = type(r.type) ?: return
@@ -132,6 +145,9 @@ object RoadReports {
             .setCategory(androidx.core.app.NotificationCompat.CATEGORY_NAVIGATION)
             .setTimeoutAfter(30_000)
             .setAutoCancel(true)
+            .setContentText(DriverUi.t(context, "Подтвердите, когда увидите место: ещё здесь или уже нет?", "Confirmați când vedeți locul: încă aici sau nu mai este?"))
+            .addAction(voteAction(context, r, true))
+            .addAction(voteAction(context, r, false))
             .build()
         try {
             nm.notify(ROAD_ALERT_ID, n)
@@ -139,7 +155,7 @@ object RoadReports {
         }
     }
 
-    private const val ROAD_ALERT_ID = 304
+    const val ROAD_ALERT_ID = 304
 
     /** Кружок со значком для карты. */
     fun icon(context: Context, emoji: String, sizeDp: Int = 34): Drawable {

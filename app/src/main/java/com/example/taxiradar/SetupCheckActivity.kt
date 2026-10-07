@@ -290,7 +290,7 @@ class SetupCheckActivity : AppCompatActivity() {
             row.findViewById<TextView>(R.id.tvCheckTitle).text = c.title
             row.findViewById<TextView>(R.id.tvCheckHint).text = c.hint
             val infoParent = row.findViewById<TextView>(R.id.tvCheckTitle).parent as LinearLayout
-            DriverUi.expandable(this, infoParent, DriverUi.t(this, "Зачем это нужно", "De ce este necesar"), c.hint)
+            DriverUi.expandable(this, infoParent, DriverUi.t(this, "Зачем это нужно и как работает", "De ce și cum funcționează"), PermissionExplanations.forTitle(this, c.title))
             val btn = row.findViewById<MaterialButton>(R.id.btnCheckFix)
             if (c.action != null && c.onAction != null) {
                 btn.text = c.action

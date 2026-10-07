@@ -111,6 +111,7 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
         setupRotation(root)
         setupSearch(root)
         val layers = root.findViewById<View>(R.id.layoutMapLayers)
+        DriverUi.button(activity, layers as android.widget.LinearLayout, DriverUi.t(activity, "Мои метки и история", "Marcajele mele și istoricul")) { showMyReports() }
         root.findViewById<View>(R.id.btnMapLayers).setOnClickListener {
             layers.visibility = if (layers.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
@@ -369,14 +370,44 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
         }
         val b = com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
             .setTitle("${type.emoji}  ${activity.getString(type.label)}")
-            .setMessage(activity.getString(R.string.map_report_ago, ago))
-        if (r.mine) {
+            .setMessage(activity.getString(R.string.map_report_ago, ago) + "\n\n" + DriverUi.t(activity,
+                if (r.type in listOf("police", "radar")) "Живёт час после добавления или подтверждения. «Уже нет» снимает метку с карты." else "Остаётся до удаления. Подтвердите наличие или нажмите «Уже нет», если информация устарела.",
+                if (r.type in listOf("police", "radar")) "Rămâne o oră după adăugare sau confirmare. «Nu mai este» elimină marcajul." else "Rămâne până la eliminare. Confirmați prezența sau apăsați «Nu mai este» dacă informația nu mai este actuală."))
+        if (!r.active) {
+            b.setMessage(activity.getString(R.string.map_report_ago, ago) + "\n" + DriverUi.t(activity, "Метка уже снята с карты. Это запись вашей истории.", "Marcajul nu mai este activ. Aceasta este o înregistrare din istoric."))
+        } else if (r.mine) {
             b.setPositiveButton(R.string.map_report_remove) { _, _ -> vote(false) }
         } else {
             b.setPositiveButton(R.string.map_still_here) { _, _ -> vote(true) }
             b.setNeutralButton(R.string.map_not_here) { _, _ -> vote(false) }
         }
         b.setNegativeButton(R.string.close, null).show()
+    }
+
+    private fun showMyReports() {
+        scope.launch {
+            val history = RoadReports.mine(activity)
+            if (history == null) {
+                android.widget.Toast.makeText(activity, R.string.clients_no_connection, android.widget.Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val ownPlaces = places.filter { it.mine }
+            val labels = history.map { r ->
+                val type = RoadReports.type(r.type)
+                "${type?.emoji ?: "📍"} ${type?.let { activity.getString(it.label) } ?: r.type} · ${DriverUi.t(activity, if (r.active) "на карте" else "снята", if (r.active) "activ" else "eliminat")}\n${android.text.format.DateFormat.format("dd.MM HH:mm", r.createdMs)}"
+            } + ownPlaces.map { "📍 ${it.name}" }
+            val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                .setTitle(DriverUi.t(activity, "Мои метки и история", "Marcajele mele și istoricul"))
+            if (labels.isEmpty()) dialog.setMessage(DriverUi.t(activity, "Ваших меток пока нет. Долгое нажатие на карту добавляет метку. Здесь появятся последние 100 дорожных меток и ваши места в загруженной области карты.", "Nu aveți marcaje. Apăsați lung pe hartă pentru a adăuga unul. Aici apar ultimele 100 de marcaje rutiere și locurile dvs. din zona încărcată."))
+            else dialog.setItems(labels.toTypedArray()) { _, index ->
+                if (index < history.size) {
+                    val r = history[index]; map.controller.animateTo(GeoPoint(r.lat, r.lon)); showReport(r)
+                } else {
+                    val p = ownPlaces[index - history.size]; map.controller.animateTo(GeoPoint(p.lat, p.lon)); showPlace(p)
+                }
+            }
+            dialog.setNegativeButton(R.string.close, null).show()
+        }
     }
 
     // ---------- места водителей ----------
@@ -491,6 +522,15 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
             b.setNeutralButton(if (p.vote == -1) R.string.place_voted_down else R.string.place_down) { _, _ ->
                 act { Places.vote(activity, p.id, if (p.vote == -1) 0 else -1) }
             }
+            val removal = android.widget.LinearLayout(activity).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(DriverUi.dp(activity, 24), 0, DriverUi.dp(activity, 24), 0) }
+            DriverUi.button(activity, removal, DriverUi.t(activity, "Места уже нет — убрать с карты", "Locul nu mai există — elimină de pe hartă")) {
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                    .setTitle(DriverUi.t(activity, "Убрать место для всех?", "Eliminați locul pentru toți?"))
+                    .setMessage(DriverUi.t(activity, "Подтверждайте только если место закрылось или отметка ошибочна. Отрицательная оценка сама по себе не удаляет место.", "Confirmați doar dacă locul s-a închis sau marcajul este greșit. O evaluare negativă nu elimină locul."))
+                    .setPositiveButton(R.string.place_delete) { _, _ -> act { Places.delete(activity, p.id) } }
+                    .setNegativeButton(R.string.cancel, null).show()
+            }
+            b.setView(removal)
         }
         b.setNegativeButton(R.string.close, null).show()
     }
