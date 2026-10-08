@@ -49,6 +49,11 @@ class FloatingWidgetService : Service() {
             instance?.displayOrder(price, km, min, pickupKm, stops, bonus = bonus, doubts = doubts)
         }
 
+        /** Доставка: готовая сумма с карточки и пояснение, из чего она сложилась. */
+        fun showDelivery(price: Int, km: Double, min: Int, note: String) {
+            instance?.displayOrder(price, km, min, 0.0, 0, note = note)
+        }
+
         fun clearOrder() {
             instance?.cancelOrderDisplay()
         }

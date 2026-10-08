@@ -203,9 +203,14 @@ class OrderAccessibilityService : AccessibilityService() {
             cardPaymentSeenAt = 0L
 
             val cardLines = allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() }
-            if (isDeliveryCard(cardLines)) {
-                Log.d("ORDER_DEBUG", "Карточка Доставки — не считаем")
-                FloatingWidgetService.clearOrder()
+            if (DeliveryCard.isDelivery(cardLines)) {
+                // Доставка: цена фиксированная — старт + все «+N L» с карточки, по км не считаем.
+                val base = AppConfig.load(this).surgeBase["express"] ?: 25
+                val r = DeliveryCard.parse(cardLines, base)
+                Log.d("ORDER_DEBUG", "Карточка Доставки: $r")
+                if (r == null) FloatingWidgetService.clearOrder()
+                else FloatingWidgetService.showDelivery(r.price, r.km ?: 0.0, r.minutes ?: 0,
+                    DeliveryCard.explain(r, DriverUi.t(this, "ru", "ro") == "ru"))
                 return
             }
 
@@ -614,11 +619,6 @@ class OrderAccessibilityService : AccessibilityService() {
     }
 
     // ---------- Доставка ----------
-
-    /** Карточка «Доставка» — радар её не считает (только такси). */
-    private fun isDeliveryCard(lines: List<String>): Boolean =
-        lines.any { it.equals("Доставка", true) || it.equals("Livrare", true) } &&
-                lines.any { it.contains("получени", true) || it.contains("вручени", true) || it.equals("Откуда", true) || it.equals("De unde", true) }
 
     private val pickupRegex = Regex("""^(\d+(?:[.,]\d+)?)\s*(км|м|km|m)\s*·\s*\d+\s*(мин|min)""")
 
