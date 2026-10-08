@@ -179,6 +179,7 @@ class MainActivity : AppCompatActivity() {
         setupTabs(savedInstanceState?.getInt(STATE_TAB) ?: R.id.nav_radar)
         renderLite()
         showWhatsNew()
+        handleUpdateIntent(intent)
         setupUsefulTiles()
         findViewById<View>(R.id.cardSetupWarning).setOnClickListener {
             startActivity(Intent(this, SetupCheckActivity::class.java))
@@ -1330,6 +1331,19 @@ class MainActivity : AppCompatActivity() {
             return
         }
         AppUpdater.install(this, file)
+    }
+
+    /** Нажали уведомление «Вышла версия …» — сразу качаем. */
+    private fun handleUpdateIntent(i: Intent?) {
+        if (i?.getBooleanExtra(UpdateNotifier.EXTRA_START_UPDATE, false) != true) return
+        i.removeExtra(UpdateNotifier.EXTRA_START_UPDATE)
+        bottomNav.selectedItemId = R.id.nav_radar
+        if (AppUpdater.available(this)) startUpdate()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleUpdateIntent(intent)
     }
 
     /** После обновления — один раз «Что нового в версии …». */

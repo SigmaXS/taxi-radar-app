@@ -643,6 +643,8 @@ class FloatingWidgetService : Service() {
                 }
                 // Что не ушло при плохой связи — досылаем.
                 Outbox.flush(this@FloatingWidgetService)
+                // Вышла новая версия — уведомление в шторке (раз в 3 часа сверяемся).
+                UpdateNotifier.check(this@FloatingWidgetService, licenseManager)
                 // Едем по заказу — надбавка «здесь» и в Б чаще, раз в 30 секунд.
                 delay(DriverPreferences.number(this@FloatingWidgetService, "refresh", 60.0).toLong().coerceIn(30, 300) * 1000)
             }
