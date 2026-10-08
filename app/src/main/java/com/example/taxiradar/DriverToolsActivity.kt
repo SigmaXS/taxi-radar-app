@@ -264,20 +264,20 @@ class DriverToolsActivity : AppCompatActivity() {
             if (t("ru", "ro") == "ru") listOf(
             "Перед первой сменой откройте «Настройки радара» → «Моя машина и расходы» и впишите расход на 100 км, цену топлива и комиссию. Без этого видна только сумма, без «чистыми».",
             "Смена начнётся сама, когда вы примете первый заказ (или нажмите «Начать смену» вручную).",
-            "Работайте как обычно. Когда поездка заканчивается в Яндекс Про, радар сам записывает её в «Историю» с ценой с экрана и пометкой «проверить».",
-            "Нажмите на поездку в «Истории», впишите сумму, которую реально получили, и сохраните. В итог попадают только подтверждённые поездки.",
+            "Работайте как обычно. Когда поездка заканчивается в Яндекс Про, радар сам записывает её в «Мои поездки» с ценой с экрана и пометкой «проверить».",
+            "Откройте «Мои поездки», у поездки нажмите «Подтвердить сумму», впишите, сколько реально получили, и сохраните. В итог попадают только подтверждённые поездки.",
             "Поездка не записалась (например, радар был выключен)? Нажмите «Добавить поездку» и впишите её вручную.",
             "В конце смены по желанию впишите общий пробег по одометру — так видно, сколько км вы проехали пустым. Нажмите «Закончить смену»."
         ) else listOf(
             "Înainte de prima tură deschideți «Setările radarului» → «Mașina și cheltuielile» și completați consumul la 100 km, prețul carburantului și comisionul. Fără ele vedeți doar suma, fără «net».",
             "Tura pornește singură la prima ofertă acceptată (sau apăsați «Începe tura» manual).",
-            "Lucrați ca de obicei. Când cursa se termină în Yandex Pro, radarul o scrie singur în «Istoric» cu prețul de pe ecran și eticheta «verificați».",
-            "Apăsați cursa în «Istoric», introduceți suma primită efectiv și salvați. Doar cursele confirmate intră în total.",
+            "Lucrați ca de obicei. Când cursa se termină în Yandex Pro, radarul o scrie singur în «Cursele mele» cu prețul de pe ecran și eticheta «verificați».",
+            "Deschideți «Cursele mele», la cursă apăsați «Confirmă suma», introduceți suma primită efectiv și salvați. Doar cursele confirmate intră în total.",
             "Cursa nu s-a înregistrat (de ex. radarul era oprit)? Apăsați «Adaugă cursă» și introduceți-o manual.",
             "La sfârșitul turei, opțional, introduceți kilometrajul total de pe odometru — vedeți câți km ați mers gol. Apăsați «Încheie tura»."
         ),
             t("«Подтверждённая оплата» — сколько вы получили. «После расходов» — минус комиссия, топливо, обслуживание и аренда. «L/час» — чистыми за час смены. «До цели» — сколько осталось до цели смены из настроек. Всё хранится только на этом телефоне.", "«Plata confirmată» — cât ați încasat. «După cheltuieli» — minus comision, carburant, întreținere și chirie. «L/oră» — net pe oră de tură. «Până la țintă» — cât rămâne până la ținta din setări. Totul rămâne doar pe acest telefon."))
-        val summary = card("Результат смены", "Rezultatul turei", "Здесь итог вашей смены. Считаются только поездки, которые вы подтвердили в «Истории» (нажали на поездку и сохранили сумму). Поездки с пометкой «проверить» радар записал сам — проверьте их, и они добавятся.\n\nЧистыми = оплата минус комиссия, топливо, обслуживание и аренда из «Моя машина и расходы».\n\nПробег по одометру необязателен: если впишете, увидите, сколько км проехали без пассажира.", "Totalul include doar sumele confirmate. Verificați înregistrările citite din Yandex. Kilometrajul total se introduce de pe odometru; diferența față de curse este rulaj fără pasager.", R.drawable.ic_payments)
+        val summary = card("Результат смены", "Rezultatul turei", "Здесь итог вашей смены. Считаются только поездки, которые вы подтвердили в «Моих поездках» (кнопка «Подтвердить сумму»). Поездки с пометкой «проверить» радар записал сам — проверьте их, и они добавятся.\n\nЧистыми = оплата минус комиссия, топливо, обслуживание и аренда из «Моя машина и расходы».\n\nПробег по одометру необязателен: если впишете, увидите, сколько км проехали без пассажира.", "Totalul include doar sumele confirmate. Verificați înregistrările citite din Yandex. Kilometrajul total se introduce de pe odometru; diferența față de curse este rulaj fără pasager.", R.drawable.ic_payments)
         val rides = DriverJournal.rides(this)
         val current = rides.filter { it.shift == DriverJournal.selected(this) && it.shift.isNotEmpty() }
         val confirmed = current.filter { it.confirmed }

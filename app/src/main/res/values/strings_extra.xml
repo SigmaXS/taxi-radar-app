@@ -22,7 +22,7 @@
     <string name="sub_per_day">≈ %1$s %2$s в день</string>
     <string name="sub_promo_hint">Промокод (если есть)</string>
     <string name="sub_pay">Оплатить %1$d %2$s</string>
-    <string name="sub_pay_note">Откроется Telegram с готовым сообщением: тариф, промокод и ваш ID. После оплаты вам пришлют ключ — введите его ниже.</string>
+    <string name="sub_pay_note">Выберите Telegram, WhatsApp или Viber — сообщение с тарифом, промокодом и вашим ID уже готово. После оплаты вам пришлют ключ — введите его ниже.</string>
     <string name="sub_pay_message">Здравствуйте! Хочу оплатить подписку Taxi Radar.\nТариф: %1$s — %2$s\nПромокод: %3$s\nМой ID: %4$s</string>
     <string name="sub_no_promo">нет</string>
     <string name="sub_have_key">Уже есть ключ?</string>

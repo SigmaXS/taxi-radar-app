@@ -20,7 +20,7 @@
     <string name="sub_per_day">≈ %1$s %2$s pe zi</string>
     <string name="sub_promo_hint">Cod promoțional (dacă aveți)</string>
     <string name="sub_pay">Plătește %1$d %2$s</string>
-    <string name="sub_pay_note">Se va deschide Telegram cu un mesaj gata: tariful, codul promoțional și ID-ul dvs. După plată veți primi cheia — introduceți-o mai jos.</string>
+    <string name="sub_pay_note">Alegeți Telegram, WhatsApp sau Viber — mesajul cu tariful, codul promoțional și ID-ul dvs. e gata. După plată veți primi cheia — introduceți-o mai jos.</string>
     <string name="sub_pay_message">Bună ziua! Vreau să plătesc abonamentul Taxi Radar.\nTarif: %1$s — %2$s\nCod promoțional: %3$s\nID-ul meu: %4$s</string>
     <string name="sub_no_promo">nu</string>
     <string name="sub_have_key">Aveți deja o cheie?</string>

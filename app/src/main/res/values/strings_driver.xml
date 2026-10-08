@@ -11,7 +11,7 @@
     <string name="driver_tools_caption">Спрос · расходы · история</string>
     <string name="driver_permission_guide">Инструкция Samsung / Xiaomi / другие</string>
     <string name="driver_clients_check">Проверить и добавить клиента</string>
-    <string name="driver_clients_hint">Введите номер вручную и нажмите «Проверить и добавить клиента». Номер сохранится в последних клиентах, а вы сразу сможете поставить отметку или написать отзыв. Общая отметка появляется только после сохранения.</string>
+    <string name="driver_clients_hint">Введите номер. «Проверить» — посмотреть отметки и отзывы других водителей. «Добавить клиента» — сразу поставить свою отметку или написать отзыв. Номер сохранится в последних клиентах. Общая отметка появляется только после сохранения.</string>
     <string name="driver_settings_short">Радар и виджет</string>
     <string name="driver_shift_short">Смена и доход</string>
 </resources>
