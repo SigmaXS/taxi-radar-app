@@ -14,17 +14,17 @@ class DeliveryCardTest {
 
     @Test
     fun sumsAllAdditions() {
-        val r = DeliveryCard.parse(card, 25)!!
-        assertEquals(168, r.price)              // 25 + 95 + 17.8 + 30 = 167.8
+        val r = DeliveryCard.parse(card, 24)!!
+        assertEquals(167, r.price)              // 24 + 95 + 17.8 + 30 = 166.8
         assertEquals(3, r.items.size)
         assertEquals(1.3, r.km!!, 0.001)
         assertEquals(8, r.minutes)
-        assertEquals("Доставка: старт 25 + спрос 95 + подача 17.8 + до двери 30", DeliveryCard.explain(r, true))
+        assertEquals("Доставка: старт 24 + спрос 95 + подача 17.8 + до двери 30", DeliveryCard.explain(r, true))
     }
 
     @Test
     fun takesFullPriceWhenCardShowsIt() {
-        val r = DeliveryCard.parse(card + listOf("Наличные", "172 L"), 25)!!
+        val r = DeliveryCard.parse(card + listOf("Наличные", "172 L"), 24)!!
         assertEquals(172, r.price)
         assertTrue(r.fromCard)
     }

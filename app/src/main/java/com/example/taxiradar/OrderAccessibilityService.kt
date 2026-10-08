@@ -205,7 +205,7 @@ class OrderAccessibilityService : AccessibilityService() {
             val cardLines = allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() }
             if (DeliveryCard.isDelivery(cardLines)) {
                 // Доставка: цена фиксированная — старт + все «+N L» с карточки, по км не считаем.
-                val base = AppConfig.load(this).surgeBase["express"] ?: 25
+                val base = AppConfig.load(this).surgeBase["express"] ?: 24
                 val r = DeliveryCard.parse(cardLines, base)
                 Log.d("ORDER_DEBUG", "Карточка Доставки: $r")
                 if (r == null) FloatingWidgetService.clearOrder()
