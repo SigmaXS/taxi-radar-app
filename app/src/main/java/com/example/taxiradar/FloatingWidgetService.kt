@@ -180,12 +180,13 @@ class FloatingWidgetService : Service() {
                 val source = when {
                     note != null -> note
                     doubts == null -> DriverUi.t(this@FloatingWidgetService, if (OrderPreview.current()?.yandex == true) "По маршруту Яндекса" else "Расчётная цена", if (OrderPreview.current()?.yandex == true) "După ruta Yandex" else "Preț estimat")
-                    doubts.isEmpty() -> DriverUi.t(this@FloatingWidgetService, "✓ Точно: км и минуты Яндекса", "✓ Exact: km și minute Yandex")
-                    else -> DriverUi.t(this@FloatingWidgetService, "≈ Примерно: ", "≈ Aproximativ: ") + doubts.first()
+                    // Пояснения о точности не пишем — только «≈» перед км, если цена примерная.
+                    else -> null
                 }
+                val approx = doubts != null && doubts.isNotEmpty()
                 val details = listOfNotNull(
                     if (DriverPreferences.flag(this@FloatingWidgetService, "source", true)) source else null,
-                    if (DriverPreferences.flag(this@FloatingWidgetService, "distance", true) && km > 0) getString(R.string.widget_km, formatKm(km)) else null,
+                    if (DriverPreferences.flag(this@FloatingWidgetService, "distance", true) && km > 0) (if (approx) "≈ " else "") + getString(R.string.widget_km, formatKm(km)) else null,
                     if (DriverPreferences.flag(this@FloatingWidgetService, "minutes", true) && min > 0) getString(R.string.widget_min, min) else null,
                     if (DriverPreferences.flag(this@FloatingWidgetService, "pickup") && pickupKm > 0) DriverUi.t(this@FloatingWidgetService, "Подача ${formatKm(pickupKm)} км", "Preluare ${formatKm(pickupKm)} km") else null,
                     if (DriverPreferences.flag(this@FloatingWidgetService, "bonus") && bonus > 0) DriverUi.t(this@FloatingWidgetService, "Надбавка +$bonus L (в цене)", "Supliment +$bonus L (inclus)") else null,
@@ -242,7 +243,8 @@ class FloatingWidgetService : Service() {
     /** Цена заказа — крупнее обычного, чтобы читалась с одного взгляда. */
     private fun setOrderSize(order: Boolean) {
         orderSize = order
-        tvWidgetSurge?.textSize = (if (order) 25f else 28f) * scale
+        // Цена заказа — заметно крупнее надбавки между заказами: её видно с одного взгляда.
+        tvWidgetSurge?.textSize = (if (order) 38f else 28f) * scale
         tvWidgetSub?.textSize = (if (order) 13f else 11f) * scale
     }
 
@@ -726,6 +728,8 @@ class FloatingWidgetService : Service() {
         val showComfort = !prefs.getBoolean("show_econom", true) && prefs.getBoolean("show_comfort", false)
         val showComfortPlus = !prefs.getBoolean("show_econom", true) && !showComfort && prefs.getBoolean("show_comfortplus", false)
         val showEconom = !showComfort && !showComfortPlus
+        // Доставку можно включить вместе с одним тарифом такси — отдельной строкой ниже.
+        val showExpress = prefs.getBoolean("show_express", false)
 
         var hasSurge = false
 
@@ -747,7 +751,7 @@ class FloatingWidgetService : Service() {
             val old = surgeSnapshots[key]?.takeIf { now - it.at <= 10 * 60000 && RouteFareCalculator.distanceKm(lat, lon, it.lat, it.lon) < 0.2 }
             if (s == null) { missing = true; staleAge = old?.let { (now - it.at) / 60000 } }
             val shown = s ?: old?.value
-            hereValue = shown
+            if (hereValue == null) hereValue = shown
             val value = when { shown == null -> "?"; shown > 0 -> { hasSurge = true; "+$shown" }; else -> "0" }
             getString(label) to value
         }
@@ -757,7 +761,7 @@ class FloatingWidgetService : Service() {
                 if (i > 0) append("  ")
                 val start = length
                 append("$label ")
-                setSpan(android.text.style.RelativeSizeSpan(0.55f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                setSpan(android.text.style.RelativeSizeSpan(0.7f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 append(value)
             }
         }
@@ -772,7 +776,7 @@ class FloatingWidgetService : Service() {
                 val hot = v != null && v > 0
                 val start = sb.length
                 sb.append("$label ")
-                sb.setSpan(android.text.style.RelativeSizeSpan(0.55f), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(android.text.style.RelativeSizeSpan(0.7f), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 val vStart = sb.length
                 sb.append(if (v == null) "?" else if (hot) "+$v" else "0")
                 sb.setSpan(
@@ -794,6 +798,23 @@ class FloatingWidgetService : Service() {
                 val start = it.length
                 it.append(getString(R.string.widget_point_b) + " ?")
                 it.setSpan(ForegroundColorSpan(getColor(R.color.tr_text_muted)), start, it.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+
+        // Доставка — своей строкой: «Д +20» (в любом режиме, и в поездке с «Я / Б»).
+        if (showExpress) {
+            val d = YandexTaxiSurgeChecker.getSurgePrice(lon, lat, "express")
+            val now = System.currentTimeMillis()
+            if (d != null) surgeSnapshots["express"] = SurgeSnapshot(d, now, lat, lon)
+            val shown = d ?: surgeSnapshots["express"]?.takeIf { now - it.at <= 10 * 60000 }?.value
+            if (shown != null && shown > 0) hasSurge = true
+            displayText = SpannableStringBuilder(displayText).also { sb ->
+                sb.append("\n")
+                val start = sb.length
+                sb.append(getString(R.string.tariff_delivery_short) + " ")
+                sb.setSpan(android.text.style.RelativeSizeSpan(0.7f), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.append(when { shown == null -> "?"; shown > 0 -> "+$shown"; else -> "0" })
+                sb.setSpan(ForegroundColorSpan(getColor(if (shown != null && shown > 0) R.color.tr_surge else R.color.tr_accent)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
 

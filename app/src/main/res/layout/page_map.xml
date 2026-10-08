@@ -77,14 +77,42 @@
                 app:tint="@color/tr_accent" />
         </LinearLayout>
 
-        <!-- Предупреждения в дороге — отдельно, всегда под рукой -->
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chipRoadAlerts"
-            style="@style/Widget.Material3.Chip.Filter.Elevated"
+        <!-- Предупреждения в дороге — отдельно, всегда под рукой; «?» — как работает карта -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="@string/map_road_alerts" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipRoadAlerts"
+                style="@style/Widget.Material3.Chip.Filter.Elevated"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/map_road_alerts" />
+
+            <FrameLayout
+                android:id="@+id/btnMapHelp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_status_dot"
+                android:backgroundTint="@color/tr_surface_high"
+                android:clickable="true"
+                android:contentDescription="@string/map_help"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackgroundBorderless">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_help"
+                    app:tint="@color/tr_accent" />
+            </FrameLayout>
+        </LinearLayout>
 
         <!-- Слои и подсказка — по кнопке, чтобы не закрывали карту -->
         <LinearLayout

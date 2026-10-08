@@ -359,6 +359,8 @@ class MainActivity : AppCompatActivity() {
 
     /** «Предупреждать в дороге»: включает постоянный GPS в радаре (по умолчанию выкл). */
     private fun setupRoadAlertsChip() {
+        // «?» рядом — как работает карта: спрос, метки, предупреждения, места.
+        findViewById<View>(R.id.btnMapHelp).setOnClickListener { showMapIntro { } }
         val chip = findViewById<com.google.android.material.chip.Chip>(R.id.chipRoadAlerts)
         chip.isChecked = RoadReports.alertsEnabled(this) && hasLocation()
         chip.setOnCheckedChangeListener { _, checked ->

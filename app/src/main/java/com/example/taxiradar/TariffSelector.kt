@@ -38,5 +38,12 @@ object TariffSelector {
             paint(); FloatingWidgetService.refreshSurge()
         } }
         paint(); parent.addView(row)
+        // Доставка — отдельно: её можно показывать вместе с выбранным тарифом такси.
+        DriverUi.toggle(c, parent, DriverUi.t(c, "Ещё и надбавка доставки («Д»)", "Și suplimentul la livrare («L»)"),
+            DriverUi.t(c, "Под надбавкой такси появится строка «Д +N» — надбавка Доставки рядом с вами. Старт доставки 24 L.",
+                "Sub suplimentul taxi apare rândul «L +N» — suplimentul la Livrare lângă dvs. Start livrare 24 L."),
+            DriverPreferences.prefs(c).getBoolean("show_express", false)) {
+            DriverPreferences.prefs(c).edit().putBoolean("show_express", it).apply(); FloatingWidgetService.refreshSurge()
+        }
     }
 }

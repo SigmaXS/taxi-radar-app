@@ -691,7 +691,8 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
                 Row(R.string.tariff_econom_short, R.string.tariff_econom, econom).takeIf { prefs.getBoolean("show_econom", true) },
                 Row(R.string.tariff_comfort_short, R.string.tariff_comfort, comfort).takeIf { prefs.getBoolean("show_comfort", false) },
                 Row(R.string.tariff_comfort_plus_short, R.string.tariff_comfort_plus, comfortPlus).takeIf { prefs.getBoolean("show_comfortplus", false) }
-            ).ifEmpty { listOf(Row(R.string.tariff_econom_short, R.string.tariff_econom, econom)) }
+            ).ifEmpty { listOf(Row(R.string.tariff_econom_short, R.string.tariff_econom, econom)) } +
+                listOfNotNull(Row(R.string.tariff_delivery_short, R.string.tariff_delivery, surges["express"]).takeIf { prefs.getBoolean("show_express", false) })
             lastResult = rows.joinToString("\n") { activity.getString(it.full) + " " + fmt(it.value) }
             moveFlag(
                 point,

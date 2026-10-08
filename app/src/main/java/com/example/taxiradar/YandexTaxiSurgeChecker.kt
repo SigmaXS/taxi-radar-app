@@ -29,7 +29,9 @@ object YandexTaxiSurgeChecker {
         "econom" to 30,
         "comfort" to 45,
         "business" to 45,
-        "comfortplus" to 65
+        "comfortplus" to 65,
+        // «Доставка» у Яндекса — класс express, «от 24».
+        "express" to 24
     )
 
     fun updateBases(bases: Map<String, Int>) {
@@ -59,6 +61,7 @@ object YandexTaxiSurgeChecker {
                 put(JSONObject().apply { put("class", "econom") })
                 put(JSONObject().apply { put("class", "business") })
                 put(JSONObject().apply { put("class", "comfortplus") })
+                put(JSONObject().apply { put("class", "express") })
             }
             put("tariff_requirements", tariffsArray)
         }.toString()

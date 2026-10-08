@@ -429,8 +429,8 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
     <string name="intro_map_surge">Suplimentul. Apăsați oriunde — stegulețul arată suplimentul acolo. Stegulețul se poate trage.</string>
     <string name="intro_map_tap">Apăsați pe steguleț — vedeți suplimentul pe toate tarifele: Econom, Confort, Confort+.</string>
     <string name="intro_map_here">«Sunt aici» — reveniți la dvs. și aflați suplimentul acolo unde stați.</string>
-    <string name="intro_map_add">«+ Marcaj» — marcați poliția, accidentul, drumul închis, ambuteiajul, groapa sau o adresă problematică. Apăsare lungă pe hartă — marcaj în punctul ales. Marcajele le văd toți șoferii.</string>
-    <string name="intro_map_alerts">«Avertizări pe drum» — radarul anunță «Poliție în față, 400 m». Se pornește la dorință.</string>
+    <string name="intro_map_add">«Marcaj» — marcați poliția, radarul, accidentul, ambuteiajul, drumul închis, groapa, o adresă problematică sau locul dvs. (cafenea, spălătorie, 💨 compresor). Apăsare lungă pe hartă — marcaj în punctul ales. Poliția, radarul, accidentul și ambuteiajul trăiesc o oră: celor care trec li se cere «Încă aici?». Celelalte — până când doi șoferi spun «Nu mai este».</string>
+    <string name="intro_map_alerts">«Avertizări pe drum» — anunță «Poliție în față» la 400 și 100 m. Funcționează cu radarul pornit și localizarea activă; GPS-ul lucrează mai des — bateria scade puțin mai repede.</string>
     <string name="intro_map_layers">«Drum» și «Adrese» — arată sau ascunde marcajele. Apăsați pe marcaj ca să răspundeți «Încă aici / Nu mai e».</string>
     <string name="ref_how">Cum funcționează?</string>
     <string name="ref_how_title">Invită un prieten</string>
@@ -547,4 +547,7 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
     <string name="place_pump">Compresor</string>
     <string name="tile_events">Evenimente</string>
     <string name="tile_events_sub">Concerte și meciuri: când ies oamenii</string>
+    <string name="tariff_delivery_short">L</string>
+    <string name="tariff_delivery">Livrare</string>
+    <string name="map_help">Cum funcționează harta</string>
 </resources>
