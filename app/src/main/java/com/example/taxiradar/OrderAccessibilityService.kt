@@ -174,9 +174,8 @@ class OrderAccessibilityService : AccessibilityService() {
             lastYandexEventAt = System.currentTimeMillis()
             dialerFromYandex = false
             // Способ оплаты виден на экране поездки — запоминаем для отметки клиента.
-            if (allTexts.any { it.contains("Оплата картой", true) || it.contains("cu cardul", true) || it.contains("Card payment", true) }) {
-                cardPaymentSeenAt = lastYandexEventAt
-            }
+            // Способ оплаты заказа (карта/наличные) — для смены и отметки клиента.
+            TripTracker.notePayment(allTexts.flatMap { it.split("\n") })
 
 
             // «Принять» — русский Яндекс Про, «Acceptă» / «Accept» — румынский и английский.
@@ -200,7 +199,8 @@ class OrderAccessibilityService : AccessibilityService() {
             }
             // Новая карточка заказа: способ оплаты прошлого клиента больше не наш.
             lastOrderAt = System.currentTimeMillis()
-            cardPaymentSeenAt = 0L
+            TripTracker.resetPayment()
+            TripTracker.notePayment(allTexts.flatMap { it.split("\n") })
 
             val cardLines = allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() }
             if (DeliveryCard.isDelivery(cardLines)) {
@@ -372,7 +372,6 @@ class OrderAccessibilityService : AccessibilityService() {
 
     private var lastYandexEventAt = 0L
     private var lastOrderAt = 0L
-    private var cardPaymentSeenAt = 0L
     private var dialerFromYandex = false
     private var lastClientNumber: String? = null
     private var lastClientAt = 0L
@@ -417,7 +416,7 @@ class OrderAccessibilityService : AccessibilityService() {
         lastClientNumber = number
         lastClientAt = now
         Log.d("CLIENTS", "Звонок клиенту ${PhoneNumbers.tail(number)} из Яндекс Про")
-        ClientsManager.onClientCall(this, number, cardPayment = now - cardPaymentSeenAt < 2 * 3600_000L)
+        ClientsManager.onClientCall(this, number, payment = TripTracker.recentPayment())
     }
 
     /** Последний посчитанный заказ — ждём, примет ли его водитель. */
@@ -615,6 +614,11 @@ class OrderAccessibilityService : AccessibilityService() {
             withContext(Dispatchers.Main) {
                 FloatingWidgetService.showRefinedPrice(price, yKm, yMin, order.pickupKm, bonus = order.surge)
             }
+            // И в смену: без Б поездка раньше не записывалась вовсе.
+            TripTracker.onTripStarted(
+                this@OrderAccessibilityService, listOf(order.addrA, (addrB ?: "?").take(60)), order.tariff, order.surge,
+                estPrice = price, estKm = yKm, estMin = yMin.toDouble(), navKm = yKm, navMin = yMin, navPrice = price
+            )
         }
     }
 

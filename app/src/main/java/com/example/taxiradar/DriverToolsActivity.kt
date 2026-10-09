@@ -141,6 +141,7 @@ class DriverToolsActivity : AppCompatActivity() {
         box.addView(DriverUi.text(this, f.format(Date(sh.start)) + " – " + (if (sh.end > 0) h.format(Date(sh.end)) else t("идёт сейчас", "în curs")) +
             " · " + t("${sh.minutes / 60} ч ${sh.minutes % 60} мин", "${sh.minutes / 60} h ${sh.minutes % 60} min"), 14f, true))
         box.addView(DriverUi.text(this, t("Оплата: ${s.gross} L · заказов: ${s.rides}", "Plata: ${s.gross} L · curse: ${s.rides}"), 18f))
+        if (s.cash + s.card > 0) box.addView(DriverUi.text(this, t("💵 наличными ${s.cash} L · 💳 картой ${s.card} L", "💵 numerar ${s.cash} L · 💳 card ${s.card} L"), 14f, true))
         if (s.net != null) {
             box.addView(DriverUi.text(this, t("Чистыми: ~${s.net} L · расходы: ~${s.gross - s.net} L", "Net: ~${s.net} L · cheltuieli: ~${s.gross - s.net} L")))
             if (sh.minutes > 0) box.addView(DriverUi.text(this, t("~${s.net * 60 / sh.minutes} L/час смены", "~${s.net * 60 / sh.minutes} L/oră de tură") +
@@ -287,6 +288,10 @@ class DriverToolsActivity : AppCompatActivity() {
         val elapsed = DriverJournal.elapsedMinutes(this)
         summary.addView(DriverUi.text(this, t("Подтверждённая оплата", "Plata confirmată"), 14f, true))
         summary.addView(DriverUi.text(this, "$gross L", 30f))
+        // Сколько наличными, сколько картой (способ оплаты радар видит на экране Яндекс Про).
+        val cashSum = confirmed.filter { it.payment == "cash" }.sumOf { it.price }
+        val cardSum = confirmed.filter { it.payment == "card" }.sumOf { it.price }
+        if (cashSum + cardSum > 0) summary.addView(DriverUi.text(this, t("💵 наличными $cashSum L · 💳 картой $cardSum L", "💵 numerar $cashSum L · 💳 card $cardSum L"), 15f))
         summary.addView(DriverUi.text(this, t("Заказов: ${confirmed.size} · ждут проверки: ${current.count { !it.confirmed }}", "Curse: ${confirmed.size} · de verificat: ${current.count { !it.confirmed }}")))
         val pausedMin = DriverJournal.pausedMinutes(this)
         val workMin = (elapsed - pausedMin).coerceAtLeast(0)

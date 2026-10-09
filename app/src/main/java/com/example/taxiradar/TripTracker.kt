@@ -31,6 +31,35 @@ import org.json.JSONObject
  */
 object TripTracker {
 
+    // ---------- способ оплаты: «Оплата картой» / «Наличные» на экранах заказа ----------
+
+    /** "card" или "cash" и когда видели. */
+    @Volatile private var payment: Pair<String, Long>? = null
+    private val cardExact = setOf("оплата картой", "картой", "card", "cu cardul", "plata cu cardul", "card payment")
+    private val cashExact = setOf("наличные", "наличными", "оплата наличными", "numerar", "cash", "plata cash")
+
+    /** Смотрим любой экран Яндекс Про. Настройки оплаты водителя («Наличными · Действует до…») не путаем с заказом. */
+    fun notePayment(lines: List<String>) {
+        val lower = lines.map { it.trim().lowercase() }
+        if (lower.any { it.contains("действует до") || it.contains("можно менять") || it.contains("тарифы и опции") || it.contains("вы меняли оплату") || it.contains("valabil până") }) return
+        val now = System.currentTimeMillis()
+        when {
+            lower.any { it in cardExact || it.contains("оплата картой") || it.contains("cu cardul") } -> payment = "card" to now
+            lower.any { it in cashExact || it.contains("оплата наличными") } -> payment = "cash" to now
+        }
+    }
+
+    /** Способ оплаты текущего заказа, если видели его недавно (за [withinMs]). */
+    fun recentPayment(withinMs: Long = 2 * 3600_000L): String? =
+        payment?.takeIf { System.currentTimeMillis() - it.second < withinMs }?.first
+
+    /** Новая карточка заказа — оплата прошлого клиента больше не наша. */
+    fun resetPayment() { payment = null }
+
+    // Поездка, начало которой радар не заметил (без Б, короткая, с заездами): запишем по «Заказ завершён».
+    private var lastOrphan = ""
+    private var lastOrphanAt = 0L
+
     private data class Trip(
         val route: List<String>,
         val startedAt: Long,
@@ -95,7 +124,7 @@ object TripTracker {
 
     /** Любой экран Яндекс Про, кроме карточки заказа. [pkg] — чьё окно сейчас на экране. */
     fun onScreen(context: Context, pkg: String, texts: List<String>) {
-        val trip = active ?: return
+        val trip = active ?: run { onOrphanEnd(context, pkg, texts); return }
         // Свернули Яндекс Про — чужие экраны не читаем и не пишем в лог.
         if (!pkg.contains("taximeter", true) && !pkg.contains("yandex", true)) return
         val now = System.currentTimeMillis()
@@ -137,6 +166,8 @@ object TripTracker {
             }
         } ?: trip.meter
         active = null
+        // Экран «Заказ завершён» ещё повисит — страховка «поездки без начала» не должна записать её второй раз.
+        lastOrphan = "${price ?: trip.estPrice}|"; lastOrphanAt = now
         Log.d("TRIP", "Поездка закончилась: Яндекс $price L, маршрут менялся: ${trip.routeChanged}, Б = «${trip.currentB}»")
 
         val app = context.applicationContext
@@ -144,7 +175,8 @@ object TripTracker {
         // Screen recognition is fallible: add a draft; driver confirms before totals.
         DriverJournal.add(app, price ?: trip.estPrice, trip.estPrice, trip.navKm, trip.pickupKm,
             elapsedMin.toInt().coerceAtLeast(1), "", confirmed = false,
-            id = trip.key, from = trip.route.first(), to = trip.currentB)
+            id = trip.key, from = trip.route.first(), to = trip.currentB,
+            payment = recentPayment(now - trip.startedAt + 30 * 60_000L).orEmpty())
         val finish: (String?) -> Unit = { note ->
             Outbox.send(
                 app, "/api/trips/finish", JSONObject()
@@ -215,5 +247,32 @@ object TripTracker {
             Log.e("TRIP", "GPS: ${e.message}")
             false
         }
+    }
+
+    /**
+     * «Заказ завершён» с суммой, а начала поездки радар не видел (заказ без Б, короткий,
+     * с заездами, радар включили посреди поездки). Записываем в смену хотя бы сумму —
+     * водитель потом подтвердит её в «Моих поездках».
+     */
+    private fun onOrphanEnd(context: Context, pkg: String, texts: List<String>) {
+        if (!pkg.contains("taximeter", true) && !pkg.contains("yandex", true)) return
+        val lines = texts.flatMap { it.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() }
+        val lower = lines.map { it.lowercase() }
+        if (lower.none { l -> endWords.any { l.contains(it) } }) return
+        val price = lines.firstNotNullOfOrNull { l ->
+            priceRegex.find(l)?.let { m ->
+                val whole = m.groupValues[1].toIntOrNull() ?: return@let null
+                if (m.groupValues[2].isNotEmpty() && m.groupValues[2].padEnd(2, '0').toInt() >= 50) whole + 1 else whole
+            }
+        } ?: return
+        val now = System.currentTimeMillis()
+        // Экран «Заказ завершён» висит и перерисовывается — одна запись на заказ.
+        val key = "$price|" + lines.take(6).joinToString("|")
+        if (now - lastOrphanAt < 10 * 60_000L && (key == lastOrphan || lastOrphan.startsWith("$price|"))) return
+        lastOrphan = key; lastOrphanAt = now
+        val app = context.applicationContext
+        DriverJournal.autoStart(app)
+        DriverJournal.add(app, price, 0, 0.0, 0.0, 1, "", confirmed = false, payment = recentPayment().orEmpty())
+        Log.d("TRIP", "Поездка без начала (без Б или короткая): записали в смену $price L")
     }
 }

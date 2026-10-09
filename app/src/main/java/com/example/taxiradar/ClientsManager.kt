@@ -158,7 +158,8 @@ object ClientsManager {
      * и в уведомлении с кнопками отметок. cardPayment — Яндекс Про показал
      * «Оплата картой» в этом заказе: отмечаем это сами.
      */
-    fun onClientCall(context: Context, number: String, cardPayment: Boolean) {
+    fun onClientCall(context: Context, number: String, payment: String?) {
+        val cardPayment = payment == "card"
         val app = context.applicationContext
         remember(app, number)
         scope.launch {
@@ -166,7 +167,13 @@ object ClientsManager {
             if (cardPayment && summary != null && "card" !in summary.mine) {
                 summary = tag(app, number, "card", true) ?: summary
             }
-            val text = describe(app, summary)
+            // Как платит клиент в этом заказе — сразу видно в уведомлении.
+            val payLine = when (payment) {
+                "card" -> DriverUi.t(app, "💳 Оплата картой", "💳 Plată cu cardul")
+                "cash" -> DriverUi.t(app, "💵 Наличные", "💵 Numerar")
+                else -> null
+            }
+            val text = listOfNotNull(payLine, describe(app, summary)).joinToString("\n")
             val warn = summary?.tags?.keys?.any { it in NEGATIVE } == true
             FloatingWidgetService.showNote(
                 app.getString(if (warn) R.string.clients_widget_warn else R.string.clients_widget_title),
@@ -205,10 +212,14 @@ object ClientsManager {
             .setAutoCancel(true)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            // Больше трёх кнопок Android не показывает — остальные отметки в «Клиентах».
-            .addAction(action("slow", 1))
+            // Больше трёх кнопок Android не показывает: две частые отметки и «Ещё отметки…» —
+            // окно со всеми отметками сразу.
             .addAction(action("noshow", 2))
             .addAction(action("ok", 3))
+            .addAction(NotificationCompat.Action(0, DriverUi.t(context, "Ещё отметки…", "Alte etichete…"),
+                PendingIntent.getActivity(context, 4, Intent(context, ClientsActivity::class.java)
+                    .putExtra("number", number).putExtra("tags", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)))
             .build()
         try {
             nm.notify(NOTIFICATION_ID, n)

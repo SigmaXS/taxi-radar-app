@@ -93,6 +93,8 @@ class ClientsActivity : AppCompatActivity() {
             // Клиента ещё никто не отмечал — предлагаем добавить его и оставить отзыв.
             btnTag.text = getString(if (s != null && s.tags.isEmpty() && s.reviews.isEmpty()) R.string.clients_add_review else R.string.clients_tag)
             if (showEditor && s != null && !intent.hasExtra("number")) showTagDialog(number)
+            // Из уведомления «Ещё отметки…» — сразу окно со всеми отметками.
+            if (intent.getBooleanExtra("tags", false)) { intent.removeExtra("tags"); showTagDialog(number) }
         }
     }
 

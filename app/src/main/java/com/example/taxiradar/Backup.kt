@@ -71,14 +71,17 @@ object Backup {
         fun cell(v: Any?) = "\"" + (v?.toString() ?: "").replace("\"", "\"\"") + "\""
         val sb = StringBuilder("﻿")
         sb.append(listOf(t("Дата", "Data"), t("Откуда", "De la"), t("Куда", "Până la"), t("Оплата, L", "Plata, L"), t("Расчёт радара, L", "Estimare, L"),
-            t("Км", "Km"), t("Подача, км", "Preluare, km"), t("Минут", "Minute"), t("Чистыми, L", "Net, L"), t("Подтверждено", "Confirmat"), t("Район", "Zonă")).joinToString(";") { cell(it) }).append("\r\n")
+            t("Км", "Km"), t("Подача, км", "Preluare, km"), t("Минут", "Minute"), t("Чистыми, L", "Net, L"), t("Подтверждено", "Confirmat"), t("Район", "Zonă"), t("Оплата", "Plată")).joinToString(";") { cell(it) }).append("\r\n")
         val rides = DriverJournal.rides(c).filter { inMonth(it.at) }.sortedBy { it.at }
         rides.forEach { r ->
             sb.append(listOf(f.format(Date(r.at)), r.from, r.to, r.price, r.estimate.takeIf { it > 0 }, "%.1f".format(r.km), "%.1f".format(r.pickup), r.minutes,
-                if (r.costsReady) r.net else "", if (r.confirmed) t("да", "da") else t("нет", "nu"), r.area).joinToString(";") { cell(it) }).append("\r\n")
+                if (r.costsReady) r.net else "", if (r.confirmed) t("да", "da") else t("нет", "nu"), r.area,
+                when (r.payment) { "card" -> t("картой", "card"); "cash" -> t("наличными", "numerar"); else -> "" }).joinToString(";") { cell(it) }).append("\r\n")
         }
         val ok = rides.filter { it.confirmed }
         sb.append("\r\n").append(cell(t("Итого подтверждено", "Total confirmat"))).append(";;;").append(cell(ok.sumOf { it.price })).append("\r\n")
+        sb.append(cell(t("из них наличными", "din care numerar"))).append(";;;").append(cell(ok.filter { it.payment == "cash" }.sumOf { it.price })).append("\r\n")
+        sb.append(cell(t("из них картой", "din care card"))).append(";;;").append(cell(ok.filter { it.payment == "card" }.sumOf { it.price })).append("\r\n")
         sb.append("\r\n").append(listOf(t("Смена: начало", "Tura: început"), t("Конец", "Sfârșit"), t("Часов", "Ore"), t("Перерывы, мин", "Pauze, min"),
             t("Оплата, L", "Plata, L"), t("Чистыми, L", "Net, L"), t("Пробег, км", "Km total"), t("Аренда, L", "Chirie, L")).joinToString(";") { cell(it) }).append("\r\n")
         val all = DriverJournal.rides(c)

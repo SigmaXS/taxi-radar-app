@@ -8,25 +8,27 @@ import java.util.UUID
 /** Local journal. Guessed/computer-read receipts need confirmation before entering totals. */
 object DriverJournal {
     /** id — номер поездки (тот же client_id на сервере), from/to — откуда и куда. */
-    data class Ride(val id: String, val at: Long, val shift: String, val price: Int, val estimate: Int, val km: Double, val pickup: Double, val minutes: Int, val confirmed: Boolean, val area: String, val net: Int, val costsReady: Boolean = false, val from: String = "", val to: String = "")
+    data class Ride(val id: String, val at: Long, val shift: String, val price: Int, val estimate: Int, val km: Double, val pickup: Double, val minutes: Int, val confirmed: Boolean, val area: String, val net: Int, val costsReady: Boolean = false, val from: String = "", val to: String = "",
+                    /** "card", "cash" или "" — как платил клиент (с экрана Яндекс Про). */
+                    val payment: String = "")
     private fun p(c: Context) = c.getSharedPreferences("driver_journal", Context.MODE_PRIVATE)
     @Synchronized fun rides(c: Context): List<Ride> = try {
         val a = JSONArray(p(c).getString("rides", "[]"))
         (0 until a.length()).map { i -> a.getJSONObject(i).let {
-            Ride(it.getString("id"), it.getLong("at"), it.optString("shift"), it.getInt("price"), it.optInt("estimate"), it.optDouble("km"), it.optDouble("pickup"), it.optInt("minutes"), it.optBoolean("confirmed"), it.optString("area"), it.optInt("net"), it.optBoolean("costsReady"), it.optString("from"), it.optString("to"))
+            Ride(it.getString("id"), it.getLong("at"), it.optString("shift"), it.getInt("price"), it.optInt("estimate"), it.optDouble("km"), it.optDouble("pickup"), it.optInt("minutes"), it.optBoolean("confirmed"), it.optString("area"), it.optInt("net"), it.optBoolean("costsReady"), it.optString("from"), it.optString("to"), it.optString("payment"))
         } }
     } catch (_: Exception) { emptyList() }
 
     @Synchronized private fun write(c: Context, list: List<Ride>) {
         val a = JSONArray()
-        list.takeLast(500).forEach { a.put(JSONObject().put("id", it.id).put("at", it.at).put("shift", it.shift).put("price", it.price).put("estimate", it.estimate).put("km", it.km).put("pickup", it.pickup).put("minutes", it.minutes).put("confirmed", it.confirmed).put("area", it.area).put("net", it.net).put("costsReady", it.costsReady).put("from", it.from).put("to", it.to)) }
+        list.takeLast(500).forEach { a.put(JSONObject().put("id", it.id).put("at", it.at).put("shift", it.shift).put("price", it.price).put("estimate", it.estimate).put("km", it.km).put("pickup", it.pickup).put("minutes", it.minutes).put("confirmed", it.confirmed).put("area", it.area).put("net", it.net).put("costsReady", it.costsReady).put("from", it.from).put("to", it.to).put("payment", it.payment)) }
         p(c).edit().putString("rides", a.toString()).apply()
     }
     @Synchronized fun add(c: Context, price: Int, estimate: Int, km: Double, pickup: Double, minutes: Int, area: String, confirmed: Boolean,
-                          id: String = UUID.randomUUID().toString(), from: String = "", to: String = ""): String {
+                          id: String = UUID.randomUUID().toString(), from: String = "", to: String = "", payment: String = ""): String {
         if (rides(c).any { it.id == id }) return id
         val net = OrderEconomics.calculate(price, km, pickup, minutes, 0.0, DriverPreferences.costs(c)).net
-        write(c, rides(c) + Ride(id, System.currentTimeMillis(), active(c), price, estimate, km, pickup, minutes, confirmed, area, net, DriverPreferences.costsReady(c), from.take(120), to.take(120)))
+        write(c, rides(c) + Ride(id, System.currentTimeMillis(), active(c), price, estimate, km, pickup, minutes, confirmed, area, net, DriverPreferences.costsReady(c), from.take(120), to.take(120), payment))
         return id
     }
     @Synchronized fun confirm(c: Context, id: String, price: Int, km: Double, pickup: Double, minutes: Int, area: String) {
@@ -55,7 +57,8 @@ object DriverJournal {
     }
 
     /** Итог смены: оплата, чистыми (если заданы расходы), расходы, пробег, поездки. */
-    data class ShiftTotals(val shift: Shift, val rides: Int, val toCheck: Int, val gross: Int, val net: Int?, val paidKm: Double)
+    data class ShiftTotals(val shift: Shift, val rides: Int, val toCheck: Int, val gross: Int, val net: Int?, val paidKm: Double,
+                           val cash: Int = 0, val card: Int = 0)
 
     @Synchronized private fun archive(c: Context, s: Shift) {
         val a = try { JSONArray(p(c).getString("shifts", "[]")) } catch (_: Exception) { JSONArray() }
@@ -87,7 +90,8 @@ object DriverJournal {
             val empty = (s.odometerKm - ok.sumOf { it.km + it.pickup }).coerceAtLeast(0.0)
             (ok.sumOf { it.net } - s.rent - empty * DriverPreferences.costs(c).perKm).toInt()
         } else null
-        return ShiftTotals(s, ok.size, mine.size - ok.size, gross, net, paidKm)
+        return ShiftTotals(s, ok.size, mine.size - ok.size, gross, net, paidKm,
+            ok.filter { it.payment == "cash" }.sumOf { it.price }, ok.filter { it.payment == "card" }.sumOf { it.price })
     }
     // ---------- перерыв ----------
 
