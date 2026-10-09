@@ -1156,10 +1156,8 @@ class MainActivity : AppCompatActivity() {
         val slider = findViewById<Slider>(R.id.sliderWidgetSize)
         slider.visibility = View.GONE
         findViewById<TextView>(R.id.tvWidgetSize).text = "›"
-        val card = slider.parent.parent as View
-        card.isClickable = true
-        card.isFocusable = true
-        card.setOnClickListener { startActivity(Intent(this, DriverToolsActivity::class.java).putExtra("mode", "widget")) }
+        // Вид виджета теперь в «Радар и виджет» — в Профиле карточку не показываем.
+        (slider.parent.parent as View).visibility = View.GONE
     }
 
     // ---------- колокольчик ----------

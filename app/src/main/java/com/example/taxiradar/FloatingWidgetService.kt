@@ -173,8 +173,7 @@ class FloatingWidgetService : Service() {
         orderDisplayJob = serviceScope.launch {
             withContext(Dispatchers.Main) {
                 setOrderSize(true)
-                val range = OrderEconomics.range(price, DriverPreferences.number(this@FloatingWidgetService, "range_percent", 10.0).toInt())
-                tvWidgetSurge?.text = if (DriverPreferences.flag(this@FloatingWidgetService, "range")) "${range.first}–${range.last} L" else "~$price L"
+                tvWidgetSurge?.text = "~$price L"
                 tvWidgetSurge?.setTextColor(getColor(R.color.tr_success))
                 // Надёжность: «✓ точно» — км и минуты Яндекса; «≈ примерно: …» — главная причина.
                 val source = when {
@@ -273,10 +272,11 @@ class FloatingWidgetService : Service() {
         // «+» (метки) можно спрятать — кружок меньше. Меню меток тогда открывается нажатием на кружок.
         btnPlus?.visibility = if (WidgetStyle.showPlus(this)) View.VISIBLE else View.GONE
         (btnPlus?.background?.mutate() as? android.graphics.drawable.GradientDrawable)?.setColor((WidgetStyle.bgColor(this) and 0x00FFFFFF) or (0xF2 shl 24))
-        btnPlus?.textSize = 20f * scale
+        val ps = WidgetStyle.plusScale(this)
+        btnPlus?.textSize = 20f * scale * ps
         btnPlus?.layoutParams = (btnPlus?.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
-            width = (30 * dp).toInt()
-            height = (30 * dp).toInt()
+            width = (30 * dp * ps).toInt()
+            height = (30 * dp * ps).toInt()
             topMargin = (-9 * dp).toInt()
         }
         (reportMenu as? ViewGroup)?.let { menu ->
@@ -764,7 +764,7 @@ class FloatingWidgetService : Service() {
             if (s == null) { missing = true; staleAge = old?.let { (now - it.at) / 60000 } }
             val shown = s ?: old?.value
             if (hereValue == null) hereValue = shown
-            val value = when { shown == null -> "?"; shown > 0 -> { hasSurge = true; "+$shown" }; else -> "0" }
+            val value = when { shown == null -> "?"; shown > 0 -> { hasSurge = true; WidgetStyle.value(this, shown) }; else -> "0" }
             getString(label) to value
         }
         // Буква тарифа — мелко («Э», «К+»), сама надбавка — крупно: её видно с одного взгляда.
@@ -772,7 +772,7 @@ class FloatingWidgetService : Service() {
             parts.forEachIndexed { i, (label, value) ->
                 if (i > 0) append("  ")
                 val start = length
-                append("$label ")
+                append(WidgetStyle.label(this@FloatingWidgetService, label))
                 setSpan(android.text.style.RelativeSizeSpan(WidgetStyle.labelScale(this@FloatingWidgetService)), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 append(value)
             }
@@ -787,10 +787,10 @@ class FloatingWidgetService : Service() {
             fun line(sb: SpannableStringBuilder, label: String, v: Int?) {
                 val hot = v != null && v > 0
                 val start = sb.length
-                sb.append("$label ")
+                sb.append(WidgetStyle.label(this@FloatingWidgetService, label))
                 sb.setSpan(android.text.style.RelativeSizeSpan(WidgetStyle.labelScale(this@FloatingWidgetService)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 val vStart = sb.length
-                sb.append(if (v == null) "?" else if (hot) "+$v" else "0")
+                sb.append(if (v == null) "?" else if (hot) WidgetStyle.value(this@FloatingWidgetService, v) else "0")
                 sb.setSpan(
                     ForegroundColorSpan(if (hot) WidgetStyle.surgeColor(this@FloatingWidgetService) else WidgetStyle.calmColor(this@FloatingWidgetService)),
                     start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -826,9 +826,9 @@ class FloatingWidgetService : Service() {
             displayText = SpannableStringBuilder(displayText).also { sb ->
                 sb.append(WidgetStyle.separator(this@FloatingWidgetService))
                 val start = sb.length
-                sb.append(getString(R.string.tariff_delivery_short) + " ")
+                sb.append(WidgetStyle.label(this@FloatingWidgetService, getString(R.string.tariff_delivery_short)))
                 sb.setSpan(android.text.style.RelativeSizeSpan(WidgetStyle.labelScale(this@FloatingWidgetService)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                sb.append(when { shown == null -> "?"; shown > 0 -> "+$shown"; else -> "0" })
+                sb.append(when { shown == null -> "?"; shown > 0 -> WidgetStyle.value(this@FloatingWidgetService, shown); else -> "0" })
                 sb.setSpan(ForegroundColorSpan(if (shown != null && shown > 0) WidgetStyle.surgeColor(this@FloatingWidgetService) else WidgetStyle.calmColor(this@FloatingWidgetService)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }

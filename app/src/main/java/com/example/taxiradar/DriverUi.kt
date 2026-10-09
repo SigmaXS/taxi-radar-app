@@ -122,16 +122,16 @@ object DriverUi {
      * Свёрнутая инструкция «Как это работает»: по нажатию раскрываются пронумерованные шаги.
      * Шаги — строки «кружок с номером + текст», так их легче читать, чем один абзац.
      */
-    fun guide(c: Context, parent: LinearLayout, title: String, steps: List<String>, footer: String? = null) {
+    fun guide(c: Context, parent: LinearLayout, title: String, steps: List<String>, footer: String? = null, compact: Boolean = false) {
         val card = MaterialCardView(c).apply {
             radius = dp(c, 22).toFloat(); strokeWidth = dp(c, 1); strokeColor = c.getColor(R.color.tr_accent)
             setCardBackgroundColor(c.getColor(R.color.tr_surface))
             layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(c, 14) }
         }
         val box = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(c, 16), dp(c, 6), dp(c, 16), dp(c, 6)) }
-        val head = LinearLayout(c).apply { gravity = Gravity.CENTER; minimumHeight = dp(c, 52); setBackgroundResource(android.R.drawable.list_selector_background); isClickable = true; isFocusable = true }
+        val head = LinearLayout(c).apply { gravity = Gravity.CENTER; minimumHeight = dp(c, if (compact) 36 else 52); setBackgroundResource(android.R.drawable.list_selector_background); isClickable = true; isFocusable = true }
         head.addView(ImageView(c).apply { setImageResource(R.drawable.ic_help); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_accent)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 10) })
-        val label = text(c, "$title  ▾", 16f).apply { setTypeface(null, Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(-2, -2) }
+        val label = text(c, "$title  ▾", if (compact) 13f else 16f).apply { setTypeface(null, if (compact) Typeface.NORMAL else Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(-2, -2) }
         head.addView(label)
         box.addView(head)
         val list = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; setPadding(0, dp(c, 4), 0, dp(c, 10)) }

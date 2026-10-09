@@ -37,22 +37,37 @@ class DriverToolsActivity : AppCompatActivity() {
     }
     private fun render() { body.removeAllViews(); when (mode) { "shift" -> shift(); "archive" -> archive(); "widget" -> widgetLook(); else -> settings() }; DriverUi.arrangeCards(this, body) }
 
-    // ---------- вид виджета ----------
+    /** Большая карточка-переход: значок, заголовок, пояснение и «›». */
+    private fun linkCard(title: String, sub: String, open: () -> Unit) {
+        val d = { n: Int -> DriverUi.dp(this, n) }
+        val card = com.google.android.material.card.MaterialCardView(this).apply {
+            radius = d(22).toFloat(); strokeWidth = d(1); strokeColor = getColor(R.color.tr_console_border)
+            setCardBackgroundColor(getColor(R.color.tr_surface)); isClickable = true; isFocusable = true
+            setOnClickListener { open() }
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(12) }
+        }
+        val row = LinearLayout(this).apply { gravity = android.view.Gravity.CENTER_VERTICAL; setPadding(d(16), d(18), d(16), d(18)) }
+        row.addView(android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_text_size); setPadding(d(9), d(9), d(9), d(9))
+            imageTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.ic_teal))
+            background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(getColor(R.color.ic_teal_bg)) }
+        }, LinearLayout.LayoutParams(d(44), d(44)).apply { marginEnd = d(14) })
+        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(android.widget.TextView(this).apply { text = title; textSize = 18f; setTypeface(null, android.graphics.Typeface.BOLD); setTextColor(getColor(R.color.tr_text)) })
+        texts.addView(android.widget.TextView(this).apply { text = sub; textSize = 14f; setTextColor(getColor(R.color.tr_text_secondary)); setPadding(0, d(4), 0, 0) })
+        row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(android.widget.TextView(this).apply { text = "›"; textSize = 26f; setTextColor(getColor(R.color.ic_teal)) })
+        card.addView(row); body.addView(card)
+    }
 
-    private var preview: LinearLayout? = null
+    // ---------- вид виджета ----------
 
     private fun widgetLook() {
         body.addView(DriverUi.text(this, t("Вид виджета", "Aspectul widgetului"), 28f))
         body.addView(DriverUi.text(this, t("Меняйте — пример сразу показывает, как будет выглядеть кружок. Кружок на экране тоже обновляется сам.",
             "Schimbați — exemplul arată imediat cum va arăta. Cercul de pe ecran se actualizează singur."), 14f, true))
-        // Живой пример: «между заказами» и «пришёл заказ».
-        val pv = LinearLayout(this).apply {
-            gravity = android.view.Gravity.CENTER; setPadding(0, DriverUi.dp(this@DriverToolsActivity, 18), 0, DriverUi.dp(this@DriverToolsActivity, 18))
-            background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = DriverUi.dp(this@DriverToolsActivity, 22).toFloat(); setColor(0xFF5B6470.toInt()) }
-            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = DriverUi.dp(this@DriverToolsActivity, 14) }
-        }
-        preview = pv; body.addView(pv); renderPreview()
-
+        // Пример не рисуем: смотрим на настоящий кружок. Радар выключен — предлагаем включить.
+        if (!FloatingWidgetService.isRunning) askStartWidget()
         val look = card("Кружок", "Cercul", "Размер всего кружка, прозрачность фона и как стоят строки.", "Mărimea, transparența și cum stau rândurile.", R.drawable.ic_visibility)
         slider(look, t("Размер кружка", "Mărimea cercului"), WidgetSize.MIN, WidgetSize.MAX, 10, WidgetSize.percent(this)) { WidgetSize.save(this, it) }
         slider(look, t("Непрозрачность фона", "Opacitatea fundalului"), 30, 100, 5, WidgetStyle.bgAlpha(this)) { WidgetStyle.set(this, "alpha", it) }
@@ -64,16 +79,17 @@ class DriverToolsActivity : AppCompatActivity() {
         slider(text, t("Цифры надбавки", "Cifrele suplimentului"), 70, 150, 5, (WidgetStyle.valueScale(this) * 100).toInt()) { WidgetStyle.set(this, "value", it) }
         slider(text, t("Цена заказа", "Prețul comenzii"), 70, 150, 5, (WidgetStyle.orderScale(this) * 100).toInt()) { WidgetStyle.set(this, "order", it) }
 
-        val colors = card("Цвета", "Culori", "Тема кружка и цвет надбавки, когда есть спрос. Контрастная — для яркого солнца.", "Tema cercului și culoarea suplimentului. Contrast — pentru soare puternic.", R.drawable.ic_layers)
-        choice(colors, t("Тема", "Temă"), listOf("dark" to t("Тёмная", "Întunecată"), "light" to t("Светлая", "Luminoasă"), "contrast" to t("Контрастная", "Contrast")),
-            WidgetStyle.theme(this)) { WidgetStyle.set(this, "theme", it) }
-        choice(colors, t("Надбавка при спросе", "Supliment la cerere"), listOf("purple" to t("Фиолетовый", "Violet"), "red" to t("Красный", "Roșu"), "green" to t("Зелёный", "Verde")),
-            WidgetStyle.surgeChoice(this)) { WidgetStyle.set(this, "surge", it) }
-
         val more = card("Поведение", "Comportament", "Кнопка меток и приглушение, когда нет спроса.", "Butonul de marcaje și estomparea fără cerere.", R.drawable.ic_settings)
         DriverUi.toggle(this, more, t("Кнопка «+» (метки)", "Butonul «+» (marcaje)"),
             t("Без неё кружок меньше. Метки можно ставить и так — нажатием на сам кружок.", "Fără el cercul e mai mic. Marcajele se pun și apăsând pe cerc."),
             WidgetStyle.showPlus(this)) { WidgetStyle.set(this, "plus", it); applied() }
+        slider(more, t("Размер «+»", "Mărimea «+»"), 60, 160, 10, (WidgetStyle.plusScale(this) * 100).toInt()) { WidgetStyle.set(this, "plus_size", it) }
+        DriverUi.toggle(this, more, t("Буквы тарифа (Э, К, Д, Я, Б)", "Literele (E, C, L…)"),
+            t("Выключите, чтобы остались только цифры надбавки — кружок станет уже.", "Dezactivați ca să rămână doar cifrele — cercul devine mai îngust."),
+            WidgetStyle.showLabels(this)) { WidgetStyle.set(this, "labels", it); applied() }
+        DriverUi.toggle(this, more, t("Знак «+» перед надбавкой", "Semnul «+» înaintea suplimentului"),
+            t("«+15» или просто «15».", "«+15» sau doar «15»."),
+            WidgetStyle.showSign(this)) { WidgetStyle.set(this, "sign", it); applied() }
         DriverUi.toggle(this, more, t("Приглушать без спроса", "Estompat fără cerere"),
             t("Когда надбавка 0, кружок полупрозрачный и не мешает. Появился спрос — снова яркий. Цена заказа всегда яркая.", "Când suplimentul e 0, cercul e semitransparent. La cerere — din nou luminos."),
             WidgetStyle.dim(this)) { WidgetStyle.set(this, "dim", it); applied() }
@@ -89,53 +105,25 @@ class DriverToolsActivity : AppCompatActivity() {
 
     /** Изменили настройку: пример и настоящий кружок. */
     private fun applied() {
-        renderPreview()
         FloatingWidgetService.applyWidgetScale()
         FloatingWidgetService.refreshSurge()
     }
 
-    private fun renderPreview() {
-        val pv = preview ?: return
-        pv.removeAllViews()
-        fun pill(text: CharSequence, sizeSp: Float, dimmed: Boolean): android.view.View {
-            val d = resources.displayMetrics.density * WidgetSize.scale(this)
-            val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER_HORIZONTAL }
-            col.addView(android.widget.TextView(this).apply {
-                this.text = text; textSize = sizeSp * WidgetSize.scale(this@DriverToolsActivity); gravity = android.view.Gravity.CENTER
-                setTypeface(null, android.graphics.Typeface.BOLD); includeFontPadding = false; setLineSpacing(3 * d, 1f)
-                setPadding((16 * d).toInt(), (10 * d).toInt(), (16 * d).toInt(), (10 * d).toInt())
-                minWidth = (72 * d).toInt()
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = 22 * d; setColor(WidgetStyle.bgColor(this@DriverToolsActivity)); setStroke(1, WidgetStyle.strokeColor(this@DriverToolsActivity))
+    /** Кружка нет — предложить включить радар: изменения сразу видно на настоящем кружке. */
+    private fun askStartWidget() {
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(t("Включите радар", "Porniți radarul"))
+            .setMessage(t("Чтобы сразу видеть, как меняется кружок, включите радар — кружок появится поверх этого экрана.",
+                "Ca să vedeți imediat cum se schimbă cercul, porniți radarul — cercul apare peste acest ecran."))
+            .setPositiveButton(t("Включить", "Pornește")) { _, _ ->
+                if (android.provider.Settings.canDrawOverlays(this)) {
+                    val i = android.content.Intent(this, FloatingWidgetService::class.java)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
+                } else {
+                    try { startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName"))) } catch (_: Exception) {}
                 }
-            })
-            if (WidgetStyle.showPlus(this)) col.addView(android.widget.TextView(this).apply {
-                this.text = "+"; textSize = 20f * WidgetSize.scale(this@DriverToolsActivity); gravity = android.view.Gravity.CENTER
-                setTextColor(WidgetStyle.calmColor(this@DriverToolsActivity))
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL; setColor((WidgetStyle.bgColor(this@DriverToolsActivity) and 0x00FFFFFF) or (0xF2 shl 24))
-                    setStroke((1.5f * d).toInt().coerceAtLeast(1), WidgetStyle.calmColor(this@DriverToolsActivity))
-                }
-            }, LinearLayout.LayoutParams((30 * d).toInt(), (30 * d).toInt()).apply { topMargin = (-9 * d).toInt() })
-            col.alpha = if (dimmed && WidgetStyle.dim(this)) WidgetStyle.dimAlpha(this) / 100f else 1f
-            return col
-        }
-        fun line(sb: android.text.SpannableStringBuilder, label: String, v: Int) {
-            val start = sb.length
-            sb.append("$label ")
-            sb.setSpan(android.text.style.RelativeSizeSpan(WidgetStyle.labelScale(this)), start, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            sb.append(if (v > 0) "+$v" else "0")
-            sb.setSpan(android.text.style.ForegroundColorSpan(if (v > 0) WidgetStyle.surgeColor(this) else WidgetStyle.calmColor(this)), start, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        val sep = WidgetStyle.separator(this)
-        val calm = android.text.SpannableStringBuilder().also { line(it, getString(R.string.tariff_econom_short), 0); it.append(sep); line(it, getString(R.string.tariff_delivery_short), 0) }
-        val hot = android.text.SpannableStringBuilder().also { line(it, getString(R.string.tariff_econom_short), 15); it.append(sep); line(it, getString(R.string.tariff_delivery_short), 20) }
-        val order = android.text.SpannableStringBuilder("~84 L").also {
-            it.setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.tr_success)), 0, it.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        val gap = DriverUi.dp(this, 10)
-        listOf(pill(calm, 28f * WidgetStyle.valueScale(this), true), pill(hot, 28f * WidgetStyle.valueScale(this), false), pill(order, 38f * WidgetStyle.orderScale(this), false))
-            .forEach { pv.addView(it, LinearLayout.LayoutParams(-2, -2).apply { marginStart = gap; marginEnd = gap }) }
+            }
+            .setNegativeButton(R.string.cancel, null).show()
     }
 
     private fun slider(box: LinearLayout, label: String, from: Int, to: Int, step: Int, value: Int, save: (Int) -> Unit) {
@@ -306,10 +294,10 @@ class DriverToolsActivity : AppCompatActivity() {
     private fun settings() {
         body.addView(DriverUi.text(this, t("Ваш радар", "Radarul dvs."), 28f))
         body.addView(DriverUi.text(this, t("Оставьте только то, что помогает вам на смене. Настройки сохраняются сразу.", "Păstrați doar informațiile utile în tură. Setările se salvează imediat."), 14f, true))
-        DriverUi.button(this, body, t("Вид виджета: размер, цвета, прозрачность ›", "Aspectul widgetului ›")) {
+        linkCard(t("Вид виджета", "Aspectul widgetului"), t("Размер, прозрачность, строки, кнопка «+» — нажмите, чтобы настроить", "Mărime, transparență, rânduri, butonul «+» — apăsați pentru setări")) {
             startActivity(android.content.Intent(this, DriverToolsActivity::class.java).putExtra("mode", "widget"))
         }
-        DriverUi.guide(this, body, t("Что здесь настраивается", "Ce se setează aici"), if (t("ru", "ro") == "ru") listOf(
+        DriverUi.guide(this, body, t("Что здесь настраивается", "Ce se setează aici"), compact = true, steps = if (t("ru", "ro") == "ru") listOf(
             "«Цена на виджете» — какие строки показывать на карточке заказа: километры, минуты, подачу. Меньше строк — проще читать на ходу.",
             "«Спрос между заказами» — какой тариф смотреть для надбавки, когда заказа нет.",
             "«Моя машина и расходы» — расход, цена топлива, комиссия. Нужны, чтобы радар считал «чистыми» и выгодность заказа.",
@@ -329,8 +317,6 @@ class DriverToolsActivity : AppCompatActivity() {
         flag(widget, "stops", "Заезды", "Opriri", "Количество распознанных заездов.", "Numărul opririlor recunoscute.", true)
         flag(widget, "bonus", "Надбавка отдельно", "Supliment separat", "Надбавка и платная подача уже входят в цену. Эта строка только объясняет сумму.", "Suplimentul și preluarea plătită sunt deja incluse în preț.")
         flag(widget, "source", "Источник расчёта", "Sursa calculului", "Расчётная цена или расчёт по км и минутам Яндекса. Это не гарантия окончательной оплаты.", "Preț estimat sau calcul după km și minute Yandex. Nu garantează suma finală.", true)
-        flag(widget, "range", "Показывать диапазон", "Afișează un interval", "Вместо ~100 L показываем, например, 90–110 L. Это выбранный вами запас, а не доказанная точность. Надбавка остаётся в сумме.", "În loc de ~100 L afișăm, de exemplu, 90–110 L. Marja este aleasă de dvs., nu o precizie garantată.")
-        number(widget, "range_percent", "Запас диапазона, %", "Marja intervalului, %", 10.0, 1.0, 30.0)
         val demand = card("Спрос между заказами", "Cererea între curse", "Надбавка относится к выбранному тарифу и вашей точке. Ошибка связи не означает нулевой спрос.", "Suplimentul corespunde categoriei și poziției dvs. Lipsa conexiunii nu înseamnă cerere zero.", R.drawable.ic_location_on)
         flag(demand, "cash_reminder", "Напоминать включить «Только наличными»", "Amintește «Doar numerar»",
             "Когда рядом нет спроса (надбавка 0), Яндекс даёт на час включить оплату только наличными — до 3 раз в сутки. Радар напомнит уведомлением и повторит через 15 минут, если не включили. Увидит в Яндекс Про «Наличными · Действует до …» — замолчит до этого времени.",

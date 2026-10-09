@@ -28,6 +28,14 @@ object WidgetStyle {
     fun theme(c: Context) = p(c).getString("ws_theme", "dark") ?: "dark"
     fun surgeChoice(c: Context) = p(c).getString("ws_surge", "purple") ?: "purple"
     fun showPlus(c: Context) = p(c).getBoolean("ws_plus", true)
+    /** Размер кнопки «+» (метки), %. */
+    fun plusScale(c: Context) = int(c, "plus_size", 100).coerceIn(60, 160) / 100f
+    /** Буквы тарифа (Э, К, Д, Я, Б) перед надбавкой. */
+    fun showLabels(c: Context) = p(c).getBoolean("ws_labels", true)
+    /** Знак «+» перед надбавкой («+15» или «15»). */
+    fun showSign(c: Context) = p(c).getBoolean("ws_sign", true)
+    fun value(c: Context, v: Int) = if (showSign(c)) "+$v" else "$v"
+    fun label(c: Context, l: String) = if (showLabels(c)) "$l " else ""
     fun dim(c: Context) = p(c).getBoolean("ws_dim", false)
     /** Насколько виден кружок без спроса, %. */
     fun dimAlpha(c: Context) = int(c, "dim_alpha", 45).coerceIn(20, 90)
