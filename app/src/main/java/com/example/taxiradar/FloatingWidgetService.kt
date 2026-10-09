@@ -801,6 +801,9 @@ class FloatingWidgetService : Service() {
             }
         }
 
+        // Нет спроса рядом — напомнить включить «Только наличными» (раз в 15 мин, пока не включат).
+        if (!isShowingOrder) CashReminder.check(this, hereValue)
+
         // Доставка — своей строкой: «Д +20» (в любом режиме, и в поездке с «Я / Б»).
         if (showExpress) {
             val d = YandexTaxiSurgeChecker.getSurgePrice(lon, lat, "express")

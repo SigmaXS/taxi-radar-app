@@ -176,6 +176,8 @@ class OrderAccessibilityService : AccessibilityService() {
             // Способ оплаты виден на экране поездки — запоминаем для отметки клиента.
             // Способ оплаты заказа (карта/наличные) — для смены и отметки клиента.
             TripTracker.notePayment(allTexts.flatMap { it.split("\n") })
+            // Режим «Наличными до …» и счётчик смен оплаты — для напоминания в зоне без спроса.
+            CashReminder.noteScreen(allTexts.flatMap { it.split("\n") })
 
 
             // «Принять» — русский Яндекс Про, «Acceptă» / «Accept» — румынский и английский.
