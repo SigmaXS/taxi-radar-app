@@ -32,6 +32,7 @@ object ServerText {
     )
 
     private val prefixes = listOf(
+        "Код принят! Другу начислено" to R.string.srv_code_accepted_now,
         "Код принят!" to R.string.srv_code_accepted,
         "Успешно! Доступ открыт" to R.string.srv_key_ok,
     )

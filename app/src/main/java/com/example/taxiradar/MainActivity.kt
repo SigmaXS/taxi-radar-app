@@ -568,7 +568,7 @@ class MainActivity : AppCompatActivity() {
             if (code.isBlank()) return@setOnClickListener
             val group = AppConfig.load(this).groupUrl
             val text = buildString {
-                append(getString(R.string.ref_share_text, code))
+                append(getString(R.string.ref_share_text, code, LicenseManager.inviteUrl(code)))
                 if (group.isNotBlank()) append(getString(R.string.ref_share_group, group))
             }
             val send = Intent(Intent.ACTION_SEND).apply {
@@ -610,6 +610,19 @@ class MainActivity : AppCompatActivity() {
             }
             cardReferral.visibility = View.VISIBLE
         }
+    }
+
+    /** Самый первый запуск (только что выдан пробный доступ): спросить код друга — один раз. */
+    private fun askFriendCodeOnce() {
+        val p = getSharedPreferences("referral", MODE_PRIVATE)
+        if (p.getBoolean("first_asked", false)) return
+        p.edit().putBoolean("first_asked", true).apply()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.ref_first_title)
+            .setMessage(R.string.ref_first_text)
+            .setPositiveButton(R.string.ref_have_code) { _, _ -> showEnterReferralDialog() }
+            .setNegativeButton(R.string.ref_first_skip, null)
+            .show()
     }
 
     private fun showEnterReferralDialog() {
@@ -1115,6 +1128,7 @@ class MainActivity : AppCompatActivity() {
                     // ставит LicenseManager, только если сервер реально ответил.
                     val trialResult = licenseManager.checkOrStartTrial()
                     if (trialResult.first) {
+                        askFriendCodeOnce()
                         val trialDays = licenseManager.getRemainingDays()
                         setLicenseStatus(getString(R.string.license_trial_days, trialDays), R.color.tr_success)
                         layoutActivation.visibility = View.GONE

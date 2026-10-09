@@ -79,6 +79,9 @@ class LicenseManager(private val context: Context) {
         private const val KEY_BOOT_COUNT = "boot_count"
 
         private const val BASE_URL = "https://taxi-radar-license-production.up.railway.app"
+
+        /** Страница-приглашение: кнопка «Скачать» и код друга. */
+        fun inviteUrl(code: String) = "$BASE_URL/invite/$code"
     }
 
     val trialAlreadyUsed: Boolean

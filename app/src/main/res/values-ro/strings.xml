@@ -93,10 +93,10 @@
     <string name="net_example">Exemplu: comandă 100 L, 10 km + 1 km până la client → net ~%1$d L</string>
 
     <string name="ref_title">Invită un prieten</string>
-    <string name="ref_caption">Prietenul introduce codul dvs. în aplicația lui. Când cumpără o cheie — primiți +%1$d zile.</string>
+    <string name="ref_caption">Trimiteți prietenului linkul — descarcă aplicația și introduce codul dvs. Primiți imediat +%1$d zile, chiar dacă nu cumpără cheia.</string>
     <string name="ref_share">Distribuie</string>
     <string name="ref_share_title">Distribuie codul</string>
-    <string name="ref_share_text">Taxi Radar — prețul comenzii direct peste Yandex Pro. La cumpărarea cheii introdu codul meu de prieten: %1$s</string>
+    <string name="ref_share_text">Taxi Radar — prețul comenzii, suprataxa și harta direct peste Yandex Pro. 7 zile gratuit.\nDescarcă: %2$s\nLa prima pornire introdu codul meu de prieten: %1$s</string>
     <string name="ref_share_group">\nGrupul nostru: %1$s</string>
     <string name="ref_stats">Invitați: %1$d · au cumpărat cheie: %2$d</string>
     <string name="ref_have_code">🎁 Am codul unui prieten — introdu</string>
@@ -434,7 +434,7 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
     <string name="intro_map_layers">«Drum» și «Adrese» — arată sau ascunde marcajele. Apăsați pe marcaj ca să răspundeți «Încă aici / Nu mai e».</string>
     <string name="ref_how">Cum funcționează?</string>
     <string name="ref_how_title">Invită un prieten</string>
-    <string name="ref_how_text">1. Codul dvs. îl aveți deja — și în perioada de probă, și cu abonament.\n\n2. Trimiteți codul prietenului cu butonul «Distribuie».\n\n3. Prietenul instalează Taxi Radar și în Profil apasă «Am codul unui prieten» — introduce codul dvs. Mai bine imediat, înainte de a cumpăra cheia.\n\n4. Când prietenul cumpără o cheie (de o zi sau mai mult), primiți automat +%1$d zile de abonament.\n\nBonusul — o dată pentru fiecare prieten. Dacă abonamentul dvs. a expirat, zilele se adaugă de azi. Prieteni — câți doriți.</string>
+    <string name="ref_how_text">1. Codul dvs. îl aveți deja — și în perioada de probă, și cu abonament.\n\n2. Apăsați «Distribuie» — prietenul primește linkul de descărcare și codul dvs.\n\n3. Prietenul instalează Taxi Radar și la prima pornire (sau apoi în Profil) apasă «Am codul unui prieten» și introduce codul.\n\n4. Imediat ce prietenul a introdus codul — primiți +%1$d zile de abonament. Nu e obligatoriu să cumpere cheia.\n\nBonusul — o dată pentru fiecare prieten. Dacă abonamentul dvs. a expirat, zilele se adaugă de azi.</string>
     <string name="chk_key_shared">Nu e nevoie de cheie proprie — adresele le caută serverul Taxi Radar</string>
     <string name="section_own_key">CHEIA YANDEX PROPRIE</string>
     <string name="own_key_hint">Opțional. Adresele le caută serverul Taxi Radar. Cheia proprie de Geocoder e de rezervă: radarul va calcula prețurile chiar dacă limita comună pe azi s-a terminat.</string>
@@ -550,4 +550,8 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
     <string name="tariff_delivery_short">L</string>
     <string name="tariff_delivery">Livrare</string>
     <string name="map_help">Cum funcționează harta</string>
+    <string name="ref_first_title">🎁 V-a invitat un prieten?</string>
+    <string name="ref_first_text">Dacă un prieten v-a trimis un cod — introduceți-l acum. Prietenul primește zile bonus, pe dvs. nu vă costă nimic.</string>
+    <string name="ref_first_skip">Nu am cod</string>
+    <string name="srv_code_accepted_now">Cod acceptat! Prietenul a primit zile bonus. Mulțumim!</string>
 </resources>
