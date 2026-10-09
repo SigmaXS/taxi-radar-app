@@ -1411,12 +1411,18 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnReferralEnter"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="-12dp"
+                        android:layout_marginTop="8dp"
+                        android:minHeight="56dp"
                         android:text="@string/ref_have_code"
-                        android:textColor="@color/tr_text_secondary" />
+                        android:textColor="@color/tr_accent"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        app:strokeColor="@color/tr_accent"
+                        app:strokeWidth="2dp"
+                        app:cornerRadius="14dp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnReferralHow"

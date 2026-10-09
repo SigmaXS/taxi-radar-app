@@ -101,7 +101,7 @@
     <string name="ref_share_text">Taxi Radar — цена заказа прямо поверх Яндекс Про. При покупке ключа введи мой код друга: %1$s</string>
     <string name="ref_share_group">\nНаша группа: %1$s</string>
     <string name="ref_stats">Пригласили: %1$d · купили ключ: %2$d</string>
-    <string name="ref_have_code">У меня есть код друга</string>
+    <string name="ref_have_code">🎁 У меня есть код друга — ввести</string>
     <string name="ref_came_by">Вы пришли по коду %1$s</string>
     <string name="ref_code_hint">Код друга</string>
     <string name="ref_apply">Применить</string>

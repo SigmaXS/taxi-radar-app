@@ -99,7 +99,7 @@
     <string name="ref_share_text">Taxi Radar — prețul comenzii direct peste Yandex Pro. La cumpărarea cheii introdu codul meu de prieten: %1$s</string>
     <string name="ref_share_group">\nGrupul nostru: %1$s</string>
     <string name="ref_stats">Invitați: %1$d · au cumpărat cheie: %2$d</string>
-    <string name="ref_have_code">Am codul unui prieten</string>
+    <string name="ref_have_code">🎁 Am codul unui prieten — introdu</string>
     <string name="ref_came_by">Ați venit cu codul %1$s</string>
     <string name="ref_code_hint">Codul prietenului</string>
     <string name="ref_apply">Aplică</string>

@@ -77,7 +77,65 @@ object TripTracker {
     )
 
     @Volatile
-    private var active: Trip? = null
+    private var activeTrip: Trip? = null
+    private var restored = false
+    private var prefsCtx: Context? = null
+
+    /** Текущая поездка. Хранится и в настройках: телефон мог выгрузить радар посреди поездки. */
+    private var active: Trip?
+        get() {
+            if (!restored) prefsCtx?.let { restore(it) }
+            return activeTrip
+        }
+        set(v) { activeTrip = v; restored = true; prefsCtx?.let { save(it, v) } }
+
+    private fun prefs(c: Context) = c.getSharedPreferences("trip_active", Context.MODE_PRIVATE)
+
+    private fun save(c: Context, t: Trip?) {
+        val e = prefs(c).edit()
+        if (t == null) { e.clear().apply(); return }
+        e.putString("json", JSONObject()
+            .put("route", org.json.JSONArray(t.route)).put("startedAt", t.startedAt).put("navMin", t.navMin)
+            .put("estPrice", t.estPrice).put("navKm", t.navKm).put("pickupKm", t.pickupKm).put("key", t.key)
+            .put("currentB", t.currentB).put("routeChanged", t.routeChanged).put("meter", t.meter ?: -1)
+            .toString()).apply()
+    }
+
+    private fun restore(c: Context) {
+        restored = true
+        val j = runCatching { JSONObject(prefs(c).getString("json", null) ?: return) }.getOrNull() ?: return
+        val r = j.optJSONArray("route") ?: return
+        activeTrip = runCatching {
+            Trip((0 until r.length()).map { r.getString(it) }, j.getLong("startedAt"), j.getInt("navMin"), j.getInt("estPrice"),
+                j.getDouble("navKm"), j.getDouble("pickupKm"), j.getString("key"), j.getString("currentB"),
+                j.optBoolean("routeChanged"), j.optInt("meter", -1).takeIf { it >= 0 })
+        }.getOrNull()
+        Log.d("TRIP", "Восстановили поездку после перезапуска: ${activeTrip?.route}")
+    }
+
+    /** Помним контекст, чтобы восстановить поездку после перезапуска радара. */
+    private fun bind(context: Context) { if (prefsCtx == null) prefsCtx = context.applicationContext }
+
+    /**
+     * Конец поездки радар не увидел (начался следующий заказ, прошло 3 часа):
+     * пишем её в смену черновиком по счётчику или расчёту и закрываем строку на сервере,
+     * чтобы она не висела «не завершена».
+     */
+    private fun closeUnseen(app: Context, trip: Trip, now: Long) {
+        val endAt = minOf(now, trip.startedAt + (trip.navMin.coerceAtLeast(5) * 2) * 60_000L)
+        val min = ((endAt - trip.startedAt) / 60_000.0)
+        DriverJournal.add(app, trip.meter ?: trip.estPrice, trip.estPrice, trip.navKm, trip.pickupKm,
+            min.toInt().coerceAtLeast(1), "", confirmed = false,
+            id = trip.key, from = trip.route.first(), to = trip.currentB,
+            payment = recentPayment().orEmpty())
+        Outbox.send(
+            app, "/api/trips/finish", JSONObject()
+                .put("client_id", trip.key).put("at", endAt)
+                .put("real_price", JSONObject.NULL).put("real_min", JSONObject.NULL)
+                .put("note", "конец не увиден")
+        )
+        Log.d("TRIP", "Конец поездки не видели — записали черновиком: ${trip.route}")
+    }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastLogged = ""
     private var lastLoggedAt = 0L
@@ -92,7 +150,23 @@ object TripTracker {
         estPrice: Int, estKm: Double, estMin: Double, navKm: Double, navMin: Int, navPrice: Int
     ) {
         val app = context.applicationContext
-        if (active?.route == route && System.currentTimeMillis() - (active?.startedAt ?: 0) < 3 * 3600_000L) return
+        bind(app)
+        val prev = active
+        val nowMs = System.currentTimeMillis()
+        if (prev != null && nowMs - prev.startedAt < 3 * 3600_000L) {
+            if (prev.route == route) return
+            // Тот же пассажир у той же точки А, просто другой Б (клиент поменял адрес) — та же поездка.
+            if (nowMs - prev.startedAt < 20 * 60_000L &&
+                RouteFareCalculator.addressKey(prev.route.first()).equals(RouteFareCalculator.addressKey(route.first()), true)) {
+                if (!prev.currentB.equals(route.last(), true)) {
+                    prev.currentB = route.last(); prev.routeChanged = true; active = prev
+                }
+                return
+            }
+            closeUnseen(app, prev, nowMs)
+        } else if (prev != null) {
+            closeUnseen(app, prev, nowMs)
+        }
         DriverJournal.autoStart(app)
         DriverJournal.resume(app)
         val trip = Trip(route, System.currentTimeMillis(), navMin, estPrice, navKm, OrderPreview.current()?.takeIf { it.route == route }?.pickup ?: 0.0, currentB = route.last())
@@ -124,12 +198,14 @@ object TripTracker {
 
     /** Любой экран Яндекс Про, кроме карточки заказа. [pkg] — чьё окно сейчас на экране. */
     fun onScreen(context: Context, pkg: String, texts: List<String>) {
+        bind(context)
         val trip = active ?: run { onOrphanEnd(context, pkg, texts); return }
         // Свернули Яндекс Про — чужие экраны не читаем и не пишем в лог.
         if (!pkg.contains("taximeter", true) && !pkg.contains("yandex", true)) return
         val now = System.currentTimeMillis()
         if (now - trip.startedAt > 3 * 3600_000L) {
             active = null
+            closeUnseen(context.applicationContext, trip, now)
             return
         }
         val joined = texts.joinToString(" | ")
@@ -151,11 +227,13 @@ object TripTracker {
                     Log.d("TRIP", "Адрес Б сменился: «${trip.currentB}» → «$next»")
                     trip.currentB = next
                     trip.routeChanged = true
+                    prefsCtx?.let { save(it, trip) }
                 }
                 break
             }
         }
-        lines.firstNotNullOfOrNull { meterRegex.find(it) }?.groupValues?.get(1)?.toIntOrNull()?.let { trip.meter = it }
+        val meterNow = lines.firstNotNullOfOrNull { meterRegex.find(it) }?.groupValues?.get(1)?.toIntOrNull()
+        if (meterNow != null && meterNow != trip.meter) { trip.meter = meterNow; prefsCtx?.let { save(it, trip) } }
 
         if (now - trip.startedAt < 30_000) return
         if (lower.none { l -> endWords.any { l.contains(it) } }) return
