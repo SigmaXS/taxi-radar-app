@@ -22,7 +22,6 @@ import kotlinx.coroutines.launch
 object AccessibilityAccess {
 
     private const val PREFS = "taxi_radar_prefs"
-    private const val KEY_OPENED_AT = "acc_settings_opened_at"
 
     fun component(context: Context) = ComponentName(context, OrderAccessibilityService::class.java)
 
@@ -65,14 +64,13 @@ object AccessibilityAccess {
             Toast.makeText(activity, if (ok) R.string.acc_self_enabled else R.string.acc_self_failed, Toast.LENGTH_LONG).show()
             if (ok) return
         }
-        val prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val last = prefs.getLong(KEY_OPENED_AT, 0L)
         // Мультимедиа BYD: экран настроек там не открывается — сразу обходные пути.
-        if (isCarHeadUnit() || System.currentTimeMillis() - last < 60_000) {
+        // На обычном телефоне всегда открываем настройки; обходные пути — только если
+        // водитель сам выберет «Экран „Спец. возможности“ вылетает?» в проверке настроек.
+        if (isCarHeadUnit()) {
             showWorkarounds(activity)
             return
         }
-        prefs.edit().putLong(KEY_OPENED_AT, System.currentTimeMillis()).apply()
         openSystemList(activity)
     }
 
