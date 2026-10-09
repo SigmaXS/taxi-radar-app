@@ -32,9 +32,9 @@
     <string name="sub_features">Цена заказа поверх Яндекс Про · карта спроса · попутчики · аэропорт · клиенты</string>
 
     <!-- Размер виджета -->
-    <string name="widget_size_title">Размер виджета</string>
+    <string name="widget_size_title">Вид виджета</string>
     <string name="widget_size_value">%1$d%%</string>
-    <string name="widget_size_hint">Сделайте кружок радара крупнее или меньше. Если радар запущен, изменения видно сразу.</string>
+    <string name="widget_size_hint">Размер, прозрачность, цвета, кнопка «+» — нажмите, чтобы настроить</string>
     <!-- Надбавка на виджете -->
     <string name="widget_bonus">надбавка +%1$d</string>
 </resources>

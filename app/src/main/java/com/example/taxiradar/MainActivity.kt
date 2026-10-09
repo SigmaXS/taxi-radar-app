@@ -1151,19 +1151,15 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- размер виджета ----------
 
+    /** Размер виджета переехал в «Вид виджета» — в Профиле карточка-переход туда. */
     private fun setupWidgetSize() {
         val slider = findViewById<Slider>(R.id.sliderWidgetSize)
-        val label = findViewById<TextView>(R.id.tvWidgetSize)
-        val percent = WidgetSize.percent(this)
-        slider.value = (percent / 10 * 10).toFloat().coerceIn(slider.valueFrom, slider.valueTo)
-        label.text = getString(R.string.widget_size_value, slider.value.toInt())
-        slider.addOnChangeListener { _, value, fromUser ->
-            label.text = getString(R.string.widget_size_value, value.toInt())
-            if (fromUser) {
-                WidgetSize.save(this, value.toInt())
-                FloatingWidgetService.applyWidgetScale()
-            }
-        }
+        slider.visibility = View.GONE
+        findViewById<TextView>(R.id.tvWidgetSize).text = "›"
+        val card = slider.parent.parent as View
+        card.isClickable = true
+        card.isFocusable = true
+        card.setOnClickListener { startActivity(Intent(this, DriverToolsActivity::class.java).putExtra("mode", "widget")) }
     }
 
     // ---------- колокольчик ----------

@@ -29,8 +29,8 @@
     <string name="sub_status_none">Abonamentul nu este activ</string>
     <string name="sub_features">Prețul comenzii peste Yandex Pro · harta cererii · călători · aeroport · clienți</string>
 
-    <string name="widget_size_title">Mărimea widgetului</string>
+    <string name="widget_size_title">Aspectul widgetului</string>
     <string name="widget_size_value">%1$d%%</string>
-    <string name="widget_size_hint">Faceți bula radarului mai mare sau mai mică. Dacă radarul rulează, schimbarea se vede imediat.</string>
+    <string name="widget_size_hint">Mărime, transparență, culori, butonul «+» — apăsați pentru setări</string>
     <string name="widget_bonus">supliment +%1$d</string>
 </resources>

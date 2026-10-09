@@ -197,7 +197,7 @@ class FloatingWidgetService : Service() {
                 val sub = SpannableStringBuilder()
                 if (net != null) {
                     sub.append(getString(R.string.widget_net, net), StyleSpan(Typeface.BOLD), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    sub.setSpan(ForegroundColorSpan(getColor(R.color.tr_text)), 0, sub.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sub.setSpan(ForegroundColorSpan(WidgetStyle.textColor(this@FloatingWidgetService)), 0, sub.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     if (details.isNotEmpty()) sub.append("\n")
                 }
                 sub.append(details)
@@ -244,7 +244,9 @@ class FloatingWidgetService : Service() {
     private fun setOrderSize(order: Boolean) {
         orderSize = order
         // Цена заказа — заметно крупнее надбавки между заказами: её видно с одного взгляда.
-        tvWidgetSurge?.textSize = (if (order) 38f else 28f) * scale
+        tvWidgetSurge?.textSize = (if (order) 38f * WidgetStyle.orderScale(this) else 28f * WidgetStyle.valueScale(this)) * scale
+        // Цена заказа — всегда в полную яркость.
+        if (order) floatingView?.alpha = 1f
         tvWidgetSub?.textSize = (if (order) 13f else 11f) * scale
     }
 
@@ -262,6 +264,15 @@ class FloatingWidgetService : Service() {
         val available = (resources.displayMetrics.widthPixels - 64 * resources.displayMetrics.density).toInt().coerceAtLeast(150)
         tvWidgetSub?.maxWidth = minOf((250 * dp).toInt(), available)
         tvWidgetSurge?.maxWidth = available
+        floatingView?.findViewById<View>(R.id.widgetPill)?.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = 22 * dp
+            setColor(WidgetStyle.bgColor(this@FloatingWidgetService))
+            setStroke(resources.displayMetrics.density.toInt().coerceAtLeast(1), WidgetStyle.strokeColor(this@FloatingWidgetService))
+        }
+        tvWidgetSub?.setTextColor(WidgetStyle.subColor(this))
+        // «+» (метки) можно спрятать — кружок меньше. Меню меток тогда открывается нажатием на кружок.
+        btnPlus?.visibility = if (WidgetStyle.showPlus(this)) View.VISIBLE else View.GONE
+        (btnPlus?.background?.mutate() as? android.graphics.drawable.GradientDrawable)?.setColor((WidgetStyle.bgColor(this) and 0x00FFFFFF) or (0xF2 shl 24))
         btnPlus?.textSize = 20f * scale
         btnPlus?.layoutParams = (btnPlus?.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
             width = (30 * dp).toInt()
@@ -389,8 +400,9 @@ class FloatingWidgetService : Service() {
     }
 
     /** Цвет «+» (значок и обводка) — как у цифры надбавки. */
-    private fun tintPlus(colorRes: Int) {
-        val color = getColor(colorRes)
+    private fun tintPlus(colorRes: Int) = tintPlusColor(getColor(colorRes))
+
+    private fun tintPlusColor(color: Int) {
         btnPlus?.setTextColor(color)
         (btnPlus?.background?.mutate() as? android.graphics.drawable.GradientDrawable)
             ?.setStroke((1.5f * resources.displayMetrics.density * scale).toInt().coerceAtLeast(1), color)
@@ -761,7 +773,7 @@ class FloatingWidgetService : Service() {
                 if (i > 0) append("  ")
                 val start = length
                 append("$label ")
-                setSpan(android.text.style.RelativeSizeSpan(0.7f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                setSpan(android.text.style.RelativeSizeSpan(WidgetStyle.labelScale(this@FloatingWidgetService)), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 append(value)
             }
         }
@@ -776,18 +788,18 @@ class FloatingWidgetService : Service() {
                 val hot = v != null && v > 0
                 val start = sb.length
                 sb.append("$label ")
-                sb.setSpan(android.text.style.RelativeSizeSpan(0.7f), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(android.text.style.RelativeSizeSpan(WidgetStyle.labelScale(this@FloatingWidgetService)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 val vStart = sb.length
                 sb.append(if (v == null) "?" else if (hot) "+$v" else "0")
                 sb.setSpan(
-                    ForegroundColorSpan(getColor(if (hot) R.color.tr_surge else R.color.tr_accent)),
+                    ForegroundColorSpan(if (hot) WidgetStyle.surgeColor(this@FloatingWidgetService) else WidgetStyle.calmColor(this@FloatingWidgetService)),
                     start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
                 if (vStart == start) return
             }
             displayText = SpannableStringBuilder().also {
                 line(it, getString(R.string.widget_here), here)
-                it.append("\n")
+                it.append(WidgetStyle.separator(this@FloatingWidgetService))
                 line(it, getString(R.string.widget_point_b), atB)
             }
             hasSurge = (here ?: 0) > 0 || (atB ?: 0) > 0
@@ -812,12 +824,12 @@ class FloatingWidgetService : Service() {
             val shown = d ?: surgeSnapshots["express"]?.takeIf { now - it.at <= 10 * 60000 }?.value
             if (shown != null && shown > 0) hasSurge = true
             displayText = SpannableStringBuilder(displayText).also { sb ->
-                sb.append("\n")
+                sb.append(WidgetStyle.separator(this@FloatingWidgetService))
                 val start = sb.length
                 sb.append(getString(R.string.tariff_delivery_short) + " ")
-                sb.setSpan(android.text.style.RelativeSizeSpan(0.7f), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(android.text.style.RelativeSizeSpan(WidgetStyle.labelScale(this@FloatingWidgetService)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 sb.append(when { shown == null -> "?"; shown > 0 -> "+$shown"; else -> "0" })
-                sb.setSpan(ForegroundColorSpan(getColor(if (shown != null && shown > 0) R.color.tr_surge else R.color.tr_accent)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(ForegroundColorSpan(if (shown != null && shown > 0) WidgetStyle.surgeColor(this@FloatingWidgetService) else WidgetStyle.calmColor(this@FloatingWidgetService)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
 
@@ -834,8 +846,11 @@ class FloatingWidgetService : Service() {
                 } else {
                     tvWidgetSub?.visibility = View.GONE
                 }
-                tvWidgetSurge?.setTextColor(getColor(if (hasSurge) R.color.tr_surge else R.color.tr_accent))
-                tintPlus(if (hasSurge) R.color.tr_surge else R.color.tr_accent)
+                val style = this@FloatingWidgetService
+                tvWidgetSurge?.setTextColor(if (hasSurge) WidgetStyle.surgeColor(style) else WidgetStyle.calmColor(style))
+                tintPlusColor(if (hasSurge) WidgetStyle.surgeColor(style) else WidgetStyle.calmColor(style))
+                // Приглушать без спроса: кружок полупрозрачный, при надбавке — снова яркий.
+                floatingView?.alpha = if (WidgetStyle.dim(style) && !hasSurge) WidgetStyle.dimAlpha(style) / 100f else 1f
             }
         }
     }
