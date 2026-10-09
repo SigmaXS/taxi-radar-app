@@ -564,6 +564,9 @@ class MainActivity : AppCompatActivity() {
 
     /** Сколько дней сервер проверяет, что приглашённый друг пользуется радаром. */
     private var checkDays = 7
+    /** Бонус пригласившему: сразу за код и сверху за покупку ключа другом. */
+    private var installDays = 2
+    private var purchaseDays = 3
 
     private fun setupReferralCard() {
         btnReferralShare.setOnClickListener {
@@ -582,10 +585,9 @@ class MainActivity : AppCompatActivity() {
         }
         btnReferralEnter.setOnClickListener { showEnterReferralDialog() }
         findViewById<View>(R.id.btnReferralHow).setOnClickListener {
-            val bonus = AppConfig.load(this).referralBonusDays
             MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.ref_how_title)
-                .setMessage(getString(R.string.ref_how_text, bonus, checkDays))
+                .setMessage(getString(R.string.ref_how_text, installDays, checkDays, purchaseDays))
                 .setPositiveButton(R.string.intro_got_it, null)
                 .show()
         }
@@ -598,9 +600,10 @@ class MainActivity : AppCompatActivity() {
                 cardReferral.visibility = View.GONE
                 return@launch
             }
-            val bonus = info.optInt("bonus_days", AppConfig.load(this@MainActivity).referralBonusDays)
+            purchaseDays = info.optInt("bonus_days", AppConfig.load(this@MainActivity).referralBonusDays)
+            installDays = info.optInt("install_days", 2)
             tvReferralCode.text = info.optString("code")
-            tvReferralCaption.text = getString(R.string.ref_caption, bonus)
+            tvReferralCaption.text = getString(R.string.ref_caption, installDays, purchaseDays)
             tvReferralStats.text = getString(R.string.ref_stats, info.optInt("invited"), info.optInt("rewarded"),
                 info.optInt("pending"), info.optInt("revoked"))
             checkDays = info.optInt("check_days", 7)
