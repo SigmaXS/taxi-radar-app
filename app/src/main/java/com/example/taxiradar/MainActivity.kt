@@ -562,6 +562,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Сколько дней сервер проверяет, что приглашённый друг пользуется радаром. */
+    private var checkDays = 7
+
     private fun setupReferralCard() {
         btnReferralShare.setOnClickListener {
             val code = tvReferralCode.text.toString()
@@ -582,7 +585,7 @@ class MainActivity : AppCompatActivity() {
             val bonus = AppConfig.load(this).referralBonusDays
             MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.ref_how_title)
-                .setMessage(getString(R.string.ref_how_text, bonus))
+                .setMessage(getString(R.string.ref_how_text, bonus, checkDays))
                 .setPositiveButton(R.string.intro_got_it, null)
                 .show()
         }
@@ -598,7 +601,9 @@ class MainActivity : AppCompatActivity() {
             val bonus = info.optInt("bonus_days", AppConfig.load(this@MainActivity).referralBonusDays)
             tvReferralCode.text = info.optString("code")
             tvReferralCaption.text = getString(R.string.ref_caption, bonus)
-            tvReferralStats.text = getString(R.string.ref_stats, info.optInt("invited"), info.optInt("rewarded"))
+            tvReferralStats.text = getString(R.string.ref_stats, info.optInt("invited"), info.optInt("rewarded"),
+                info.optInt("pending"), info.optInt("revoked"))
+            checkDays = info.optInt("check_days", 7)
 
             val referredBy = if (info.isNull("referred_by")) null else info.optString("referred_by")
             if (referredBy.isNullOrBlank()) {
