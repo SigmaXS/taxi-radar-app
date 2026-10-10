@@ -36,6 +36,17 @@ object AccessibilityAccess {
         return enabled.split(':').any { ComponentName.unflattenFromString(it) == me }
     }
 
+    /**
+     * Служба выключилась (на мультимедиа BYD — после обновления приложения), а разрешение
+     * WRITE_SECURE_SETTINGS у нас есть — включаем обратно молча. true — включили сейчас.
+     */
+    fun ensureEnabled(context: Context): Boolean {
+        if (isEnabled(context) || !canEnableSelf(context)) return false
+        val ok = enableSelf(context)
+        android.util.Log.d("ACCESS", "Служба была выключена — включили сами: $ok")
+        return ok
+    }
+
     /** Включает службу сам (нужно разрешение WRITE_SECURE_SETTINGS). */
     fun enableSelf(context: Context): Boolean = try {
         val resolver = context.contentResolver

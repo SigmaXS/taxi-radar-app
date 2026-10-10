@@ -930,6 +930,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        AccessibilityAccess.ensureEnabled(this)
         renderYandexState()
         renderTraffic()
         renderSetupWarning()

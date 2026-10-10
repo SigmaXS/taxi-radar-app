@@ -116,6 +116,7 @@ class FloatingWidgetService : Service() {
         super.onCreate()
         instance = this
         isRunning = true
+        AccessibilityAccess.ensureEnabled(this)
         licenseManager = LicenseManager(this)
         startInForeground()
 
