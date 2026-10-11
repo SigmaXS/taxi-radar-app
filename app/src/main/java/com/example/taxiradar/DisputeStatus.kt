@@ -31,14 +31,18 @@ object DisputeStatus {
         val trips = CommunityApi.post(a, "/api/trips/mine")?.optJSONArray("trips") ?: return
         val seen = try { JSONObject(prefs.getString("dispute_seen", "{}")) } catch (_: Exception) { JSONObject() }
         var news: String? = null
+        var count = 0
         for (i in 0 until trips.length()) {
             val t = trips.getJSONObject(i)
             val st = t.optString("dispute_status")
             if (st.isEmpty() || st == "received" || seen.optString(t.optString("id")) == st) continue
             seen.put(t.optString("id"), st)
+            count++
             if (news == null) news = DriverUi.t(a, "По вашей поездке: ", "Despre cursa dvs.: ") + text(a, st)!!.first
         }
         prefs.edit().putString("dispute_seen", seen.toString()).apply()
+        // Несколько ответов — не теряем: говорим сколько, подробности в «Моих поездках».
+        if (count > 1) news = DriverUi.t(a, "Получено ответов по вашим поездкам: $count — смотрите «Мои поездки»", "Răspunsuri la cursele dvs.: $count — vedeți «Cursele mele»")
         news?.let(show)
     }
 

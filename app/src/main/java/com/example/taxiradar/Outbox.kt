@@ -14,7 +14,10 @@ object Outbox {
     private const val KEY = "events"
     private const val MAX = 300
     private val lock = Any()
-    @Volatile private var flushing = false
+    /** Один отправитель: проверка и установка — одной операцией. */
+    private val flushing = java.util.concurrent.atomic.AtomicBoolean(false)
+    /** Ошибка сервера (5xx) столько раз подряд — событие выбрасываем, чтобы не заклинило очередь. */
+    private const val MAX_SERVER_ERRORS = 30
 
     private fun load(c: Context): JSONArray =
         try { JSONArray(c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, "[]")) } catch (_: Exception) { JSONArray() }
@@ -41,22 +44,33 @@ object Outbox {
     /** Отправить накопленное по порядку; на первом же обрыве связи — остановиться до следующего раза. */
     fun flush(context: Context) {
         val c = context.applicationContext
-        if (flushing) return
-        flushing = true
+        if (!flushing.compareAndSet(false, true)) return
         Thread {
             try {
                 while (true) {
                     val head = synchronized(lock) { load(c).optJSONObject(0) } ?: break
+                    val headText = head.toString()
                     val body = JSONObject(head.getJSONObject("body").toString())
-                    val reply = CommunityApi.postBlocking(c, head.getString("path"), body) ?: break
-                    // Сервер ответил (даже отказом — например, кончилась подписка): событие обработано.
-                    if (reply.has("ok") || reply.has("message")) synchronized(lock) {
+                    val code = CommunityApi.postStatus(c, head.getString("path"), body) ?: break
+                    // 2xx — принято; 4xx — сервер отказал (кончилась подписка, неверные данные), повтор не поможет.
+                    // 5xx — сбой сервера: оставляем и пробуем позже.
+                    val done = code in 200..499
+                    synchronized(lock) {
                         val a = load(c)
-                        if (a.length() > 0) { a.remove(0); save(c, a) }
-                    } else break
+                        // Убираем именно это событие, а не «первое, что лежит».
+                        if (a.length() > 0 && a.optJSONObject(0)?.toString() == headText) {
+                            if (done) a.remove(0)
+                            else {
+                                val tries = head.optInt("errors") + 1
+                                if (tries >= MAX_SERVER_ERRORS) a.remove(0) else a.put(0, JSONObject(headText).put("errors", tries))
+                            }
+                            save(c, a)
+                        }
+                    }
+                    if (!done) break
                 }
             } finally {
-                flushing = false
+                flushing.set(false)
             }
         }.start()
     }

@@ -65,9 +65,10 @@ class MyTripsActivity : AppCompatActivity() {
             val trips = json?.optJSONArray("trips")
             val server = (0 until (trips?.length() ?: 0)).map { trips!!.getJSONObject(it) }
             val local = DriverJournal.rides(this@MyTripsActivity)
+            val hidden = DriverJournal.hidden(this@MyTripsActivity)
             val byKey = server.filter { it.optString("key").isNotBlank() }.associateBy { it.optString("key") }
             val items = (local.map { Item(it.at, it, byKey[it.id]) } +
-                server.filter { s -> local.none { it.id == s.optString("key") } }.map { Item(it.optLong("at"), null, it) })
+                server.filter { s -> local.none { it.id == s.optString("key") } && s.optString("key") !in hidden }.map { Item(it.optLong("at"), null, it) })
                 .sortedByDescending { it.at }
             list.removeAllViews()
             DriverUi.button(this@MyTripsActivity, list, t("+ Добавить поездку вручную", "+ Adaugă cursă manual")) {

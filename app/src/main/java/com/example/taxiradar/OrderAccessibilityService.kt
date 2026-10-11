@@ -159,12 +159,25 @@ class OrderAccessibilityService : AccessibilityService() {
         handler.postDelayed(processScreen, if (LiteMode.enabled(this)) 400 else 150)
     }
 
+    /**
+     * Окно Яндекс Про. Активным может быть другое окно — навигатор рядом на большом экране
+     * мультимедиа, разделённый экран; тогда ищем окно Яндекса среди всех окон.
+     */
+    private fun yandexRoot(): android.view.accessibility.AccessibilityNodeInfo? {
+        fun isYandex(n: android.view.accessibility.AccessibilityNodeInfo?) =
+            n?.packageName?.toString()?.let { it.contains("taximeter", true) || it.contains("yandex", true) } == true
+        val active = rootInActiveWindow
+        if (isYandex(active)) return active
+        val other = try { windows.mapNotNull { it.root }.firstOrNull { isYandex(it) } } catch (_: Exception) { null }
+        return other ?: active
+    }
+
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private val processScreen = Runnable { processYandexScreen() }
 
     private fun processYandexScreen() {
         try {
-            val root = rootInActiveWindow ?: return
+            val root = yandexRoot() ?: return
             val allNodes = mutableListOf<NodeData>()
             collectNodes(root, allNodes)
 
@@ -187,10 +200,11 @@ class OrderAccessibilityService : AccessibilityService() {
             if (!hasAccept) {
                 // Экран «Ожидание в очереди» в аэропорту — цифры очереди для всех водителей.
                 AirportQueue.onScreen(this, allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() })
-                // Лёгкий режим: экран поездки не разбираем — только карточки заказов.
-                if (LiteMode.cuts(this, LiteMode.Feature.TRIP)) return
-                maybeLearnTraffic(allNodes)
-                TripDestination.onScreen(this, allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() })
+                // Лёгкий режим выключает только пробки и надбавку в Б; поездки в смену пишутся всегда.
+                if (!LiteMode.cuts(this, LiteMode.Feature.TRIP)) {
+                    maybeLearnTraffic(allNodes)
+                    TripDestination.onScreen(this, allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() })
+                }
                 TripTracker.onScreen(this, root.packageName?.toString().orEmpty(), allTexts)
                 return
             }

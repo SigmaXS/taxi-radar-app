@@ -126,8 +126,9 @@ class AirportActivity : AppCompatActivity() {
             val stale = q != null && q.ageMin > 20
             row.addView(TextView(this).apply {
                 text = if (q == null) t("нет свежих данных", "fără date recente") else listOfNotNull(
-                    when { q.carsTo != null && q.carsFrom != null && q.carsTo != q.carsFrom -> t("~${q.carsFrom}–${q.carsTo} машин", "~${q.carsFrom}–${q.carsTo} mașini")
-                           q.carsTo != null -> t("~${q.carsTo} машин", "~${q.carsTo} mașini"); else -> null },
+                    // Это место водителя, который прислал отметку, а не длина очереди: он мог уже продвинуться.
+                    when { q.carsTo != null && q.carsFrom != null && q.carsTo != q.carsFrom -> t("наблюдаемое место: ${q.carsFrom}–${q.carsTo}", "loc observat: ${q.carsFrom}–${q.carsTo}")
+                           q.carsTo != null -> t("наблюдаемое место: ${q.carsTo}", "loc observat: ${q.carsTo}"); else -> null },
                     q.waitMin?.let { w -> t("ожидание ~${if (w >= 60) "${w / 60} ч${if (w % 60 > 0) " ${w % 60} мин" else ""}" else "$w мин"}", "așteptare ~${if (w >= 60) "${w / 60} h${if (w % 60 > 0) " ${w % 60} min" else ""}" else "$w min"}") },
                     if (stale) t("данные устарели (${q.ageMin} мин)", "date vechi (${q.ageMin} min)") else t("${q.ageMin} мин назад", "acum ${q.ageMin} min")
                 ).joinToString(" · ")

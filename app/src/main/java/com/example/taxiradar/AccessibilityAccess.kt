@@ -43,7 +43,8 @@ object AccessibilityAccess {
     fun ensureEnabled(context: Context): Boolean {
         if (isEnabled(context) || !canEnableSelf(context)) return false
         val ok = enableSelf(context)
-        android.util.Log.d("ACCESS", "Служба была выключена — включили сами: $ok")
+        TripLog.init(context)
+        TripLog.d("Спец. возможность была выключена — включили сами: $ok")
         return ok
     }
 

@@ -110,11 +110,11 @@ object TripTracker {
                 j.getDouble("navKm"), j.getDouble("pickupKm"), j.getString("key"), j.getString("currentB"),
                 j.optBoolean("routeChanged"), j.optInt("meter", -1).takeIf { it >= 0 })
         }.getOrNull()
-        Log.d("TRIP", "Восстановили поездку после перезапуска: ${activeTrip?.route}")
+        TripLog.d("Восстановили поездку после перезапуска: ${activeTrip?.route}")
     }
 
     /** Помним контекст, чтобы восстановить поездку после перезапуска радара. */
-    private fun bind(context: Context) { if (prefsCtx == null) prefsCtx = context.applicationContext }
+    private fun bind(context: Context) { if (prefsCtx == null) { prefsCtx = context.applicationContext; TripLog.init(context) } }
 
     /**
      * Конец поездки радар не увидел (начался следующий заказ, прошло 3 часа):
@@ -134,11 +134,12 @@ object TripTracker {
                 .put("real_price", JSONObject.NULL).put("real_min", JSONObject.NULL)
                 .put("note", "конец не увиден")
         )
-        Log.d("TRIP", "Конец поездки не видели — записали черновиком: ${trip.route}")
+        TripLog.d("Конец поездки не видели — записали черновиком: ${trip.route}")
     }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastLogged = ""
     private var lastLoggedAt = 0L
+    private var lastTripLogAt = 0L
 
     // Телефон дальше этого от найденного адреса — водитель не у адреса
     // (завершил раньше, нажал не там). Такую точку в базу не пишем.
@@ -171,7 +172,7 @@ object TripTracker {
         DriverJournal.resume(app)
         val trip = Trip(route, System.currentTimeMillis(), navMin, estPrice, navKm, OrderPreview.current()?.takeIf { it.route == route }?.pickup ?: 0.0, currentB = route.last())
         active = trip
-        Log.d("TRIP", "Поездка началась: $route, наш расчёт $estPrice L, навигатор $navPrice L")
+        TripLog.d("Поездка началась: $route, наш расчёт $estPrice L, навигатор $navPrice L")
         withLocation(app) { loc -> if (loc != null) scope.launch { learn(app, route.first(), loc, trustWithoutReference = true) } }
         // Через очередь: при плохой связи начало поездки дошлётся позже, а не потеряется.
         Outbox.send(
@@ -213,6 +214,8 @@ object TripTracker {
             lastLogged = joined
             lastLoggedAt = now
             joined.chunked(3000).forEachIndexed { i, part -> Log.d("TRIP_DEBUG", "Экран поездки [${i + 1}]: $part") }
+            // В журнал радара — коротко и не чаще раза в 15 с: видно, какой экран был вместо «Заказ завершён».
+            if (now - lastTripLogAt > 15_000) { lastTripLogAt = now; TripLog.d("Экран поездки: " + joined.take(300)) }
         }
 
         val lines = texts.flatMap { it.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() }
@@ -224,7 +227,7 @@ object TripTracker {
             val next = lines[i + 1]
             if (next.length > 5 && next.any { it.isLetter() } && !notAddress.matches(next)) {
                 if (!next.equals(trip.currentB, true) && !RouteFareCalculator.addressKey(trip.route.last()).equals(RouteFareCalculator.addressKey(next), true)) {
-                    Log.d("TRIP", "Адрес Б сменился: «${trip.currentB}» → «$next»")
+                    TripLog.d("Адрес Б сменился: «${trip.currentB}» → «$next»")
                     trip.currentB = next
                     trip.routeChanged = true
                     prefsCtx?.let { save(it, trip) }
@@ -246,7 +249,7 @@ object TripTracker {
         active = null
         // Экран «Заказ завершён» ещё повисит — страховка «поездки без начала» не должна записать её второй раз.
         lastOrphan = "${price ?: trip.estPrice}|"; lastOrphanAt = now
-        Log.d("TRIP", "Поездка закончилась: Яндекс $price L, маршрут менялся: ${trip.routeChanged}, Б = «${trip.currentB}»")
+        TripLog.d("Поездка закончилась: Яндекс $price L, маршрут менялся: ${trip.routeChanged}, Б = «${trip.currentB}»")
 
         val app = context.applicationContext
         val elapsedMin = (now - trip.startedAt) / 60_000.0
@@ -292,14 +295,14 @@ object TripTracker {
         val ref = RouteFareCalculator.locate(context, address)
         val near = ref?.let { RouteFareCalculator.distanceKm(it.first, it.second, loc.latitude, loc.longitude) <= NEAR_ADDRESS_KM }
         if (near == false || (near == null && !trustWithoutReference)) {
-            Log.d("TRIP", "Точку «$key» не пишем: ${if (near == false) "телефон далеко от адреса" else "не с чем сравнить"}")
+            TripLog.d("Точку «$key» не пишем: ${if (near == false) "телефон далеко от адреса" else "не с чем сравнить"}")
             return near
         }
         val r = CommunityApi.postBlocking(
             context, "/api/geocode/learn",
             JSONObject().put("q", key).put("lat", loc.latitude).put("lon", loc.longitude)
         )
-        Log.d("TRIP", "Точка адреса «$key»: ${r?.optString("result")}")
+        TripLog.d("Точка адреса «$key»: ${r?.optString("result")}")
         return near
     }
 
@@ -351,6 +354,6 @@ object TripTracker {
         val app = context.applicationContext
         DriverJournal.autoStart(app)
         DriverJournal.add(app, price, 0, 0.0, 0.0, 1, "", confirmed = false, payment = recentPayment().orEmpty())
-        Log.d("TRIP", "Поездка без начала (без Б или короткая): записали в смену $price L")
+        TripLog.d("Поездка без начала (без Б или короткая): записали в смену $price L")
     }
 }

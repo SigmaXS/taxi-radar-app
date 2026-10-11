@@ -17,7 +17,7 @@ object Backup {
     private const val MAIN = "taxi_radar_prefs"
     private const val JOURNAL = "driver_journal"
     /** Что из общих настроек переносим: настройки помощника, расходы, лёгкий режим, тарифы, выученные пробки. */
-    private val KEEP = listOf("driver_", "net_", "lite_", "show_", "widget_", "traffic_samples")
+    private val KEEP = listOf("driver_", "net_", "lite_", "show_", "widget_", "ws_", "traffic_samples")
     private val SKIP = listOf("yandex", "license", "device", "key")
 
     private fun dump(c: Context, file: String, filter: (String) -> Boolean): JSONObject {
@@ -42,16 +42,29 @@ object Backup {
     fun restore(c: Context, text: String): Int? {
         val j = try { JSONObject(text) } catch (_: Exception) { return null }
         if (j.optString("app") != "Taxi Radar") return null
-        for ((file, filter) in listOf<Pair<String, (String) -> Boolean>>(JOURNAL to { _ -> true }, MAIN to ::keep)) {
-            val data = j.optJSONObject(file) ?: continue
-            val e = c.getSharedPreferences(file, Context.MODE_PRIVATE).edit()
-            data.keys().forEach { k ->
-                if (!filter(k)) return@forEach
-                val o = data.getJSONObject(k)
-                when (o.optString("t")) {
-                    "b" -> e.putBoolean(k, o.getBoolean("v")); "i" -> e.putInt(k, o.getInt("v")); "l" -> e.putLong(k, o.getLong("v"))
-                    "f" -> e.putFloat(k, o.getDouble("v").toFloat()); "s" -> e.putString(k, o.getString("v"))
+        // Сначала разбираем весь файл; испорченный — не трогаем ничего (а не половину настроек).
+        val plan = mutableListOf<Triple<String, String, Any>>()
+        try {
+            for ((file, filter) in listOf<Pair<String, (String) -> Boolean>>(JOURNAL to { _ -> true }, MAIN to ::keep)) {
+                val data = j.optJSONObject(file) ?: continue
+                data.keys().forEach { k ->
+                    if (!filter(k)) return@forEach
+                    val o = data.getJSONObject(k)
+                    val v: Any = when (o.getString("t")) {
+                        "b" -> o.getBoolean("v"); "i" -> o.getInt("v"); "l" -> o.getLong("v")
+                        "f" -> o.getDouble("v").toFloat(); "s" -> o.getString("v")
+                        else -> return@forEach
+                    }
+                    plan += Triple(file, k, v)
                 }
+            }
+            // Журнал поездок должен читаться.
+            j.optJSONObject(JOURNAL)?.optJSONObject("rides")?.optString("v")?.let { org.json.JSONArray(it) }
+        } catch (_: Exception) { return null }
+        for ((file, items) in plan.groupBy { it.first }) {
+            val e = c.getSharedPreferences(file, Context.MODE_PRIVATE).edit()
+            items.forEach { (_, k, v) ->
+                when (v) { is Boolean -> e.putBoolean(k, v); is Int -> e.putInt(k, v); is Long -> e.putLong(k, v); is Float -> e.putFloat(k, v); is String -> e.putString(k, v) }
             }
             e.commit()
         }

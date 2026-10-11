@@ -30,6 +30,20 @@ object CommunityApi {
         withContext(Dispatchers.IO) { postBlocking(context, path, body) }
 
     /** То же без корутин — для кода, который уже работает в фоновом потоке. */
+    /** Для очереди: код ответа сервера; null — нет связи. */
+    fun postStatus(context: Context, path: String, body: JSONObject): Int? =
+        try {
+            body.put("device_id", LicenseManager(context).deviceId)
+            val request = Request.Builder()
+                .url(BASE_URL + path)
+                .post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .build()
+            client.newCall(request).execute().use { it.code }
+        } catch (e: Exception) {
+            Log.e("COMMUNITY", "$path: ${e.message}")
+            null
+        }
+
     fun postBlocking(context: Context, path: String, body: JSONObject = JSONObject()): JSONObject? =
         try {
             body.put("device_id", LicenseManager(context).deviceId)

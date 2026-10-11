@@ -37,6 +37,11 @@ object EventReminders {
 
     /** Свежий список с сервера: перенесённые — переставить, отменённые — снять и сообщить. */
     fun sync(c: Context, events: List<Event>) {
+        // Событие удалили или перенесли дальше недели — его нет в списке: напоминание снимаем.
+        val ids = events.map { it.id }.toSet()
+        p(c).all.keys.filter { it.startsWith("e") }.mapNotNull { it.drop(1).toIntOrNull() }.filter { it !in ids }.forEach { id ->
+            p(c).edit().remove("e$id").remove("t$id").apply(); cancel(c, id)
+        }
         for (e in events) {
             if (!isOn(c, e.id)) continue
             if (e.status != "ok") {
@@ -59,6 +64,8 @@ object EventReminders {
     }
 
     private fun schedule(c: Context, e: Event) {
+        // Сначала снять прежний будильник: при переносе он мог остаться на старое время.
+        cancel(c, e.id)
         val at = e.ends - BEFORE_MIN * 60_000L
         if (at < System.currentTimeMillis()) return
         val am = c.getSystemService(AlarmManager::class.java) ?: return

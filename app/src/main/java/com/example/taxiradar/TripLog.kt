@@ -1,0 +1,38 @@
+package com.example.taxiradar
+
+import android.content.Context
+import android.util.Log
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/**
+ * «Журнал радара»: последние события поездок и смены (начало, конец, что было на экране),
+ * чтобы водитель мог отправить его нам без компьютера — особенно с мультимедиа машины.
+ */
+object TripLog {
+    private const val MAX = 400
+    private var file: File? = null
+    private val lines = ArrayDeque<String>()
+    private val fmt = SimpleDateFormat("dd.MM HH:mm:ss", Locale.US)
+
+    @Synchronized fun init(c: Context) {
+        if (file != null) return
+        file = File(c.applicationContext.filesDir, "trip_log.txt").also { f ->
+            runCatching { if (f.exists()) f.readLines().takeLast(MAX).forEach { lines.addLast(it) } }
+        }
+    }
+
+    @Synchronized fun d(msg: String) {
+        Log.d("TRIP", msg)
+        lines.addLast("${fmt.format(Date())}  $msg")
+        while (lines.size > MAX) lines.removeFirst()
+        runCatching { file?.writeText(lines.joinToString("\n")) }
+    }
+
+    @Synchronized fun text(c: Context): String {
+        init(c)
+        return lines.joinToString("\n")
+    }
+}

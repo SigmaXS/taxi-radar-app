@@ -117,6 +117,8 @@ class FloatingWidgetService : Service() {
         instance = this
         isRunning = true
         AccessibilityAccess.ensureEnabled(this)
+        TripLog.init(this)
+        DriverJournal.radarStarted(this)
         licenseManager = LicenseManager(this)
         startInForeground()
 
@@ -663,6 +665,7 @@ class FloatingWidgetService : Service() {
                 }
                 // Что не ушло при плохой связи — досылаем.
                 Outbox.flush(this@FloatingWidgetService)
+                DriverJournal.radarAlive(this@FloatingWidgetService)
                 // Вышла новая версия — уведомление в шторке (раз в 3 часа сверяемся).
                 UpdateNotifier.check(this@FloatingWidgetService, licenseManager)
                 // Едем по заказу — надбавка «здесь» и в Б чаще, раз в 30 секунд.
@@ -905,6 +908,7 @@ class FloatingWidgetService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        DriverJournal.radarStopped(this)
         instance = null
         isRunning = false
         serviceScope.cancel()
