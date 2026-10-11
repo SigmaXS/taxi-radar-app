@@ -73,9 +73,6 @@ object TripTracker {
         lastCard?.let { it.from = from.take(120); it.to = to.take(120); it.tariff = tariff }
     }
 
-    /** На мультимедиа машины (BYD) пишем поездку только по последнему экрану — без поиска начала и точки Б. */
-    private fun endScreenOnly() = AccessibilityAccess.isCarHeadUnit()
-
     // Цена с экрана завершения в любом порядке: «55,7 MDL», «55.7 L», «MDL 55.7», «lei 55».
     // Строки с «+» (личная цель «+ MDL 460.0») пропускаем.
     private val priceBefore = Regex("""(?iu)(?:^|\s)(?:MDL|lei|лей|L)\s*(\d{1,5})(?:[.,](\d{1,2}))?\b""")
@@ -182,7 +179,6 @@ object TripTracker {
     ) {
         val app = context.applicationContext
         bind(app)
-        if (endScreenOnly()) { TripLog.d("Мультимедиа: начало поездки не отслеживаем — запишем по экрану завершения"); return }
         val prev = active
         val nowMs = System.currentTimeMillis()
         if (prev != null && nowMs - prev.startedAt < 3 * 3600_000L) {
