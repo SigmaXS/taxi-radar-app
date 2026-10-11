@@ -44,8 +44,8 @@ object TripTracker {
         if (lower.any { it.contains("действует до") || it.contains("можно менять") || it.contains("тарифы и опции") || it.contains("вы меняли оплату") || it.contains("valabil până") }) return
         val now = System.currentTimeMillis()
         when {
-            lower.any { it in cardExact || it.contains("оплата картой") || it.contains("cu cardul") } -> payment = "card" to now
-            lower.any { it in cashExact || it.contains("оплата наличными") } -> payment = "cash" to now
+            lower.any { it in cardExact || it.contains("оплата картой") || it.contains("оплачено картой") || it.contains("cu cardul") || it.contains("paid by card") || it.contains("card payment") } -> payment = "card" to now
+            lower.any { it in cashExact || it.contains("оплата наличными") || it.contains("получите наличными") || it.contains("collect in cash") || it.contains("încasați numerar") || it.contains("incasati numerar") } -> payment = "cash" to now
         }
     }
 
@@ -55,6 +55,36 @@ object TripTracker {
 
     /** Новая карточка заказа — оплата прошлого клиента больше не наша. */
     fun resetPayment() { payment = null }
+
+    // ---------- последняя карточка заказа: время «взяли заказ» и откуда-куда ----------
+
+    private data class Card(var at: Long, var from: String = "", var to: String = "", var tariff: String = "")
+    @Volatile private var lastCard: Card? = null
+
+    /** Карточка заказа на экране. Последний её показ ≈ момент, когда заказ взяли. */
+    fun noteCardSeen() {
+        val now = System.currentTimeMillis()
+        val c = lastCard
+        // Та же карточка перерисовывается — время обновляем; новая — начинаем заново.
+        if (c != null && now - c.at < 60_000) c.at = now else lastCard = Card(now)
+    }
+
+    fun noteCardRoute(from: String, to: String, tariff: String) {
+        lastCard?.let { it.from = from.take(120); it.to = to.take(120); it.tariff = tariff }
+    }
+
+    /** На мультимедиа машины (BYD) пишем поездку только по последнему экрану — без поиска начала и точки Б. */
+    private fun endScreenOnly() = AccessibilityAccess.isCarHeadUnit()
+
+    // Цена с экрана завершения в любом порядке: «55,7 MDL», «55.7 L», «MDL 55.7», «lei 55».
+    // Строки с «+» (личная цель «+ MDL 460.0») пропускаем.
+    private val priceBefore = Regex("""(?iu)(?:^|\s)(?:MDL|lei|лей|L)\s*(\d{1,5})(?:[.,](\d{1,2}))?\b""")
+    private fun parsePrice(lines: List<String>): Int? = lines.filterNot { it.trimStart().startsWith("+") }.firstNotNullOfOrNull { l ->
+        (priceRegex.find(l) ?: priceBefore.find(l))?.let { m ->
+            val whole = m.groupValues[1].toIntOrNull() ?: return@let null
+            if (m.groupValues[2].isNotEmpty() && m.groupValues[2].padEnd(2, '0').toInt() >= 50) whole + 1 else whole
+        }
+    }
 
     // Поездка, начало которой радар не заметил (без Б, короткая, с заездами): запишем по «Заказ завершён».
     private var lastOrphan = ""
@@ -152,6 +182,7 @@ object TripTracker {
     ) {
         val app = context.applicationContext
         bind(app)
+        if (endScreenOnly()) { TripLog.d("Мультимедиа: начало поездки не отслеживаем — запишем по экрану завершения"); return }
         val prev = active
         val nowMs = System.currentTimeMillis()
         if (prev != null && nowMs - prev.startedAt < 3 * 3600_000L) {
@@ -240,13 +271,9 @@ object TripTracker {
 
         if (now - trip.startedAt < 30_000) return
         if (lower.none { l -> endWords.any { l.contains(it) } }) return
-        val price = lines.firstNotNullOfOrNull { l ->
-            priceRegex.find(l)?.let { m ->
-                val whole = m.groupValues[1].toIntOrNull() ?: return@let null
-                if (m.groupValues[2].isNotEmpty() && m.groupValues[2].padEnd(2, '0').toInt() >= 50) whole + 1 else whole
-            }
-        } ?: trip.meter
+        val price = parsePrice(lines) ?: trip.meter
         active = null
+        lastCard = null
         // Экран «Заказ завершён» ещё повисит — страховка «поездки без начала» не должна записать её второй раз.
         lastOrphan = "${price ?: trip.estPrice}|"; lastOrphanAt = now
         TripLog.d("Поездка закончилась: Яндекс $price L, маршрут менялся: ${trip.routeChanged}, Б = «${trip.currentB}»")
@@ -340,20 +367,22 @@ object TripTracker {
         val lines = texts.flatMap { it.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() }
         val lower = lines.map { it.lowercase() }
         if (lower.none { l -> endWords.any { l.contains(it) } }) return
-        val price = lines.firstNotNullOfOrNull { l ->
-            priceRegex.find(l)?.let { m ->
-                val whole = m.groupValues[1].toIntOrNull() ?: return@let null
-                if (m.groupValues[2].isNotEmpty() && m.groupValues[2].padEnd(2, '0').toInt() >= 50) whole + 1 else whole
-            }
-        } ?: return
+        val price = parsePrice(lines) ?: run { TripLog.d("Экран завершения без цены: " + lines.take(12).joinToString(" | ").take(300)); return }
         val now = System.currentTimeMillis()
         // Экран «Заказ завершён» висит и перерисовывается — одна запись на заказ.
         val key = "$price|" + lines.take(6).joinToString("|")
         if (now - lastOrphanAt < 10 * 60_000L && (key == lastOrphan || lastOrphan.startsWith("$price|"))) return
         lastOrphan = key; lastOrphanAt = now
         val app = context.applicationContext
+        bind(app)
+        // Время заказа — от последней карточки (≈ взяли заказ) до экрана завершения, вместе с подачей.
+        val card = lastCard?.takeIf { now - it.at in 0..3 * 3600_000L }
+        lastCard = null
+        val minutes = card?.let { ((now - it.at) / 60_000).toInt() }?.coerceAtLeast(1) ?: 1
         DriverJournal.autoStart(app)
-        DriverJournal.add(app, price, 0, 0.0, 0.0, 1, "", confirmed = false, payment = recentPayment().orEmpty())
-        TripLog.d("Поездка без начала (без Б или короткая): записали в смену $price L")
+        DriverJournal.add(app, price, 0, 0.0, 0.0, minutes, "", confirmed = false,
+            from = card?.from.orEmpty(), to = card?.to.orEmpty(), payment = recentPayment().orEmpty())
+        TripLog.d("Поездка по экрану завершения: $price L, ${if (card != null) "$minutes мин от взятия заказа" else "время неизвестно"}, " +
+            "оплата ${recentPayment() ?: "?"}${if (card?.from?.isNotEmpty() == true) ", ${card.from} → ${card.to}" else ""}")
     }
 }

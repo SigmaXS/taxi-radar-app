@@ -215,6 +215,7 @@ class OrderAccessibilityService : AccessibilityService() {
             }
             // Новая карточка заказа: способ оплаты прошлого клиента больше не наш.
             lastOrderAt = System.currentTimeMillis()
+            TripTracker.noteCardSeen()
             TripTracker.resetPayment()
             TripTracker.notePayment(allTexts.flatMap { it.split("\n") })
 
@@ -281,6 +282,7 @@ class OrderAccessibilityService : AccessibilityService() {
             addrB = stripHiddenLinesSuffix(addrB)
 
             Log.d("ORDER_DEBUG", "После основного поиска: addrA=\"$addrA\" заезды=$stops addrB=\"$addrB\"")
+            TripTracker.noteCardRoute(addrA, addrB, tariffOf(allTexts))
 
             // Заказ без точки Б: на карточке только «А». Цены нет — запоминаем
             // тариф и надбавку, посчитаем после «Поехали» по маршруту Яндекса.
