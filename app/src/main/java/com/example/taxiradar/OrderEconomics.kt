@@ -12,9 +12,17 @@ object OrderEconomics {
     fun calculate(price: Int, tripKm: Double, pickupKm: Double, minutes: Int, pickupMinutes: Double, costs: Costs, returnKm: Double = 0.0): Result {
         val distance = tripKm.coerceAtLeast(0.0) + pickupKm.coerceAtLeast(0.0) + returnKm.coerceAtLeast(0.0)
         val net = price * (1 - costs.commission.coerceIn(0.0, 100.0) / 100) - distance * costs.perKm
-        val time = minutes.coerceAtLeast(0) + pickupMinutes.coerceAtLeast(0.0) + returnKm.coerceAtLeast(0.0) * 2
-        return Result(net.roundToInt(), if (distance > 0) net / distance else null, if (time > 0) (net * 60 / time).roundToInt() else null)
+        // Минуты поездки не прочитались (0) — оцениваем по км (~25 км/ч по городу); без км — «в час» не считаем:
+        // иначе в час делилась бы одна подача и выходило «1019 L/час».
+        val tripMin = if (minutes > 0) minutes.toDouble() else if (tripKm > 0) tripKm / CITY_KMH * 60 else return Result(net.roundToInt(), if (distance > 0) net / distance else null, null)
+        val time = tripMin + pickupMinutes.coerceAtLeast(0.0) + returnKm.coerceAtLeast(0.0) * 2
+        val perHour = if (time > 0) (net * 60 / time).roundToInt() else null
+        // Больше MAX_PER_HOUR — это ошибка данных, а не заказ: не показываем.
+        return Result(net.roundToInt(), if (distance > 0) net / distance else null, perHour?.takeIf { it <= MAX_PER_HOUR })
     }
+
+    private const val CITY_KMH = 25.0
+    private const val MAX_PER_HOUR = 400
 
     /** User-selected tolerance, not a statistically validated confidence interval. */
     fun range(price: Int, percent: Int): IntRange {

@@ -41,13 +41,17 @@ object TripTracker {
     /** Смотрим любой экран Яндекс Про. Настройки оплаты водителя («Наличными · Действует до…») не путаем с заказом. */
     fun notePayment(lines: List<String>) {
         val lower = lines.map { it.trim().lowercase() }
-        if (lower.any { it.contains("действует до") || it.contains("можно менять") || it.contains("тарифы и опции") || it.contains("вы меняли оплату") || it.contains("valabil până") }) return
+        if (lower.any { it.contains("действует до") || it.contains("можно менять") || it.contains("тарифы и опции") || it.contains("вы меняли оплату") || it.contains("valabil până") ||
+                it.contains("valid until") || it.contains("active until") || it.contains("changed payment") || it.contains("cash or card") }) return
         val now = System.currentTimeMillis()
         when {
             lower.any { it in cardExact || it.contains("оплата картой") || it.contains("оплачено картой") || it.contains("cu cardul") || it.contains("paid by card") || it.contains("card payment") } -> payment = "card" to now
             lower.any { it in cashExact || it.contains("оплата наличными") || it.contains("получите наличными") || it.contains("collect in cash") || it.contains("încasați numerar") || it.contains("incasati numerar") } -> payment = "cash" to now
         }
     }
+
+    /** Идёт поездка (видели начало, конца ещё не было). */
+    fun inTrip(): Boolean = active != null
 
     /** Способ оплаты текущего заказа, если видели его недавно (за [withinMs]). */
     fun recentPayment(withinMs: Long = 2 * 3600_000L): String? =
