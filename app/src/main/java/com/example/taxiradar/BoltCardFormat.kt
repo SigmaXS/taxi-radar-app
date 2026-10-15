@@ -28,6 +28,12 @@ object BoltCardFormat {
         val price = (if (o.priceIsRange) t("от ", "de la ") else "") + money(o.price) + " " + cur
         val rating = o.rating?.let { "  ★" + String.format(Locale.US, "%.2f", it).trimEnd('0').trimEnd('.') } ?: ""
         out += Row("Bolt · $price$rating", if (m.lowRating) Tone.BAD else Tone.NORMAL, big = true)
+        val tags = listOfNotNull(
+            o.tariff,
+            o.surge?.let { "×" + String.format(Locale.US, "%.1f", it) + t(" спрос (уже в цене)", " cerere (inclus)") },
+            when (o.payment) { "CASH" -> t("💵 наличные", "💵 numerar"); "CARD" -> t("💳 картой", "💳 card"); else -> null }
+        )
+        if (tags.isNotEmpty()) out += Row(tags.joinToString(" · "), Tone.MUTED)
 
         // Главная метрика — за час (если нет — за км), цвет по порогу.
         when {

@@ -93,6 +93,67 @@ class BoltTest {
         assertEquals(110.0, o.price, 0.001)
     }
 
+    // ---------- реальные карточки Bolt Driver (скриншоты водителя, 15.10.2026, текст переписан построчно) ----------
+
+    private val realFar = listOf("Отклонить", "Комфорт", "По карте", "1.5x Высокий спрос", "Вне радиуса", "1 733,00 MDL",
+        "Отказ не повлияет на процент принятия заказов", "Костя • 5.0 ★ (3)", "7 мин • 4.1 km", "Главный вход, Shopping Malldova",
+        "102 мин • 96.6 km", "Штефан-Водэ, Молдова", "Принять")
+    private val realCity = listOf("9.4 km · 18 мин", "Отклонить", "Комфорт", "По карте", "1.6x Высокий спрос", "206,00 MDL",
+        "Victor • 5.0 ★ (20)", "3 мин • 1.2 km", "Strada Miron Costin 11/4, Chișinău 2068", "18 мин • 9.4 km",
+        "Ciavdar Grup Clinica Veterinară, Strada Nicolae H. Costin 61, Chișinău", "Принять")
+    private val realTiraspol = listOf("71.8", "Отклонить", "Bolt", "По карте", "1.1x Высокий спрос", "758,00 MDL", "Zdenek • 4.9 ★ (119)",
+        "4 мин • 1.3 km", "Strada Lev Tolstoi 24/1, Chișinău", "93 мин • 71.8 km", "пер. Бочковского 2, Tiraspol 3300", "Принять")
+    private val realRomanian = listOf("31.5 km · 41 min", "Refuză", "Bolt", "Numerar", "Cerere mare 1.2x", "În afara razei", "357,00 MDL",
+        "Respingerea cursei nu va afecta rata de acceptare", "Andreea • 5.0 ★ (140)", "5 min • 1.5 km", "Pușkin, Blocul Pușkin 44",
+        "41 min • 31.5 km", "Bogdan Petriceicu Hasdeu 5, Peresecina", "Acceptă")
+
+    @Test fun realThousandsSeparatorPrice() {
+        val o = ok(realFar)
+        assertEquals(1733.0, o.price, 0.001)
+        assertEquals(4.1, o.pickup!!.km, 0.001); assertEquals(7, o.pickup!!.min)
+        assertEquals(96.6, o.trip!!.km, 0.001); assertEquals(102, o.trip!!.min)
+        assertEquals(5.0, o.rating!!, 0.001); assertEquals(1.5, o.surge!!, 0.001)
+        assertEquals("CARD", o.payment); assertEquals("Комфорт", o.tariff)
+    }
+
+    @Test fun realMapLabelIsNotPickup() {
+        val o = ok(realCity)
+        assertEquals(206.0, o.price, 0.001)
+        assertEquals(1.2, o.pickup!!.km, 0.001); assertEquals(3, o.pickup!!.min)
+        assertEquals(9.4, o.trip!!.km, 0.001); assertEquals(18, o.trip!!.min)
+        assertEquals(1, o.tripSegments)
+        assertEquals(1.6, o.surge!!, 0.001)
+    }
+
+    @Test fun realTiraspol() {
+        val o = ok(realTiraspol)
+        assertEquals(758.0, o.price, 0.001)
+        assertEquals(1.3, o.pickup!!.km, 0.001); assertEquals(71.8, o.trip!!.km, 0.001); assertEquals(93, o.trip!!.min)
+        assertEquals(4.9, o.rating!!, 0.001); assertEquals(1.1, o.surge!!, 0.001); assertEquals("Bolt", o.tariff)
+    }
+
+    @Test fun realRomanianCash() {
+        val o = ok(realRomanian)
+        assertEquals(357.0, o.price, 0.001)
+        assertEquals(1.5, o.pickup!!.km, 0.001); assertEquals(5, o.pickup!!.min)
+        assertEquals(31.5, o.trip!!.km, 0.001); assertEquals(41, o.trip!!.min)
+        assertEquals(1.2, o.surge!!, 0.001); assertEquals("CASH", o.payment)
+    }
+
+    @Test fun realScreenshotOcrWithoutCyrillic() {
+        // Так текст приходит из распознавания скриншота без кириллицы: «мин» → мусор, «•» остаётся.
+        val o = ok(listOf("Komфopt", "1.6x", "206,00 MDL", "Victor • 5.0 ★ (20)", "3 MNH • 1.2 km", "Strada Miron Costin 11/4", "18 MNH • 9.4 km"))
+        assertEquals(1.2, o.pickup!!.km, 0.001); assertEquals(3, o.pickup!!.min)
+        assertEquals(9.4, o.trip!!.km, 0.001); assertEquals(18, o.trip!!.min)
+    }
+
+    @Test fun realCardMetrics() {
+        val o = ok(realCity)
+        val m = BoltEconomics.calculate(o, BoltEconomics.Settings(costPerKm = 1.5, serviceMin = 2))
+        assertEquals(10.6, m.totalKm!!, 0.001); assertEquals(21, m.totalMin)
+        assertEquals((206 - 1.5 * 10.6) / 23 * 60, m.perHour!!, 0.01)
+    }
+
     // ---------- расчёт ----------
 
     private val base = BoltOfferParser.Offer(125.0, false, "L", BoltOfferParser.Segment(1.2, 3), BoltOfferParser.Segment(9.4, 18), 1, 4.9)

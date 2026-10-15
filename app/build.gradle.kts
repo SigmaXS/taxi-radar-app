@@ -80,6 +80,9 @@ dependencies {
     // Геолокация FusedLocation (для перехвата Fake GPS)
     implementation("com.google.android.gms:play-services-location:21.0.1")
 
+    // Проверка карточки Bolt по скриншоту: распознавание текста на телефоне, без интернета
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+
     // Карта спроса (OpenStreetMap, без ключей)
     implementation("org.osmdroid:osmdroid-android:6.1.18")
 

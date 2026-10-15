@@ -181,6 +181,46 @@ class DriverToolsActivity : AppCompatActivity() {
         render()
     }
 
+    // ---------- проверка карточки Bolt по скриншоту ----------
+
+    private val pickBoltShot = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) checkBoltScreenshot(uri)
+    }
+
+    /** Текст со скриншота распознаётся на телефоне (ML Kit, без сети), картинка никуда не сохраняется и не отправляется. */
+    private fun checkBoltScreenshot(uri: android.net.Uri) {
+        val image = try { com.google.mlkit.vision.common.InputImage.fromFilePath(this, uri) } catch (e: Exception) {
+            Toast.makeText(this, t("Не удалось открыть картинку", "Imaginea nu a putut fi deschisă"), Toast.LENGTH_LONG).show(); return
+        }
+        Toast.makeText(this, t("Распознаю…", "Recunosc…"), Toast.LENGTH_SHORT).show()
+        val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
+        recognizer.process(image)
+            .addOnSuccessListener { text ->
+                val lines = text.textBlocks.flatMap { it.lines }
+                    .sortedWith(compareBy({ it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }))
+                    .map { it.text }
+                showBoltCheck(lines)
+            }
+            .addOnFailureListener { e -> Toast.makeText(this, t("Не распознано: ", "Nerecunoscut: ") + e.message, Toast.LENGTH_LONG).show() }
+            .addOnCompleteListener { recognizer.close() }
+    }
+
+    private fun showBoltCheck(lines: List<String>) {
+        val ru = t("ru", "ro") == "ru"
+        val msg = when (val r = BoltOfferParser.parse(lines)) {
+            is BoltOfferParser.Result.Ok -> {
+                val s = TaxiServices.boltSettings(this)
+                TripLog.d("Bolt: проверка по скриншоту — ${r.offer.price} ${r.offer.currency}, подача ${r.offer.pickup}, поездка ${r.offer.trip}")
+                BoltCardFormat.rows(r.offer, BoltEconomics.calculate(r.offer, s), s, ru).joinToString("\n") { it.text }
+            }
+            is BoltOfferParser.Result.NotOffer -> t("Карточка не распознана: ", "Oferta nu a fost recunoscută: ") + r.reason
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(t("Так радар понял скриншот", "Așa a înțeles radarul captura"))
+            .setMessage(msg + "\n\n— " + t("Распознанный текст", "Text recunoscut") + " —\n" + lines.joinToString("\n").take(1500))
+            .setPositiveButton(R.string.got_it, null).show()
+    }
+
     private fun writeFile(uri: android.net.Uri, text: String, done: String) {
         try {
             contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
@@ -436,6 +476,11 @@ class DriverToolsActivity : AppCompatActivity() {
             "Карточка появляется сверху экрана, когда в Bolt Driver видна карточка заказа, и исчезает, когда заказ пропал, открыто другое приложение или прошло заданное время. Нажатие — закрыть, перетаскивание — переместить по вертикали.",
             "Cardul apare sus când în Bolt Driver e vizibilă o ofertă și dispare când oferta dispare, se deschide altă aplicație sau trece timpul setat. Apăsare — închide, tragere — mută pe verticală.", R.drawable.ic_visibility)
         number(show, "bolt_show_sec", "Показывать не дольше, секунд", "Afișează cel mult, secunde", 15.0, 5.0, 60.0)
+
+        val shot = card("Проверить по скриншоту", "Verificare după captură",
+            "Сделайте скриншот карточки заказа в Bolt Driver и выберите его здесь — радар распознает текст прямо на телефоне и покажет, что он понял: цену, подачу, поездку, за км и за час. Так можно проверить расчёт без живого заказа. Скриншот никуда не отправляется и не сохраняется.\n\nВ работе радар читает карточку Bolt напрямую (служба специальных возможностей), скриншоты для этого не нужны.",
+            "Faceți o captură a ofertei în Bolt Driver și alegeți-o aici — radarul recunoaște textul pe telefon și arată ce a înțeles. Captura nu se trimite și nu se salvează.\n\nÎn lucru radarul citește oferta Bolt direct, fără capturi.", R.drawable.ic_search)
+        DriverUi.button(this, shot, t("Выбрать скриншот", "Alege captura")) { pickBoltShot.launch("image/*") }
 
         val tech = card("Проверка и другие сборки", "Verificare și alte versiuni",
             "Радар узнаёт Bolt Driver по имени пакета ee.mtakso.driver. Если у вас другая сборка, впишите её пакет (через запятую).\n\nДиагностика записывает строки карточек Bolt в «Журнал радара» на этом телефоне — в них бывают адреса. Включайте, только чтобы прислать нам пример карточки, которую радар не понял, и потом выключите.",

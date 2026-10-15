@@ -27,7 +27,13 @@ object BoltOfferParser {
         val trip: Segment?,
         /** Сколько отрезков поездки сложено в trip (заезды). */
         val tripSegments: Int,
-        val rating: Double?
+        val rating: Double?,
+        /** «1.5x Высокий спрос» / «Cerere mare 1.2x» — множитель спроса с карточки (уже в цене). */
+        val surge: Double? = null,
+        /** CARD / CASH, если на карточке есть «По карте» / «Наличные» / «Numerar» / «Card». */
+        val payment: String? = null,
+        /** «Bolt», «Комфорт», «Comfort»… — как на карточке. */
+        val tariff: String? = null
     ) {
         /** Ключ для отсева повторных событий одной и той же карточки. */
         val key: String
@@ -41,7 +47,8 @@ object BoltOfferParser {
 
     // Валюта до или после числа. «L» и «Л» — только отдельной буквой (не «Lux», не «Ленина»).
     private const val CUR = """(MDL|mdl|lei|LEI|Lei|лей|леев|L|Л|RON|ron|EUR|eur|€|UAH|грн|₴|USD|\$|PLN|zł|zl)"""
-    private const val NUM = """(\d{1,5}(?:[.,]\d{1,2})?)"""
+    // «206,00», «1 733,00» (тысячи через пробел / неразрывный пробел), «1733.5».
+    private const val NUM = """(\d{1,3}(?:[ \u00A0\u202F\u2009]\d{3})+(?:[.,]\d{1,2})?|\d{1,6}(?:[.,]\d{1,2})?)"""
     private val priceAfter = Regex("""(?<![\d+\-])$NUM\s*$CUR(?![\p{L}\d])""")
     private val priceBefore = Regex("""(?<![\p{L}])$CUR\s*$NUM(?![\d])""")
     private val priceRange = Regex("""(?<![\d+])$NUM\s*[-–—]\s*$NUM\s*$CUR(?![\p{L}\d])|(?<![\p{L}])$CUR\s*$NUM\s*[-–—]\s*$NUM(?![\d])""")
@@ -52,9 +59,16 @@ object BoltOfferParser {
     private val distThenTime = Regex("""(?<![\d.,])$DIST(?![\p{L}])$SEP$TIME(?![\p{L}])""", RegexOption.IGNORE_CASE)
     private val timeThenDist = Regex("""(?<![\d.,])$TIME(?![\p{L}])$SEP$DIST(?![\p{L}])""", RegexOption.IGNORE_CASE)
     private val soloKm = Regex("""^\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*(km|км)\.?\s*$""", RegexOption.IGNORE_CASE)
+    // Распознанный со скриншота текст (OCR без кириллицы): «7 MNH • 4.1 km» — единица минут нечитаема,
+    // но за ней разделитель и километры. Используется, только если строгие шаблоны в строке ничего не нашли.
+    private val ocrTimeThenKm = Regex("""(?<![\d.,])(\d{1,3})\s*[^\s\d•·∙]{1,4}\.?\s*[•·∙]\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*(km|км)(?![\p{L}])""", RegexOption.IGNORE_CASE)
+    private val surgeRegex = Regex("""(?<![\d.,])([1-9](?:[.,]\d{1,2})?)\s*[xх×](?![\p{L}\d])""", RegexOption.IGNORE_CASE)
+    private val cashRegex = Regex("""(?iu)\b(наличн\S*|numerar|cash)\b""")
+    private val cardRegex = Regex("""(?iu)(по\s+карте|картой|\bcard\b|\bcardul\b|\bcu\s+cardul\b)""")
+    private val tariffRegex = Regex("""(?iu)^(bolt|комфорт|comfort|confort|эконом|economy|econom|xl|premium|green|women)$""")
     private val rating = Regex("""[★⭐*]\s*([345](?:[.,]\d{1,2})?)(?!\d)|(?<![\d.,])([345](?:[.,]\d{1,2})?)\s*[★⭐*]""")
 
-    private fun num(s: String) = s.replace(',', '.').toDoubleOrNull()
+    private fun num(s: String) = s.replace(Regex("""[ \u00A0\u202F\u2009]"""), "").replace(',', '.').toDoubleOrNull()
 
     private fun normCurrency(c: String): String = when (c.lowercase()) {
         "mdl", "lei", "лей", "леев", "l", "л" -> "L"
@@ -132,10 +146,19 @@ object BoltOfferParser {
                 val k = km(d, g[4])
                 if (plausible(k, min)) { local += Found(start, Segment(k, min)); used += start..(offset + m.range.last) }
             }
+            if (local.isEmpty()) ocrTimeThenKm.findAll(line).forEach { m ->
+                val min = m.groupValues[1].toIntOrNull() ?: return@forEach
+                val k = num(m.groupValues[2]) ?: return@forEach
+                if (plausible(k, min)) local += Found(offset + m.range.first, Segment(k, min))
+            }
             found += local
             offset += line.length + 1
         }
         found.sortBy { it.pos }
+        // Подпись маршрута на карте («9.4 km · 18 мин») повторяет отрезок карточки. Оставляем
+        // последнее появление каждого отрезка — порядок «подача, поездка» берём с самой карточки.
+        val deduped = found.filterIndexed { i, f -> found.drop(i + 1).none { it.seg == f.seg } }
+        found.clear(); found += deduped
 
         // Отдельное «X км» без минут — длина поездки, если отрезок поездки не найден.
         val soloKmValue = lines.firstNotNullOfOrNull { l -> soloKm.find(l)?.let { num(it.groupValues[1]) } }?.takeIf { it > 0 && it <= 500 }
@@ -153,6 +176,14 @@ object BoltOfferParser {
         val r = rating.findAll(text).mapNotNull { m -> num(m.groupValues[1].ifEmpty { m.groupValues[2] }) }
             .firstOrNull { it in 3.0..5.0 }
 
-        return Result.Ok(Offer(price.first, isRange, price.second, pickup, trip, tripParts.size.coerceAtLeast(if (trip != null) 1 else 0), r))
+        val surge = lines.firstNotNullOfOrNull { l -> surgeRegex.find(l)?.let { num(it.groupValues[1]) } }?.takeIf { it in 1.0..9.9 }
+        val payment = when {
+            lines.any { cashRegex.containsMatchIn(it) } -> "CASH"
+            lines.any { cardRegex.containsMatchIn(it) } -> "CARD"
+            else -> null
+        }
+        val tariff = lines.firstOrNull { tariffRegex.matches(it.trim()) }?.trim()
+
+        return Result.Ok(Offer(price.first, isRange, price.second, pickup, trip, tripParts.size.coerceAtLeast(if (trip != null) 1 else 0), r, surge, payment, tariff))
     }
 }
