@@ -18,9 +18,22 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests
-        run: bash ./gradlew testDebugUnitTest --stacktrace
+        run: bash ./gradlew testDebugUnitTest --stacktrace 2>&1 | tee test-build.log
+      - name: Test summary
+        if: always()
+        run: |
+          for f in app/build/test-results/testDebugUnitTest/*.xml; do
+            python3 - "$f" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          r = ET.parse(sys.argv[1]).getroot()
+          print(f"::notice title=tests::{r.get('name')} tests={r.get('tests')} failures={r.get('failures')} errors={r.get('errors')} skipped={r.get('skipped')}")
+          PY
+          done
+          grep -E "^w: .*(Bolt|TaxiServices|OrderAccessibilityService|FloatingWidgetService|DriverToolsActivity)" test-build.log | head -20 | sed 's/^/::notice title=kotlin-warning::/' || true
       - name: Debug APK
-        run: bash ./gradlew assembleDebug --stacktrace
+        run: |
+          bash ./gradlew assembleDebug --stacktrace
+          for a in app/build/outputs/apk/debug/*.apk; do echo "::notice title=apk::$(basename $a) $(stat -c %s $a) bytes sha256=$(sha256sum $a | cut -c1-16)"; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
