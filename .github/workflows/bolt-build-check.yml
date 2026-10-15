@@ -36,7 +36,7 @@ jobs:
         run: |
           # Только в облачной сборке, в репозиторий не попадает: отдельный id и название,
           # чтобы тест ставился рядом с рабочим Taxi Radar, а не вместо него.
-          sed -i 's/^        debug {/        debug {\n            applicationIdSuffix = ".bolttest"\n            versionNameSuffix = "-bolt-test"/' app/build.gradle.kts
+          sed -i 's/^        debug {/        debug {\n            applicationIdSuffix = ".bolttest"\n            versionNameSuffix = "-bolt-test"\n            ndk { abiFilters += "arm64-v8a" }/' app/build.gradle.kts
           sed -i 's/android:label="Taxi Radar"/android:label="Taxi Radar Bolt TEST"/' app/src/main/AndroidManifest.xml
           grep -n "bolttest" app/build.gradle.kts
           bash ./gradlew assembleDebug --stacktrace
