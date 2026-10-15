@@ -1,0 +1,60 @@
+# Проверочная сборка ветки с Bolt: unit-тесты + debug APK (подписан debug-ключом GitHub,
+# поверх версии из Telegram НЕ ставится — только для проверки, что проект собирается).
+# Рабочий APK собирается на ПК с ключом Taxi Radar: ./gradlew.bat assembleRelease
+name: Bolt build check
+on:
+  push:
+    branches: [ "feature/bolt-card" ]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests
+        run: set -o pipefail; bash ./gradlew testDebugUnitTest --stacktrace 2>&1 | tee test-build.log
+      - name: Test summary
+        if: always()
+        run: |
+          for f in app/build/test-results/testDebugUnitTest/*.xml; do
+            python3 - "$f" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          r = ET.parse(sys.argv[1]).getroot()
+          print(f"::notice title=tests::{r.get('name')} tests={r.get('tests')} failures={r.get('failures')} errors={r.get('errors')} skipped={r.get('skipped')}")
+          PY
+          done
+          grep -E "^w: .*(Bolt|TaxiServices|OrderAccessibilityService|FloatingWidgetService|DriverToolsActivity)" test-build.log | head -20 | sed 's/^/::notice title=kotlin-warning::/' || true
+      - name: Debug APK (тестовая копия рядом с 2.2)
+        run: |
+          # Только в облачной сборке, в репозиторий не попадает: отдельный id и название,
+          # чтобы тест ставился рядом с рабочим Taxi Radar, а не вместо него.
+          sed -i 's/^        debug {/        debug {\n            applicationIdSuffix = ".bolttest"\n            versionNameSuffix = "-bolt-test"\n            ndk { abiFilters += "arm64-v8a" }/' app/build.gradle.kts
+          sed -i 's/android:label="Taxi Radar"/android:label="Taxi Radar Bolt TEST"/' app/src/main/AndroidManifest.xml
+          grep -n "bolttest" app/build.gradle.kts
+          bash ./gradlew assembleDebug --stacktrace
+          for a in app/build/outputs/apk/debug/*.apk; do echo "::notice title=apk::$(basename $a) $(stat -c %s $a) bytes sha256=$(sha256sum $a | cut -c1-16)"; done
+      - name: Черновик релиза с тестовым APK (виден только владельцу репозитория)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "TaxiRadar-Bolt-TEST-${GITHUB_RUN_NUMBER}.apk"
+          gh release create "bolt-test-${GITHUB_RUN_NUMBER}" "TaxiRadar-Bolt-TEST-${GITHUB_RUN_NUMBER}.apk" \
+            --draft --prerelease --target "${GITHUB_SHA}" \
+            --title "Bolt TEST ${GITHUB_RUN_NUMBER} (не для водителей)" \
+            --notes "Тестовая debug-сборка ветки feature/bolt-card. Ставится рядом с Taxi Radar (md.taxiradar.app.bolttest)."
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bolt-check
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/tests/
+          if-no-files-found: warn

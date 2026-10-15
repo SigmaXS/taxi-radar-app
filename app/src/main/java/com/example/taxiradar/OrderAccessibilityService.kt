@@ -139,8 +139,24 @@ class OrderAccessibilityService : AccessibilityService() {
             return
         }
 
-        if (!pkg.contains("taximeter", ignoreCase = true) && !pkg.contains("yandex", ignoreCase = true)) {
-            return
+        // Чей экран: Яндекс Про (правило 2.2), Bolt Driver (точный пакет) или чужое приложение.
+        when (TaxiServices.sourceOf(this, pkg)) {
+            TaxiServices.Source.BOLT -> {
+                if (TaxiServices.boltEnabled(this)) {
+                    handler.removeCallbacks(processBolt)
+                    handler.postDelayed(processBolt, if (LiteMode.enabled(this)) 400 else 150)
+                }
+                return
+            }
+            null -> {
+                // Другое приложение вышло на экран — если карточка Bolt видна, проверим, остался ли Bolt.
+                if (BoltRadar.isShowing && pkg != packageName) {
+                    handler.removeCallbacks(processBolt)
+                    handler.postDelayed(processBolt, 300)
+                }
+                return
+            }
+            TaxiServices.Source.YANDEX -> if (!TaxiServices.yandexEnabled(this)) return
         }
 
         // Свёрнутый Яндекс Про показывает «Ожидание в очереди ~2 ч» в своём кружке поверх
@@ -175,6 +191,57 @@ class OrderAccessibilityService : AccessibilityService() {
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private val processScreen = Runnable { processYandexScreen() }
 
+    // ---------- Bolt ----------
+
+    private val processBolt = Runnable { processBoltScreen() }
+    // Пока карточка Bolt видна — раз в секунду сверяем её с экраном (заказ мог исчезнуть без событий).
+    private val boltTick = Runnable {
+        if (BoltRadar.isShowing) processBoltScreen()
+    }
+
+    /** Окно Bolt Driver: активное или среди окон (разделённый экран). null — Bolt на экране нет. */
+    private fun boltRoot(): AccessibilityNodeInfo? {
+        val bolt = TaxiServices.boltPackages(this)
+        val active = rootInActiveWindow
+        if (active?.packageName?.toString() in bolt) return active
+        return try { windows.mapNotNull { it.root }.firstOrNull { it.packageName?.toString() in bolt } } catch (_: Exception) { null }
+    }
+
+    /** Видимые тексты окна Bolt: и text, и contentDescription (в Compose подписи часто только там). */
+    private fun boltLines(root: AccessibilityNodeInfo): List<String> {
+        val out = mutableListOf<String>()
+        fun walk(n: AccessibilityNodeInfo?, depth: Int) {
+            if (n == null || depth > 60) return
+            if (!n.isVisibleToUser) return
+            val t = n.text?.toString()?.trim()
+            val d = n.contentDescription?.toString()?.trim()
+            if (!t.isNullOrEmpty()) out += t
+            if (!d.isNullOrEmpty() && d != t) out += d
+            for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
+        }
+        walk(root, 0)
+        return out
+    }
+
+    private fun processBoltScreen() {
+        handler.removeCallbacks(boltTick)
+        try {
+            if (!TaxiServices.boltEnabled(this)) { BoltRadar.reset(); return }
+            val root = boltRoot()
+            if (root == null) {
+                BoltRadar.onOtherApp(this)
+            } else {
+                BoltRadar.onBoltScreen(this, boltLines(root))
+                // Расчёт Яндекса, если он ещё идёт, к экрану Bolt уже не относится.
+                if (BoltRadar.isShowing) calcSeq++
+            }
+            BoltRadar.tick(this)
+        } catch (e: Exception) {
+            Log.e("BOLT", "Ошибка разбора экрана Bolt: ${e.message}")
+        }
+        if (BoltRadar.isShowing) handler.postDelayed(boltTick, 1000)
+    }
+
     private fun processYandexScreen() {
         try {
             val root = yandexRoot() ?: return
@@ -208,6 +275,8 @@ class OrderAccessibilityService : AccessibilityService() {
                 TripTracker.onScreen(this, root.packageName?.toString().orEmpty(), allTexts)
                 return
             }
+            // Карточка Яндекса на экране — карточка Bolt (если висит) уже не про то, что видит водитель.
+            if (rootInActiveWindow?.packageName?.toString()?.let { TaxiServices.isYandexPackage(it) } == true) BoltRadar.onOtherApp(this)
             // Полный список текстов — только для карточки заказа (для разбора ошибок).
             // Строка лога обрезается после ~4 КБ — пишем кусками.
             if (!LiteMode.cuts(this, LiteMode.Feature.LOGS)) allTexts.mapIndexed { i, t -> "[$i]\"$t\"" }.joinToString(" | ").chunked(3000).forEachIndexed { i, part ->

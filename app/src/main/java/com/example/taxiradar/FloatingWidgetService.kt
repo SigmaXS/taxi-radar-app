@@ -58,6 +58,22 @@ class FloatingWidgetService : Service() {
             instance?.cancelOrderDisplay()
         }
 
+        /** Карточка Яндекса на кружке, если она там есть, — убрать (на экране уже заказ Bolt). */
+        fun clearOrderIfShown() {
+            instance?.let { if (it.isShowingOrder) it.cancelOrderDisplay() }
+        }
+
+        /** Отдельная карточка Bolt; generation — чтобы не нарисовать устаревший результат. */
+        fun showBoltCard(rows: List<BoltCardFormat.Row>, generation: Long) {
+            val service = instance ?: return
+            if (!BoltRadar.isCurrent(generation)) return
+            service.boltCard.show(rows)
+        }
+
+        fun hideBoltCard() {
+            instance?.boltCard?.hide()
+        }
+
         /** Узнали точку Б заказа — сразу показать надбавку и там. */
         fun refreshSurge() {
             instance?.refreshFromOutside()
@@ -104,6 +120,7 @@ class FloatingWidgetService : Service() {
     private var autoUpdateJob: Job? = null
     private var orderDisplayJob: Job? = null
     private var isShowingOrder: Boolean = false
+    private val boltCard by lazy { BoltCardOverlay(this) { BoltRadar.dismissedByUser() } }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -916,6 +933,7 @@ class FloatingWidgetService : Service() {
         orderDisplayJob?.cancel()
         roadJob?.cancel()
         menuCloseJob?.cancel()
+        boltCard.hide()
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
         if (floatingView?.isAttachedToWindow == true) {
             windowManager?.removeView(floatingView)

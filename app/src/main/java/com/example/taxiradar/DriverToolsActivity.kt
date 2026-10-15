@@ -35,7 +35,7 @@ class DriverToolsActivity : AppCompatActivity() {
         setContentView(root)
         render()
     }
-    private fun render() { body.removeAllViews(); when (mode) { "shift" -> shift(); "archive" -> archive(); "widget" -> widgetLook(); else -> settings() }; DriverUi.arrangeCards(this, body) }
+    private fun render() { body.removeAllViews(); when (mode) { "shift" -> shift(); "archive" -> archive(); "widget" -> widgetLook(); "bolt" -> boltSettings(); else -> settings() }; DriverUi.arrangeCards(this, body) }
 
     /** Большая карточка-переход: значок, заголовок, пояснение и «›». */
     private fun linkCard(title: String, sub: String, open: () -> Unit) {
@@ -181,6 +181,58 @@ class DriverToolsActivity : AppCompatActivity() {
         render()
     }
 
+    // ---------- проверка карточки Bolt по скриншоту ----------
+
+    private val pickBoltShot = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) checkBoltScreenshot(uri)
+    }
+
+    /** Текст со скриншота распознаётся на телефоне (ML Kit, без сети), картинка никуда не сохраняется и не отправляется. */
+    private fun checkBoltScreenshot(uri: android.net.Uri) {
+        val bitmap = try {
+            contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) }
+        } catch (e: Exception) { null }
+        if (bitmap == null) { Toast.makeText(this, t("Не удалось открыть картинку", "Imaginea nu a putut fi deschisă"), Toast.LENGTH_LONG).show(); return }
+        Toast.makeText(this, t("Распознаю…", "Recunosc…"), Toast.LENGTH_SHORT).show()
+        recognize(bitmap) { first ->
+            if (first != null && BoltOfferParser.parse(first) is BoltOfferParser.Result.Ok) { showBoltCheck(first); return@recognize }
+            // Крупную цену распознавание иногда пропускает — второй проход по уменьшенной картинке.
+            val small = android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width / 2).coerceAtLeast(1), (bitmap.height / 2).coerceAtLeast(1), true)
+            recognize(small) { second ->
+                val candidates = listOfNotNull(second, first?.let { f -> f + second.orEmpty() })
+                showBoltCheck(candidates.firstOrNull { BoltOfferParser.parse(it) is BoltOfferParser.Result.Ok } ?: first ?: second ?: emptyList())
+            }
+        }
+    }
+
+    private fun recognize(bitmap: android.graphics.Bitmap, done: (List<String>?) -> Unit) {
+        val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
+        recognizer.process(com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0))
+            .addOnSuccessListener { text ->
+                done(text.textBlocks.flatMap { it.lines }
+                    .sortedWith(compareBy({ it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }))
+                    .map { it.text })
+            }
+            .addOnFailureListener { done(null) }
+            .addOnCompleteListener { recognizer.close() }
+    }
+
+    private fun showBoltCheck(lines: List<String>) {
+        val ru = t("ru", "ro") == "ru"
+        val msg = when (val r = BoltOfferParser.parse(lines)) {
+            is BoltOfferParser.Result.Ok -> {
+                val s = TaxiServices.boltSettings(this)
+                TripLog.d("Bolt: проверка по скриншоту — ${r.offer.price} ${r.offer.currency}, подача ${r.offer.pickup}, поездка ${r.offer.trip}")
+                BoltCardFormat.rows(r.offer, BoltEconomics.calculate(r.offer, s), s, ru).joinToString("\n") { it.text }
+            }
+            is BoltOfferParser.Result.NotOffer -> t("Карточка не распознана: ", "Oferta nu a fost recunoscută: ") + r.reason
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(t("Так радар понял скриншот", "Așa a înțeles radarul captura"))
+            .setMessage(msg + "\n\n— " + t("Распознанный текст", "Text recunoscut") + " —\n" + lines.joinToString("\n").take(1500))
+            .setPositiveButton(R.string.got_it, null).show()
+    }
+
     private fun writeFile(uri: android.net.Uri, text: String, done: String) {
         try {
             contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
@@ -297,6 +349,7 @@ class DriverToolsActivity : AppCompatActivity() {
         linkCard(t("Вид виджета", "Aspectul widgetului"), t("Размер, прозрачность, строки, кнопка «+» — нажмите, чтобы настроить", "Mărime, transparență, rânduri, butonul «+» — apăsați pentru setări")) {
             startActivity(android.content.Intent(this, DriverToolsActivity::class.java).putExtra("mode", "widget"))
         }
+        servicesCard()
         DriverUi.guide(this, body, t("Что здесь настраивается", "Ce se setează aici"), compact = true, steps = if (t("ru", "ro") == "ru") listOf(
             "«Цена на виджете» — какие строки показывать на карточке заказа: километры, минуты, подачу. Меньше строк — проще читать на ходу.",
             "«Спрос между заказами» — какой тариф смотреть для надбавки, когда заказа нет.",
@@ -385,6 +438,69 @@ class DriverToolsActivity : AppCompatActivity() {
         flag(airport, "airport_alert", "Уведомления о прилётах", "Notificări despre aterizări", "Первый список запоминаем без уведомлений. Затем проверяем раз в 3 минуты. Можно выбрать номер рейса; пустое поле — все рейсы.", "Prima listă se memorează fără notificări. Apoi verificăm la 3 minute. Puteți alege un număr de zbor; gol înseamnă toate zborurile.")
         val flight = DriverUi.field(this, airport, t("Номер рейса (необязательно)", "Număr de zbor (opțional)"), DriverPreferences.text(this, "flight"), false)
         flight.doAfterTextChanged { DriverPreferences.set(this, "flight", it.toString().trim()) }
+    }
+
+    // ---------- сервисы: Яндекс и Bolt ----------
+
+    private fun servicesCard() {
+        val box = card("Сервисы", "Servicii",
+            "Радар может слушать Яндекс Про, Bolt Driver или оба сразу. Настройки сервисов независимы.\n\nЯндекс — прежний радар: цена по тарифам Кишинёва, надбавка, точка Б.\nBolt — отдельная карточка анализа заказа: цена с карточки Bolt, подача, поездка, выручка за км и за час, сравнение с вашими порогами.\n\nЕсли выключить Яндекс, кружок со спросом между заказами остаётся (его можно выключить в «Спрос между заказами»), но карточки Яндекс Про не читаются.",
+            "Radarul poate urmări Yandex Pro, Bolt Driver sau ambele. Setările sunt independente.\n\nYandex — radarul obișnuit: preț după tarifele Chișinăului, supliment, punctul B.\nBolt — card separat de analiză: prețul din oferta Bolt, preluarea, cursa, venit pe km și pe oră, comparat cu pragurile dvs.\n\nDacă opriți Yandex, cercul cu cererea rămâne, dar ofertele Yandex Pro nu se citesc.", R.drawable.ic_layers)
+        DriverUi.toggle(this, box, t("Яндекс Про", "Yandex Pro"),
+            t("Цена заказа по тарифам, надбавка, точка Б — как в версии 2.2.", "Prețul după tarife, suplimentul, punctul B — ca în versiunea 2.2."),
+            TaxiServices.yandexEnabled(this)) { DriverPreferences.set(this, "service_yandex", it); if (!it) FloatingWidgetService.clearOrder() }
+        DriverUi.toggle(this, box, t("Bolt Driver", "Bolt Driver"),
+            t("Отдельная карточка анализа заказа Bolt поверх экрана. Нужна та же служба специальных возможностей и окно поверх других приложений — новых разрешений нет.",
+                "Card separat de analiză a ofertei Bolt. Folosește același serviciu de accesibilitate și fereastra peste aplicații — fără permisiuni noi."),
+            TaxiServices.boltEnabled(this)) { DriverPreferences.set(this, "service_bolt", it); if (!it) BoltRadar.reset() }
+        DriverUi.button(this, box, t("Настройки карточки Bolt", "Setările cardului Bolt")) {
+            startActivity(android.content.Intent(this, DriverToolsActivity::class.java).putExtra("mode", "bolt"))
+        }
+    }
+
+    private fun boltSettings() {
+        body.addView(DriverUi.text(this, t("Карточка Bolt", "Cardul Bolt"), 28f))
+        body.addView(DriverUi.text(this, t("Настройки только для заказов Bolt. Радар Яндекса они не меняют. Сохраняются сразу.",
+            "Setări doar pentru ofertele Bolt. Nu schimbă radarul Yandex. Se salvează imediat."), 14f, true))
+        if (!TaxiServices.boltEnabled(this)) body.addView(DriverUi.text(this, t("Bolt сейчас выключен — включите его в «Сервисы».", "Bolt este oprit — activați-l în «Servicii»."), 14f).apply { setTextColor(getColor(R.color.tr_warning)) })
+
+        val price = card("Цена и комиссия", "Preț și comision",
+            "Комиссия вычитается один раз и только если цена на карточке Bolt — это цена пассажира (до комиссии). Если Bolt показывает вашу сумму после комиссии, оставьте переключатель выключенным — иначе комиссия вычтется второй раз.\n\nВыручка = цена × (1 − комиссия %). Это ещё не прибыль: расходы машины вычитаются отдельно (берутся из «Моя машина и расходы» — та же машина, что и для Яндекса).",
+            "Comisionul se scade o singură dată și doar dacă prețul din oferta Bolt este prețul pasagerului. Dacă Bolt arată suma dvs. după comision, lăsați comutatorul oprit — altfel comisionul se scade de două ori.\n\nVenit = preț × (1 − comision %). Nu este profit: costurile mașinii se scad separat (din «Mașina și cheltuielile»).", R.drawable.ic_payments)
+        flag(price, "bolt_price_before_commission", "Цена на карточке — до комиссии", "Prețul din ofertă — înainte de comision",
+            "Включите, только если проверили: сумма на карточке Bolt больше, чем вам приходит после поездки.", "Activați doar dacă ați verificat: suma din ofertă e mai mare decât primiți după cursă.")
+        number(price, "bolt_commission", "Комиссия Bolt и парка, %", "Comision Bolt și parc, %", 0.0, 0.0, 60.0)
+        number(price, "bolt_service_min", "Время обслуживания заказа, мин", "Timp de deservire, min", 2.0, 0.0, 30.0)
+        price.addView(DriverUi.text(this, if (DriverPreferences.costsReady(this))
+            t("Расходы машины: ${fmt(DriverPreferences.costs(this).perKm)} L/км — вычитаются за подачу и поездку.", "Costuri: ${fmt(DriverPreferences.costs(this).perKm)} L/km — pentru preluare și cursă.")
+            else t("Расходы машины не заполнены — карточка покажет только выручку (настройки радара → «Моя машина и расходы»).", "Costurile mașinii lipsesc — cardul arată doar venitul."), 13f, true))
+
+        val limits = card("Пороги выгодности", "Praguri de rentabilitate",
+            "Цвет как в 1H Profit: значение от 115% порога — зелёное, от 100% — жёлтое, ниже — красное. 0 — не проверять.\n\nЗа км и за час считаются от суммы «после расходов», если расходы машины заполнены, иначе — от выручки. Подача входит и в километры, и во время. Если время поездки не прочиталось, «за час» не показывается.",
+            "Culoarea ca în 1H Profit: de la 115% din prag — verde, de la 100% — galben, sub — roșu. 0 — fără verificare.\n\nPe km și pe oră se calculează din suma «după costuri» dacă sunt completate, altfel din venit. Preluarea intră în km și în timp.", R.drawable.ic_check_circle)
+        number(limits, "bolt_min_per_hour", "За час — от, L", "Pe oră — de la, L", 0.0, 0.0, 5000.0)
+        number(limits, "bolt_min_per_km", "За км — от, L", "Pe km — de la, L", 0.0, 0.0, 500.0)
+        number(limits, "bolt_min_per_min", "За минуту — от, L", "Pe minut — de la, L", 0.0, 0.0, 100.0)
+        number(limits, "bolt_min_rating", "Рейтинг пассажира — от (0 — не проверять)", "Rating pasager — de la (0 — fără)", 0.0, 0.0, 5.0)
+        number(limits, "bolt_short_pickup_km", "Короткая подача — до, км (подсветка)", "Preluare scurtă — până la, km", 2.0, 0.0, 20.0)
+
+        val show = card("Показ карточки", "Afișarea cardului",
+            "Карточка появляется сверху экрана, когда в Bolt Driver видна карточка заказа, и исчезает, когда заказ пропал, открыто другое приложение или прошло заданное время. Нажатие — закрыть, перетаскивание — переместить по вертикали.",
+            "Cardul apare sus când în Bolt Driver e vizibilă o ofertă și dispare când oferta dispare, se deschide altă aplicație sau trece timpul setat. Apăsare — închide, tragere — mută pe verticală.", R.drawable.ic_visibility)
+        number(show, "bolt_show_sec", "Показывать не дольше, секунд", "Afișează cel mult, secunde", 15.0, 5.0, 60.0)
+
+        val shot = card("Проверить по скриншоту", "Verificare după captură",
+            "Сделайте скриншот карточки заказа в Bolt Driver и выберите его здесь — радар распознает текст прямо на телефоне и покажет, что он понял: цену, подачу, поездку, за км и за час. Так можно проверить расчёт без живого заказа. Скриншот никуда не отправляется и не сохраняется.\n\nВ работе радар читает карточку Bolt напрямую (служба специальных возможностей), скриншоты для этого не нужны.",
+            "Faceți o captură a ofertei în Bolt Driver și alegeți-o aici — radarul recunoaște textul pe telefon și arată ce a înțeles. Captura nu se trimite și nu se salvează.\n\nÎn lucru radarul citește oferta Bolt direct, fără capturi.", R.drawable.ic_search)
+        DriverUi.button(this, shot, t("Выбрать скриншот", "Alege captura")) { pickBoltShot.launch("image/*") }
+
+        val tech = card("Проверка и другие сборки", "Verificare și alte versiuni",
+            "Радар узнаёт Bolt Driver по имени пакета ee.mtakso.driver. Если у вас другая сборка, впишите её пакет (через запятую).\n\nДиагностика записывает строки карточек Bolt в «Журнал радара» на этом телефоне — в них бывают адреса. Включайте, только чтобы прислать нам пример карточки, которую радар не понял, и потом выключите.",
+            "Radarul recunoaște Bolt Driver după pachetul ee.mtakso.driver. Dacă aveți altă versiune, scrieți pachetul (separat prin virgulă).\n\nDiagnosticarea scrie rândurile ofertelor Bolt în «Jurnalul radarului» pe acest telefon — pot conține adrese. Activați doar ca să ne trimiteți un exemplu, apoi opriți.", R.drawable.ic_settings)
+        val pk = DriverUi.field(this, tech, t("Дополнительные пакеты Bolt", "Pachete Bolt suplimentare"), DriverPreferences.text(this, "bolt_packages"), false)
+        pk.doAfterTextChanged { DriverPreferences.set(this, "bolt_packages", it.toString().trim()) }
+        flag(tech, "bolt_diagnostics", "Диагностика Bolt (журнал)", "Diagnosticare Bolt (jurnal)",
+            "Строки карточек Bolt попадут в «Журнал радара» на телефоне. Никуда не отправляются, пока вы сами не поделитесь журналом.", "Rândurile ofertelor Bolt intră în jurnalul de pe telefon. Nu se trimit nicăieri dacă nu partajați jurnalul.")
     }
 
     private fun shift() {
