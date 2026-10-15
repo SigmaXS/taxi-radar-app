@@ -147,6 +147,18 @@ class BoltTest {
         assertEquals(9.4, o.trip!!.km, 0.001); assertEquals(18, o.trip!!.min)
     }
 
+    @Test fun realOcrFromPhoneWithoutBulletsAndBadCurrency() {
+        // Текст, который ML Kit на телефоне водителя распознал со скриншота 15.10 (точки «•» пропали, «мин» → «MMH»).
+        // Строку цены на снимке не видно — подставлен вариант «MOL» вместо «MDL», чтобы проверить запасной разбор цены.
+        val o = ok(listOf("Rascoa", "Maibin", "X OTKNOHMTb", "A KoMÔopr", "Io Kapre", "1.2x BbICOKMÝ Cipoc", "184,00 MOL", "3 MMH 1.6 km",
+            "BaneHTMHa • 5.0 ★ (17)", "Creşă-Grădiniţă (Fâuraş) Nr.79,", "Strada Nicolae Zelinski 28/7,", "Chişinău", "32 MMH 12.2 km",
+            "Strada Bucovinei 5, Chişinău"))
+        assertEquals(184.0, o.price, 0.001)
+        assertEquals(1.6, o.pickup!!.km, 0.001); assertEquals(3, o.pickup!!.min)
+        assertEquals(12.2, o.trip!!.km, 0.001); assertEquals(32, o.trip!!.min)
+        assertEquals(1.2, o.surge!!, 0.001)
+    }
+
     @Test fun realCardMetrics() {
         val o = ok(realCity)
         val m = BoltEconomics.calculate(o, BoltEconomics.Settings(costPerKm = 1.5, serviceMin = 2))

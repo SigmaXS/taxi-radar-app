@@ -189,19 +189,31 @@ class DriverToolsActivity : AppCompatActivity() {
 
     /** Текст со скриншота распознаётся на телефоне (ML Kit, без сети), картинка никуда не сохраняется и не отправляется. */
     private fun checkBoltScreenshot(uri: android.net.Uri) {
-        val image = try { com.google.mlkit.vision.common.InputImage.fromFilePath(this, uri) } catch (e: Exception) {
-            Toast.makeText(this, t("Не удалось открыть картинку", "Imaginea nu a putut fi deschisă"), Toast.LENGTH_LONG).show(); return
-        }
+        val bitmap = try {
+            contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) }
+        } catch (e: Exception) { null }
+        if (bitmap == null) { Toast.makeText(this, t("Не удалось открыть картинку", "Imaginea nu a putut fi deschisă"), Toast.LENGTH_LONG).show(); return }
         Toast.makeText(this, t("Распознаю…", "Recunosc…"), Toast.LENGTH_SHORT).show()
-        val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
-        recognizer.process(image)
-            .addOnSuccessListener { text ->
-                val lines = text.textBlocks.flatMap { it.lines }
-                    .sortedWith(compareBy({ it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }))
-                    .map { it.text }
-                showBoltCheck(lines)
+        recognize(bitmap) { first ->
+            if (first != null && BoltOfferParser.parse(first) is BoltOfferParser.Result.Ok) { showBoltCheck(first); return@recognize }
+            // Крупную цену распознавание иногда пропускает — второй проход по уменьшенной картинке.
+            val small = android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width / 2).coerceAtLeast(1), (bitmap.height / 2).coerceAtLeast(1), true)
+            recognize(small) { second ->
+                val candidates = listOfNotNull(second, first?.let { f -> f + second.orEmpty() })
+                showBoltCheck(candidates.firstOrNull { BoltOfferParser.parse(it) is BoltOfferParser.Result.Ok } ?: first ?: second ?: emptyList())
             }
-            .addOnFailureListener { e -> Toast.makeText(this, t("Не распознано: ", "Nerecunoscut: ") + e.message, Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    private fun recognize(bitmap: android.graphics.Bitmap, done: (List<String>?) -> Unit) {
+        val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS)
+        recognizer.process(com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0))
+            .addOnSuccessListener { text ->
+                done(text.textBlocks.flatMap { it.lines }
+                    .sortedWith(compareBy({ it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }))
+                    .map { it.text })
+            }
+            .addOnFailureListener { done(null) }
             .addOnCompleteListener { recognizer.close() }
     }
 

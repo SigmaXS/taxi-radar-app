@@ -61,7 +61,10 @@ object BoltOfferParser {
     private val soloKm = Regex("""^\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*(km|км)\.?\s*$""", RegexOption.IGNORE_CASE)
     // Распознанный со скриншота текст (OCR без кириллицы): «7 MNH • 4.1 km» — единица минут нечитаема,
     // но за ней разделитель и километры. Используется, только если строгие шаблоны в строке ничего не нашли.
-    private val ocrTimeThenKm = Regex("""(?<![\d.,])(\d{1,3})\s*[^\s\d•·∙]{1,4}\.?\s*[•·∙]\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*(km|км)(?![\p{L}])""", RegexOption.IGNORE_CASE)
+    private val ocrTimeThenKm = Regex("""(?<![\d.,])(\d{1,3})\s*\p{L}{1,4}\.?\s*[•·∙]?\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*(km|км)(?![\p{L}])""", RegexOption.IGNORE_CASE)
+    // Цена со скриншота, когда «MDL» распознан криво («MOL», «MDI»): отдельная строка «206,00» + до 4 знаков мусора.
+    // Bolt всегда пишет копейки «,00», поэтому без двух знаков после запятой не берём.
+    private val ocrPrice = Regex("""^\s*(\d{1,3}(?:[ \u00A0\u202F\u2009]\d{3})*[.,]\d{2})\s*[^\s\d]{0,4}\s*$""")
     private val surgeRegex = Regex("""(?<![\d.,])([1-9](?:[.,]\d{1,2})?)\s*[xх×](?![\p{L}\d])""", RegexOption.IGNORE_CASE)
     private val cashRegex = Regex("""(?iu)\b(наличн\S*|numerar|cash)\b""")
     private val cardRegex = Regex("""(?iu)(по\s+карте|картой|\bcard\b|\bcardul\b|\bcu\s+cardul\b)""")
@@ -120,7 +123,11 @@ object BoltOfferParser {
             distinct.size == 1 && range == null -> { price = distinct[0]; isRange = false }
             distinct.isEmpty() && range != null -> { price = range!!; isRange = true }
             distinct.size == 1 && range != null -> return Result.NotOffer("и цена, и вилка цены")
-            else -> return Result.NotOffer("нет цены")
+            else -> {
+                val ocr = lines.mapNotNull { l -> ocrPrice.find(l)?.let { num(it.groupValues[1]) } }.filter { it > 0 }.distinct()
+                if (ocr.size != 1) return Result.NotOffer(if (ocr.isEmpty()) "нет цены" else "несколько разных цен: ${ocr.joinToString()}")
+                price = ocr[0] to "L"; isRange = false
+            }
         }
         if (price.first > 100_000) return Result.NotOffer("цена вне диапазона")
 
