@@ -1,0 +1,31 @@
+# Проверочная сборка ветки с Bolt: unit-тесты + debug APK (подписан debug-ключом GitHub,
+# поверх версии из Telegram НЕ ставится — только для проверки, что проект собирается).
+# Рабочий APK собирается на ПК с ключом Taxi Radar: ./gradlew.bat assembleRelease
+name: Bolt build check
+on:
+  push:
+    branches: [ "feature/bolt-card" ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests
+        run: bash ./gradlew testDebugUnitTest --stacktrace
+      - name: Debug APK
+        run: bash ./gradlew assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bolt-check
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/tests/
+          if-no-files-found: warn
