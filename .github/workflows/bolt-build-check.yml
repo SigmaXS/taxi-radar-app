@@ -6,6 +6,8 @@ on:
   push:
     branches: [ "feature/bolt-card" ]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,10 +32,24 @@ jobs:
           PY
           done
           grep -E "^w: .*(Bolt|TaxiServices|OrderAccessibilityService|FloatingWidgetService|DriverToolsActivity)" test-build.log | head -20 | sed 's/^/::notice title=kotlin-warning::/' || true
-      - name: Debug APK
+      - name: Debug APK (тестовая копия рядом с 2.2)
         run: |
+          # Только в облачной сборке, в репозиторий не попадает: отдельный id и название,
+          # чтобы тест ставился рядом с рабочим Taxi Radar, а не вместо него.
+          sed -i 's/^        debug {/        debug {\n            applicationIdSuffix = ".bolttest"\n            versionNameSuffix = "-bolt-test"/' app/build.gradle.kts
+          sed -i 's/android:label="Taxi Radar"/android:label="Taxi Radar Bolt TEST"/' app/src/main/AndroidManifest.xml
+          grep -n "bolttest" app/build.gradle.kts
           bash ./gradlew assembleDebug --stacktrace
           for a in app/build/outputs/apk/debug/*.apk; do echo "::notice title=apk::$(basename $a) $(stat -c %s $a) bytes sha256=$(sha256sum $a | cut -c1-16)"; done
+      - name: Черновик релиза с тестовым APK (виден только владельцу репозитория)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "TaxiRadar-Bolt-TEST-${GITHUB_RUN_NUMBER}.apk"
+          gh release create "bolt-test-${GITHUB_RUN_NUMBER}" "TaxiRadar-Bolt-TEST-${GITHUB_RUN_NUMBER}.apk" \
+            --draft --prerelease --target "${GITHUB_SHA}" \
+            --title "Bolt TEST ${GITHUB_RUN_NUMBER} (не для водителей)" \
+            --notes "Тестовая debug-сборка ветки feature/bolt-card. Ставится рядом с Taxi Radar (md.taxiradar.app.bolttest)."
       - uses: actions/upload-artifact@v4
         if: always()
         with:
