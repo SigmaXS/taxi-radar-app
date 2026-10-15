@@ -18,7 +18,7 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests
-        run: bash ./gradlew testDebugUnitTest --stacktrace 2>&1 | tee test-build.log
+        run: set -o pipefail; bash ./gradlew testDebugUnitTest --stacktrace 2>&1 | tee test-build.log
       - name: Test summary
         if: always()
         run: |
