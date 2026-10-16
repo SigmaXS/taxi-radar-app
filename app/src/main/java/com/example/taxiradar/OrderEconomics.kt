@@ -7,7 +7,7 @@ object OrderEconomics {
     data class Costs(val commission: Double, val consumption: Double, val energyPrice: Double, val maintenanceKm: Double = 0.0) {
         val perKm get() = consumption.coerceAtLeast(0.0) / 100 * energyPrice.coerceAtLeast(0.0) + maintenanceKm.coerceAtLeast(0.0)
     }
-    data class Result(val net: Int, val perKm: Double?, val perHour: Int?)
+    data class Result(val net: Int, val perKm: Double?, val perHour: Int?, val perMinute: Double? = null)
 
     fun calculate(price: Int, tripKm: Double, pickupKm: Double, minutes: Int, pickupMinutes: Double, costs: Costs, returnKm: Double = 0.0): Result {
         val distance = tripKm.coerceAtLeast(0.0) + pickupKm.coerceAtLeast(0.0) + returnKm.coerceAtLeast(0.0)
@@ -18,7 +18,9 @@ object OrderEconomics {
         val time = tripMin + pickupMinutes.coerceAtLeast(0.0) + returnKm.coerceAtLeast(0.0) * 2
         val perHour = if (time > 0) (net * 60 / time).roundToInt() else null
         // Больше MAX_PER_HOUR — это ошибка данных, а не заказ: не показываем.
-        return Result(net.roundToInt(), if (distance > 0) net / distance else null, perHour?.takeIf { it <= MAX_PER_HOUR })
+        val validPerHour = perHour?.takeIf { it <= MAX_PER_HOUR }
+        return Result(net.roundToInt(), if (distance > 0) net / distance else null, validPerHour,
+            if (validPerHour != null) net / time else null)
     }
 
     private const val CITY_KMH = 25.0

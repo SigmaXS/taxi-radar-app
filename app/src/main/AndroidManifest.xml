@@ -30,6 +30,8 @@
     <!-- Оптимизация батареи -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -39,6 +41,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TaxiRadar"
         android:usesCleartextTraffic="true">
+
+        <activity android:name=".ScreenReaderActivity" android:exported="false" />
+        <service android:name=".ScreenReaderService" android:exported="false" android:foregroundServiceType="mediaProjection|location" />
+        <meta-data android:name="com.google.android.geo.API_KEY" android:value="${googleMapsApiKey}" />
 
         <!-- Главная активность -->
         <activity android:name=".DriverToolsActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
@@ -64,6 +70,14 @@
             android:exported="false" />
 
         <activity android:name=".MyTripsActivity" android:exported="false" />
+        <!-- «Поделиться» скриншотом карточки Bolt → расчёт цены, L/час, L/км и маршрута. -->
+        <activity android:name=".ScreenshotShareActivity" android:exported="true" android:label="Taxi Radar: разбор заказа">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
         <activity android:name=".EventsActivity" android:exported="false" />
         <receiver android:name=".EventReminders$Receiver" android:exported="false" />
         <activity

@@ -9,17 +9,20 @@ class OrderEconomicsTest {
         assertEquals(124, result.net)
         assertEquals(124.0 / 12, result.perKm!!, 0.001)
         assertEquals(248, result.perHour)
+        assertEquals(124.0 / 30, result.perMinute!!, 0.000001)
     }
     @Test fun emptyReturnCostsTimeAndEnergy() {
         val costs = OrderEconomics.Costs(20.0, 8.0, 25.0)
         val result = OrderEconomics.calculate(200, 10.0, 2.0, 20, 10.0, costs, 5.0)
         assertEquals(126, result.net)
         assertEquals(189, result.perHour)
+        assertEquals(126.0 / 40, result.perMinute!!, 0.000001)
     }
     @Test fun noTimeOrDistanceDoesNotInventRatios() {
         val result = OrderEconomics.calculate(100, 0.0, 0.0, 0, 0.0, OrderEconomics.Costs(20.0, 7.0, 25.0))
         assertEquals(80, result.net)
         assertNull(result.perHour)
+        assertNull(result.perMinute)
         assertNull(result.perKm)
     }
     @Test fun lossIsKeptVisibleAndCommissionIsBounded() {
@@ -30,4 +33,10 @@ class OrderEconomicsTest {
         assertEquals(0..2, OrderEconomics.range(1, 30))
         assertEquals(70..130, OrderEconomics.range(100, 100))
     }
+    @Test fun impossibleHourlyEstimateAlsoHidesMinuteEstimate() {
+        val result = OrderEconomics.calculate(1000, 1.0, 0.0, 1, 0.0, OrderEconomics.Costs(0.0, 0.0, 0.0))
+        assertNull(result.perHour)
+        assertNull(result.perMinute)
+    }
+
 }

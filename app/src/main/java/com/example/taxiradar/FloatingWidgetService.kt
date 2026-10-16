@@ -204,7 +204,7 @@ class FloatingWidgetService : Service() {
                 }
                 sub.append(details)
                 val prefs = this@FloatingWidgetService
-                if (DriverPreferences.flag(prefs, "profit") || DriverPreferences.flag(prefs, "per_km") || DriverPreferences.flag(prefs, "per_hour")) {
+                if (DriverPreferences.flag(prefs, "profit") || DriverPreferences.flag(prefs, "per_km") || DriverPreferences.flag(prefs, "per_hour") || DriverPreferences.flag(prefs, "per_minute")) {
                     if (!DriverPreferences.costsReady(prefs)) sub.append("\n" + DriverUi.t(prefs, "Оценки нет: заполните расходы машины", "Fără evaluare: completați cheltuielile"))
                     else {
                         val r = OrderEconomics.calculate(price, km, pickupKm, min, pickupKm / DriverPreferences.number(prefs, "pickup_speed", 25.0).coerceAtLeast(5.0) * 60, DriverPreferences.costs(prefs))
@@ -212,6 +212,7 @@ class FloatingWidgetService : Service() {
                         val values = mutableListOf<String>()
                         if (DriverPreferences.flag(prefs, "profit")) values += DriverUi.t(prefs, "После расходов ≈ ${r.net} L", "După cheltuieli ≈ ${r.net} L")
                         if (DriverPreferences.flag(prefs, "profit") && pickupKm > 0) values += DriverUi.t(prefs, "подача ${formatKm(pickupKm)} км", "preluare ${formatKm(pickupKm)} km")
+                        if (DriverPreferences.flag(prefs, "per_minute") && r.perMinute != null) values += "≈ ${String.format(java.util.Locale.getDefault(), "%.2f", r.perMinute)} MDL/min"
                         if (DriverPreferences.flag(prefs, "per_km") && r.perKm != null) values += "~${formatKm(r.perKm)} L/km"
                         if ((DriverPreferences.flag(prefs, "per_hour") || DriverPreferences.flag(prefs, "profit")) && r.perHour != null) values += DriverUi.t(prefs, "≈ ${r.perHour} L/час", "≈ ${r.perHour} L/oră")
                         if (values.isNotEmpty()) sub.append("\n" + values.joinToString(" · "))

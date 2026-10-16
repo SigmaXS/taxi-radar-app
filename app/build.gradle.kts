@@ -29,8 +29,13 @@ android {
         targetSdk = 34
         versionCode = 22
         versionName = "2.2"
+        // Android-restricted Maps key, supplied locally or by CI. Routes key stays on the server.
+        manifestPlaceholders["googleMapsApiKey"] = providers.environmentVariable("GOOGLE_MAPS_ANDROID_API_KEY")
+            .orElse(providers.gradleProperty("GOOGLE_MAPS_ANDROID_API_KEY")).getOrElse("")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Только процессоры телефонов и мультимедиа: x86 нужен лишь эмуляторам, а библиотеки OCR весят по 20 МБ на каждый.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     signingConfigs {
@@ -77,8 +82,14 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
+
+    // Латинский OCR из сервисов Google Play (модель на телефоне, не в APK); без них — встроенный Tesseract.
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+
     // Геолокация FusedLocation (для перехвата Fake GPS)
     implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
 
     // Карта спроса (OpenStreetMap, без ключей)
     implementation("org.osmdroid:osmdroid-android:6.1.18")

@@ -44,14 +44,14 @@ object CommunityApi {
             null
         }
 
-    fun postBlocking(context: Context, path: String, body: JSONObject = JSONObject()): JSONObject? =
+    fun postBlocking(context: Context, path: String, body: JSONObject = JSONObject(), timeoutSeconds: Long = 8): JSONObject? =
         try {
             body.put("device_id", LicenseManager(context).deviceId)
             val request = Request.Builder()
                 .url(BASE_URL + path)
                 .post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .build()
-            client.newCall(request).execute().use { response ->
+            client.newBuilder().readTimeout(timeoutSeconds, TimeUnit.SECONDS).callTimeout(timeoutSeconds + 2, TimeUnit.SECONDS).build().newCall(request).execute().use { response ->
                 response.body?.string()?.let { JSONObject(it) }
             }
         } catch (e: Exception) {
