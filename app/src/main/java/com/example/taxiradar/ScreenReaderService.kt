@@ -168,8 +168,12 @@ class ScreenReaderService : Service() {
                     // заменяем, только если новое чтение полнее (появилась цена или адрес).
                     // Карточку с ценой прочитали — 15 секунд (время на «Принять») держим расчёт и не перечитываем.
                     val frozen = shown != null && SystemClock.elapsedRealtime() < lockedUntil
-                    if (offer != null && shown != null && sameCard(shown, offer) && (frozen || quality(offer) <= quality(shown))) {
-                        visibility.update(shown.identity, SystemClock.elapsedRealtime())
+                    if (offer != null && shown != null && sameCard(shown, offer)) {
+                        // Новый кадр той же карточки только дополняет прочитанное: чего не разглядел сейчас
+                        // (тариф «Комфорт», ×спрос, цену, адрес) — берём из прошлых кадров. Так цена не пропадает.
+                        val merged = merge(shown, offer)
+                        if (!frozen && quality(merged) > quality(shown)) renderOffer(merged)
+                        else visibility.update(shown.identity, SystemClock.elapsedRealtime())
                     } else if (offer != null) renderOffer(offer)
                     else {
                         visibility.missing(SystemClock.elapsedRealtime())
@@ -181,7 +185,24 @@ class ScreenReaderService : Service() {
         }
     }
     private fun boarding() = DriverPreferences.number(this, "ocr_extra").coerceIn(0.0, 30.0)
-    private fun quality(o: ScreenOfferParser.Offer) = (if (o.fare != null) 100 else 0) + o.addresses.count { it.isNotBlank() } * 10 + if (o.multiplierKnown) 1 else 0
+    /** Насколько полно прочитана карточка: цена > можно оценить цену (известен тариф) > адреса > ×спрос. */
+    private fun quality(o: ScreenOfferParser.Offer) = (if (o.fare != null) 100 else 0) + (if (o.boltCategory != null) 50 else 0) +
+        o.addresses.count { it.isNotBlank() } * 10 + if (o.multiplierKnown && o.multiplier > 1.0) 2 else if (o.multiplierKnown) 1 else 0
+    private fun merge(old: ScreenOfferParser.Offer, new: ScreenOfferParser.Offer): ScreenOfferParser.Offer {
+        val mult = when {
+            new.multiplierKnown && new.multiplier > 1.0 -> new
+            old.multiplierKnown && old.multiplier > 1.0 -> old
+            new.multiplierKnown -> new
+            else -> old
+        }
+        return old.copy(
+            fare = old.fare ?: new.fare,
+            addresses = old.addresses.indices.map { i -> old.addresses[i].ifBlank { new.addresses.getOrElse(i) { "" } } },
+            afterCommission = old.afterCommission || new.afterCommission,
+            tariff = old.tariff ?: new.tariff,
+            boltCategory = old.boltCategory ?: new.boltCategory,
+            multiplier = mult.multiplier, multiplierKnown = mult.multiplierKnown)
+    }
     private fun close(a: Double, b: Double, abs: Double, rel: Double) = kotlin.math.abs(a - b) <= maxOf(abs, maxOf(a, b) * rel)
     private fun sameCard(a: ScreenOfferParser.Offer, b: ScreenOfferParser.Offer) =
         close(a.pickupKm, b.pickupKm, 0.5, 0.25) && close(a.tripKm, b.tripKm, 1.0, 0.15) &&
