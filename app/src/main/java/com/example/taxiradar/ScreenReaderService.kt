@@ -163,7 +163,12 @@ class ScreenReaderService : Service() {
                         ScreenOfferParser.parse(ScreenOfferParser.correct(text, DriverPreferences.text(this, "ocr_words")))
                     }
                     val offer = candidates.maxByOrNull { (if (it.fare != null) 100 else 0) + it.addresses.count { address -> address.isNotBlank() } * 10 + if (it.multiplierKnown) 1 else 0 }
-                    if (offer != null) renderOffer(offer)
+                    val shown = currentOffer
+                    // Та же карточка, прочитанная чуть иначе (OCR «1.6» → «1.5»), — оставляем показанный расчёт;
+                    // заменяем, только если новое чтение полнее (появилась цена или адрес).
+                    if (offer != null && shown != null && sameCard(shown, offer) && quality(offer) <= quality(shown)) {
+                        visibility.update(shown.identity, SystemClock.elapsedRealtime())
+                    } else if (offer != null) renderOffer(offer)
                     else {
                         visibility.missing(SystemClock.elapsedRealtime())
                         if (!visibility.expanded) { currentOffer = null; overlay?.waiting(); clearRoute() }
@@ -174,6 +179,12 @@ class ScreenReaderService : Service() {
         }
     }
     private fun boarding() = DriverPreferences.number(this, "ocr_extra").coerceIn(0.0, 30.0)
+    private fun quality(o: ScreenOfferParser.Offer) = (if (o.fare != null) 100 else 0) + o.addresses.count { it.isNotBlank() } * 10 + if (o.multiplierKnown) 1 else 0
+    private fun close(a: Double, b: Double, abs: Double, rel: Double) = kotlin.math.abs(a - b) <= maxOf(abs, maxOf(a, b) * rel)
+    private fun sameCard(a: ScreenOfferParser.Offer, b: ScreenOfferParser.Offer) =
+        close(a.pickupKm, b.pickupKm, 0.5, 0.25) && close(a.tripKm, b.tripKm, 1.0, 0.15) &&
+            close(a.pickupMinutes, b.pickupMinutes, 2.0, 0.3) && close(a.tripMinutes, b.tripMinutes, 3.0, 0.2) &&
+            (a.fare == null || b.fare == null || close(a.fare, b.fare, 2.0, 0.05))
     private fun renderOffer(offer: ScreenOfferParser.Offer) {
         currentOffer = offer
         lastOffer = SystemClock.elapsedRealtime()
@@ -247,7 +258,7 @@ class ScreenReaderService : Service() {
                 routeMessage = t("Нужно свежее местоположение: включите GPS и доступ к геолокации", "Este necesară o poziție recentă: activați GPS și accesul la locație")
             } else {
                 val reply = withContext(Dispatchers.IO) {
-                    ScreenTrafficRoute.calculate(this@ScreenReaderService, fix.latitude, fix.longitude, offer.addresses, boarding())
+                    ScreenTrafficRoute.calculate(this@ScreenReaderService, fix.latitude, fix.longitude, offer.addresses, boarding(), offer)
                 }
                 if (closed || generation != routeGeneration) return@launch
                 trafficRoute = reply.route

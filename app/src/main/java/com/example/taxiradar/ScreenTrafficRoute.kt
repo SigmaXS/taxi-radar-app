@@ -12,13 +12,19 @@ object ScreenTrafficRoute {
             pickupMinutes = pickup.minutes, tripMinutes = trip.minutes)
     }
     data class Reply(val route: Result? = null, val error: String = "route_unavailable")
-    fun calculate(context: Context, lat: Double, lon: Double, addresses: List<String>, boarding: Double): Reply {
-        val response = CommunityApi.postBlocking(context, "/api/offer-route", JSONObject()
-            .put("lat", lat).put("lon", lon).put("addresses", JSONArray(addresses)).put("boarding_minutes", boarding), 18)
-            ?: return Reply()
-        return parse(response)
+    /**
+     * [offer] — км с карточки: по ним сервер отличает настоящий адрес от одноимённой улицы в другом месте.
+     * [tripOnly] — скриншот: водитель уже не там, подачу берём с карточки, считаем только поездку.
+     */
+    fun calculate(context: Context, lat: Double, lon: Double, addresses: List<String>, boarding: Double,
+                  offer: ScreenOfferParser.Offer? = null, tripOnly: Boolean = false): Reply {
+        val body = JSONObject().put("lat", lat).put("lon", lon).put("addresses", JSONArray(addresses)).put("boarding_minutes", boarding)
+        if (offer != null) body.put("card_pickup_km", offer.pickupKm).put("card_trip_km", offer.tripKm)
+        if (tripOnly) body.put("trip_only", true)
+        val response = CommunityApi.postBlocking(context, "/api/offer-route", body, 18) ?: return Reply()
+        return parse(response, offer.takeIf { tripOnly })
     }
-    fun parse(json: JSONObject): Reply {
+    fun parse(json: JSONObject, cardPickup: ScreenOfferParser.Offer? = null): Reply {
         if (!json.optBoolean("ok")) return Reply(error = json.optString("code", "route_unavailable"))
         return try {
             // Любой сервис очереди (TomTom, HERE, Mapbox, Google) — формат ответа один.
@@ -29,7 +35,12 @@ object ScreenTrafficRoute {
                 require(km.isFinite() && min.isFinite() && km >= 0 && min >= 0)
                 return Leg(km, min, decodePolyline(obj.getString("polyline")))
             }
-            Reply(Result(leg("pickup"), leg("trip"), json.getLong("calculated_at")))
+            val pickup = if (cardPickup != null && json.isNull("pickup")) {
+                // Подача — с карточки; линии нет (на скриншоте водитель был в другом месте).
+                val a = json.optJSONObject("points")?.optJSONObject("a")
+                Leg(cardPickup.pickupKm, cardPickup.pickupMinutes, listOfNotNull(a?.let { it.getDouble("lat") to it.getDouble("lon") }))
+            } else leg("pickup")
+            Reply(Result(pickup, leg("trip"), json.getLong("calculated_at")))
         } catch (_: Exception) { Reply(error = "route_invalid") }
     }
     fun decodePolyline(encoded: String): List<Pair<Double, Double>> {

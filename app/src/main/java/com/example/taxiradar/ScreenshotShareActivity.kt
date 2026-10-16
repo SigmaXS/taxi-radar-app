@@ -109,7 +109,8 @@ class ScreenshotShareActivity : AppCompatActivity() {
             val fix = ScreenReaderLocation.fix(this@ScreenshotShareActivity)
             if (fix == null) { status.text = t("Нет вашего местоположения — включите GPS. Пока показываем по данным Bolt.", "Lipsește locația — activați GPS. Afișăm după datele Bolt."); return@launch }
             val boarding = DriverPreferences.number(this@ScreenshotShareActivity, "ocr_extra").coerceIn(0.0, 30.0)
-            val reply = withContext(Dispatchers.IO) { ScreenTrafficRoute.calculate(this@ScreenshotShareActivity, fix.latitude, fix.longitude, offer.addresses, boarding) }
+            // Скриншот мог быть сделан в другом месте — подачу берём с карточки, считаем только поездку А→Б.
+            val reply = withContext(Dispatchers.IO) { ScreenTrafficRoute.calculate(this@ScreenshotShareActivity, fix.latitude, fix.longitude, offer.addresses, boarding, offer, tripOnly = true) }
             val route = reply.route
             if (route == null) {
                 status.text = when (reply.error) {
@@ -119,7 +120,7 @@ class ScreenshotShareActivity : AppCompatActivity() {
                 }
                 return@launch
             }
-            status.text = t("Подача считается от того места, где вы сейчас.", "Preluarea se calculează de la locul unde sunteți acum.")
+            status.text = t("Подача — по карточке Bolt; поездка — по дорогам с пробками.", "Preluarea — după cardul Bolt; cursa — după drumuri cu trafic.")
             render(offer, route)
             showMap(fix.latitude, fix.longitude, route)
         }
@@ -146,9 +147,9 @@ class ScreenshotShareActivity : AppCompatActivity() {
             lines += (perHour?.let { "≈ ${n(it)} " + t("L/час", "L/oră") + " · " } ?: "") + "≈ ${n(m.perKm, 1)} L/км"
         } else if (fare != null) lines += t("Заполните расходы машины — тогда покажу L/час и L/км", "Completați cheltuielile mașinii pentru L/oră și L/km")
         if (route != null) {
-            val bolt = offer.pickupMinutes + offer.tripMinutes
-            val real = route.pickup.minutes + route.trip.minutes
-            lines += t("Время: Bolt ", "Timp: Bolt ") + n(bolt) + t(" мин · на деле ≈ ", " min · real ≈ ") + n(real) + t(" мин", " min") +
+            val bolt = offer.tripMinutes
+            val real = route.trip.minutes
+            lines += t("Поездка: Bolt ", "Cursă: Bolt ") + n(bolt) + t(" мин · на деле ≈ ", " min · real ≈ ") + n(real) + t(" мин", " min") +
                 if (real - bolt >= 3) t(" (Bolt занизил)", " (Bolt a subestimat)") else ""
         } else lines += t("Время по данным Bolt: ", "Timp după Bolt: ") + n(offer.pickupMinutes + offer.tripMinutes) + t(" мин", " min")
         lines.forEachIndexed { i, s ->
@@ -188,19 +189,18 @@ class ScreenshotShareActivity : AppCompatActivity() {
             setPoints(points.map { GeoPoint(it.first, it.second) })
             outlinePaint.color = color; outlinePaint.strokeWidth = DriverUi.dp(this@ScreenshotShareActivity, 5).toFloat()
         }
-        view.overlays += line(route.pickup.points, Color.parseColor("#9E9E9E"))
         view.overlays += line(route.trip.points, Color.parseColor("#2B6CB0"))
         fun mark(p: Pair<Double, Double>, icon: android.graphics.drawable.Drawable, anchorBottom: Boolean = false) = Marker(view).apply {
             position = GeoPoint(p.first, p.second); this.icon = icon; title = null
             setAnchor(Marker.ANCHOR_CENTER, if (anchorBottom) Marker.ANCHOR_BOTTOM else Marker.ANCHOR_CENTER)
             setInfoWindow(null)
         }
-        val client = route.pickup.points.last()
+        // На скриншоте вы были в другом месте — показываем клиента, флажок и поездку.
+        val client = route.trip.points.first()
         val dest = route.trip.points.last()
-        view.overlays += mark(lat to lon, dot(Color.parseColor("#2FB344")))
         view.overlays += mark(client, dot(Color.parseColor("#E53935")))
         view.overlays += mark(dest, MapIcons.circle(this, "🏁", Color.WHITE, 30))
-        val all = (route.pickup.points + route.trip.points + (lat to lon)).map { GeoPoint(it.first, it.second) }
+        val all = route.trip.points.map { GeoPoint(it.first, it.second) }
         view.post { view.zoomToBoundingBox(BoundingBox.fromGeoPoints(all).increaseByScale(1.25f), false) }
         view.invalidate()
     }
