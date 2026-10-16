@@ -166,7 +166,9 @@ class ScreenReaderService : Service() {
                     val shown = currentOffer
                     // Та же карточка, прочитанная чуть иначе (OCR «1.6» → «1.5»), — оставляем показанный расчёт;
                     // заменяем, только если новое чтение полнее (появилась цена или адрес).
-                    if (offer != null && shown != null && sameCard(shown, offer) && quality(offer) <= quality(shown)) {
+                    // Карточку с ценой прочитали — 15 секунд (время на «Принять») держим расчёт и не перечитываем.
+                    val frozen = shown != null && SystemClock.elapsedRealtime() < lockedUntil
+                    if (offer != null && shown != null && sameCard(shown, offer) && (frozen || quality(offer) <= quality(shown))) {
                         visibility.update(shown.identity, SystemClock.elapsedRealtime())
                     } else if (offer != null) renderOffer(offer)
                     else {
@@ -185,7 +187,17 @@ class ScreenReaderService : Service() {
         close(a.pickupKm, b.pickupKm, 0.5, 0.25) && close(a.tripKm, b.tripKm, 1.0, 0.15) &&
             close(a.pickupMinutes, b.pickupMinutes, 2.0, 0.3) && close(a.tripMinutes, b.tripMinutes, 3.0, 0.2) &&
             (a.fare == null || b.fare == null || close(a.fare, b.fare, 2.0, 0.05))
+    /** До какого времени держим показанный расчёт (тот же заказ не перечитываем). */
+    private var lockedUntil = 0L
+    private var loggedCard = ""
+
     private fun renderOffer(offer: ScreenOfferParser.Offer) {
+        // В «Журнал радара» — что прочиталось с карточки (без картинок): по нему видно, почему заказ не посчитался.
+        val card = "цена ${offer.fare ?: "скрыта"} · подача ${offer.pickupMinutes} мин ${offer.pickupKm} км · поездка ${offer.tripMinutes} мин ${offer.tripKm} км · " +
+            "×${if (offer.multiplierKnown) offer.multiplier else "?"} · ${offer.boltCategory ?: offer.tariff ?: "тариф?"} · А «${offer.addresses.getOrElse(0) { "" }.take(60)}» · Б «${offer.addresses.getOrElse(1) { "" }.take(60)}»"
+        if (card != loggedCard) { loggedCard = card; TripLog.init(this); TripLog.d("Bolt: $card") }
+        // Другой заказ — прежняя «заморозка» к нему не относится.
+        if (currentOffer?.let { sameCard(it, offer) } != true) lockedUntil = 0L
         currentOffer = offer
         lastOffer = SystemClock.elapsedRealtime()
         visibility.update(offer.identity, lastOffer)
@@ -220,7 +232,9 @@ class ScreenReaderService : Service() {
         val km = routed.pickupKm + routed.tripKm
         val minutes = routed.pickupMinutes + routed.tripMinutes + boarding()
         var details = priceNote
-        val rates = if (fare == null) t("Нужна цена или известный тариф", "Este nevoie de preț sau de categorie cunoscută")
+        // Цена есть (с карточки или оценка) — держим расчёт 15 секунд.
+        if (fare != null && lockedUntil < SystemClock.elapsedRealtime()) lockedUntil = SystemClock.elapsedRealtime() + 15_000
+        val rates = if (fare == null) ""
         else if (km <= 0 || minutes <= 0) ""
         else {
             val afterCommission = fare * (1 - (if (alreadyNet) 0.0 else commission) / 100)

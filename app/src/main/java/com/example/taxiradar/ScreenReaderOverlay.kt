@@ -141,6 +141,7 @@ class ScreenReaderOverlay(c: Context, private val minimize: () -> Unit,
         price.setTextColor(context.getColor(if (offer.fare == null) R.color.tr_accent else R.color.tr_text))
         source.text = priceSource
         profit.text = netText
+        profit.visibility = if (netText.isBlank()) View.GONE else View.VISIBLE
         profit.setTextColor(context.getColor(R.color.tr_accent))
         time.text = timeText
         time.visibility = if (timeText.isBlank()) View.GONE else View.VISIBLE
