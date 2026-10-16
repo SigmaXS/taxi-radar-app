@@ -210,8 +210,7 @@ class ScreenReaderService : Service() {
             else -> {
                 val netFare = offer.fare != null && (offer.afterCommission || DriverPreferences.flag(this, "ocr_net_fare"))
                 val m = ScreenOfferParser.metrics(routed.copy(fare = fare, afterCommission = netFare), DriverPreferences.costs(this), boarding())
-                "≈ ${whole(m.net * 60 / m.minutes)} " + t("L/час", "L/oră") + " · ≈ ${number(m.perKm)} L/km
-" +
+                "≈ ${whole(m.net * 60 / m.minutes)} " + t("L/час", "L/oră") + " · ≈ ${number(m.perKm)} L/km\n" +
                     "≈ ${whole(m.net)} MDL " + t("чистыми", "net")
             }
         }
@@ -220,8 +219,7 @@ class ScreenReaderService : Service() {
         // Почему нет настоящего времени — одной строкой, без повторов.
         else overlay?.travelStatus(listOfNotNull(
             t("Bolt: подача ${whole(offer.pickupMinutes)} мин · поездка ${whole(offer.tripMinutes)} мин", "Bolt: preluare ${whole(offer.pickupMinutes)} min · cursă ${whole(offer.tripMinutes)} min"),
-            routeMessage.takeIf { it.isNotBlank() }).joinToString("
-"))
+            routeMessage.takeIf { it.isNotBlank() }).joinToString("\n"))
     }
     private fun whole(n: Double) = String.format(Locale.getDefault(), "%.0f", n)
     private fun number(n: Double) = String.format(Locale.getDefault(), "%.2f", n)
