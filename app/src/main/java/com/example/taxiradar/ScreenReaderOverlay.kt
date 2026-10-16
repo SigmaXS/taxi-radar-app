@@ -47,8 +47,10 @@ class ScreenReaderOverlay(c: Context, private val minimize: () -> Unit,
     private val title = text(12f, true).apply { text = "TAXI RADAR"; setTypeface(null, Typeface.BOLD); maxLines = 1 }
     private val price = text(32f).apply { setTypeface(null, Typeface.BOLD); maxLines = 1 }
     private val source = text(12f, true).apply { maxLines = 2 }
-    private val profit = text(22f).apply { maxLines = 2; setPadding(0, dp(7), 0, dp(5)) }
-    private val travel = text(15f).apply { maxLines = 3 }
+    private val profit = text(24f).apply { maxLines = 2; setPadding(0, dp(6), 0, dp(2)); setTypeface(null, Typeface.BOLD) }
+    /** «Bolt 35 мин · на деле 55 мин» — главное, сколько реально займёт заказ. */
+    private val time = text(20f).apply { maxLines = 2; setTypeface(null, Typeface.BOLD); setPadding(0, dp(2), 0, dp(4)) }
+    private val travel = text(13f, true).apply { maxLines = 3 }
     private val mapStatus = text(12f, true)
     val mapView = FrameLayout(c).apply { visibility = View.GONE }
     private var googleView: MapView? = null
@@ -115,7 +117,7 @@ class ScreenReaderOverlay(c: Context, private val minimize: () -> Unit,
         header.addView(action(t("Свернуть", "Ascunde"), minimize))
         card.addView(header)
         val content = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, dp(4), 0) }
-        content.addView(price); content.addView(source); content.addView(profit); content.addView(travel)
+        content.addView(price); content.addView(profit); content.addView(time); content.addView(source); content.addView(travel)
         content.addView(mapView, LinearLayout.LayoutParams(-1, dp(140)).apply { topMargin = dp(8) })
         content.addView(mapStatus.apply { visibility = View.GONE })
         card.addView(ScrollView(c).apply { isFillViewport = false; addView(content) }, LinearLayout.LayoutParams(-1, -2))
@@ -131,27 +133,31 @@ class ScreenReaderOverlay(c: Context, private val minimize: () -> Unit,
         val limit = (resources.displayMetrics.heightPixels * .32).toInt()
         super.onMeasure(w, if (expanded) MeasureSpec.makeMeasureSpec(limit, MeasureSpec.AT_MOST) else h)
     }
-    fun offer(offer: ScreenOfferParser.Offer, shownPrice: String, priceSource: String, netText: String) {
+    fun offer(offer: ScreenOfferParser.Offer, shownPrice: String, priceSource: String, netText: String, timeText: String = "") {
         title.text = "TAXI RADAR" + (offer.tariff?.let { " · $it" } ?: "")
-        price.visibility = if (offer.fare == null && shownPrice.isNotBlank()) View.VISIBLE else View.GONE
+        price.visibility = if (shownPrice.isNotBlank()) View.VISIBLE else View.GONE
         price.text = shownPrice
+        // Скрытую цену (наша оценка) — жёлтым; цену с карточки — обычным.
         price.setTextColor(context.getColor(if (offer.fare == null) R.color.tr_accent else R.color.tr_text))
         source.text = priceSource
         profit.text = netText
+        profit.setTextColor(context.getColor(R.color.tr_accent))
+        time.text = timeText
+        time.visibility = if (timeText.isBlank()) View.GONE else View.VISIBLE
+        time.setTextColor(context.getColor(R.color.tr_accent))
         travel.text = t("Считаем маршрут и прогноз времени…", "Calculăm traseul și durata estimată…")
         bubble.contentDescription = t("Taxi Radar: показать заказ ", "Taxi Radar: afișează oferta ") + shownPrice
     }
     private fun fmt(n: Double) = if (n == n.toInt().toDouble()) n.toInt().toString() else String.format(java.util.Locale.getDefault(), "%.1f", n)
-    fun travelStatus(message: String) { travel.text = message }
+    fun travelStatus(message: String) { travel.text = message; travel.visibility = if (message.isBlank()) View.GONE else View.VISIBLE }
     fun clearMap(message: String = "") {
         routeData = null; googleMap?.clear(); mapView.visibility = View.GONE
         mapStatus.text = message; mapStatus.visibility = if (mapRequested && message.isNotBlank()) View.VISIBLE else View.GONE
     }
     fun route(result: ScreenTrafficRoute.Result, boardingMinutes: Double = 0.0) {
         routeData = result
-        travel.text = t("Подача", "Preluare") + " ≈ ${fmt(result.pickup.minutes)} min · ${fmt(result.pickup.km)} km\n" +
-            t("Поездка", "Cursă") + " ≈ ${fmt(result.trip.minutes)} min · ${fmt(result.trip.km)} km\n" +
-            t("Всего с посадкой", "Total cu îmbarcare") + " ≈ ${fmt(result.pickup.minutes + result.trip.minutes + boardingMinutes)} min"
+        // Подробности — одной мелкой строкой; главное (время, L/км, L/час) уже крупно выше.
+        travelStatus(t("подача ${fmt(result.pickup.km)} км · поездка ${fmt(result.trip.km)} км", "preluare ${fmt(result.pickup.km)} km · cursă ${fmt(result.trip.km)} km"))
         showGoogleRoute()
     }
     fun waiting() { bubble.contentDescription = t("Taxi Radar: ожидание заказа", "Taxi Radar: așteptarea ofertei") }

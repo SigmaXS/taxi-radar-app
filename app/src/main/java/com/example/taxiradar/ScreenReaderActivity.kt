@@ -34,6 +34,10 @@ class ScreenReaderActivity : AppCompatActivity() {
         }
         numeric("ocr_top", "Начало области чтения, % высоты", "Începutul zonei, % din înălțime", 10.0, 8.0, 80.0)
         numeric("ocr_extra", "Дополнительное время на посадку, мин", "Timp suplimentar pentru îmbarcare, min", 0.0, 0.0, 30.0)
+        numeric("ocr_commission", "Комиссия Bolt, %", "Comisionul Bolt, %", DriverPreferences.costs(this).commission, 0.0, 50.0)
+        DriverUi.toggle(this, config, t("Учитывать расходы машины", "Include cheltuielile mașinii"),
+            t("Выключено — L/км и L/час после комиссии. Включено — ещё минус бензин и обслуживание из ваших расходов машины.", "Oprit — L/km și L/oră după comision. Pornit — minus și combustibil și întreținere."),
+            DriverPreferences.flag(this, "ocr_with_costs")) { DriverPreferences.set(this, "ocr_with_costs", it) }
         DriverUi.toggle(this, config, t("Цена уже после комиссии", "Prețul este deja după comision"),
             t("Включите, если приложение водителя показывает вашу оплату после удержаний. Явная подпись «после комиссии» также распознаётся автоматически.", "Activați dacă aplicația șoferului arată plata după rețineri. Mențiunea explicită «după comision» este recunoscută automat."), DriverPreferences.flag(this, "ocr_net_fare")) { DriverPreferences.set(this, "ocr_net_fare", it) }
         val dict = DriverUi.card(this, box, t("Исправления OCR", "Corecții OCR"), t("Одна замена на строку: найденный текст => правильный текст. Хранится только на устройстве.", "O înlocuire pe rând: text recunoscut => text corect. Se păstrează doar pe dispozitiv."))

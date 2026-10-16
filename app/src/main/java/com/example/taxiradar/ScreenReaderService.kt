@@ -200,7 +200,7 @@ class ScreenReaderService : Service() {
         val estimate = if (offer.fare == null && offer.multiplierKnown)
             BoltFareEstimator.estimate(offer.boltCategory, routed.tripKm, routed.tripMinutes, offer.multiplier) else null
         val fare = offer.fare ?: estimate
-        val shownPrice = if (offer.fare == null && estimate != null) "≈ ${whole(estimate)} MDL" else ""
+        val shownPrice = if (offer.fare == null && estimate != null) "≈ ${whole(estimate)} L" else ""
         val priceNote = when {
             offer.fare == null && !offer.multiplierKnown -> t("Коэффициент спроса не прочитан: цену не оцениваем", "Multiplicatorul nu este citit: fără estimare de preț")
             offer.fare == null && estimate == null -> t("Тариф не распознан: цену не оцениваем", "Categoria nu este recunoscută: fără estimare de preț")
@@ -208,29 +208,35 @@ class ScreenReaderService : Service() {
             else -> t("Цена из Bolt", "Preț din Bolt")
         }
         val boltMin = offer.pickupMinutes + offer.tripMinutes
-        val timeNote = if (route == null) t("время по данным Bolt", "timp după Bolt")
+        val timeText = if (route == null) t("Bolt ${whole(boltMin)} мин · на деле — считаем…", "Bolt ${whole(boltMin)} min · real — calculăm…")
         else {
-            val real = route.pickup.minutes + route.trip.minutes
-            t("Bolt ${whole(boltMin)} мин · на деле ≈ ${whole(real)} мин", "Bolt ${whole(boltMin)} min · real ≈ ${whole(real)} min") +
-                if (real - boltMin >= 3) t(" (Bolt занизил)", " (Bolt a subestimat)") else ""
+            val real = route.pickup.minutes + route.trip.minutes + boarding()
+            t("Bolt ${whole(boltMin)} мин · на деле ${whole(real)} мин", "Bolt ${whole(boltMin)} min · real ${whole(real)} min")
         }
-        val profit = when {
-            fare == null -> t("Для расчёта нужна цена и известный тариф", "Calculul necesită un preț și o categorie cunoscută")
-            !DriverPreferences.costsReady(this) -> t("Заполните расходы машины — покажу L/час и L/км", "Completați cheltuielile mașinii pentru L/oră și L/km")
-            routed.pickupKm + routed.tripKm <= 0 || routed.pickupMinutes + routed.tripMinutes + boarding() <= 0 -> ""
-            else -> {
-                val netFare = offer.fare != null && (offer.afterCommission || DriverPreferences.flag(this, "ocr_net_fare"))
-                val m = ScreenOfferParser.metrics(routed.copy(fare = fare, afterCommission = netFare), DriverPreferences.costs(this), boarding())
-                "≈ ${whole(m.net * 60 / m.minutes)} " + t("L/час", "L/oră") + " · ≈ ${number(m.perKm)} L/km\n" +
-                    "≈ ${whole(m.net)} MDL " + t("чистыми", "net")
-            }
+        // По умолчанию вычитаем только комиссию Bolt; бензин и обслуживание — если водитель сам включил.
+        val commission = DriverPreferences.number(this, "ocr_commission", DriverPreferences.costs(this).commission).coerceIn(0.0, 100.0)
+        val alreadyNet = offer.fare != null && (offer.afterCommission || DriverPreferences.flag(this, "ocr_net_fare"))
+        val withCosts = DriverPreferences.flag(this, "ocr_with_costs") && DriverPreferences.costsReady(this)
+        val km = routed.pickupKm + routed.tripKm
+        val minutes = routed.pickupMinutes + routed.tripMinutes + boarding()
+        var details = priceNote
+        val rates = if (fare == null) t("Нужна цена или известный тариф", "Este nevoie de preț sau de categorie cunoscută")
+        else if (km <= 0 || minutes <= 0) ""
+        else {
+            val afterCommission = fare * (1 - (if (alreadyNet) 0.0 else commission) / 100)
+            val left = if (withCosts) afterCommission - km * DriverPreferences.costs(this).perKm else afterCommission
+            details += " · " + (if (withCosts) t("после комиссии и расходов", "după comision și cheltuieli")
+                else if (alreadyNet) t("комиссия уже вычтена", "comisionul deja dedus")
+                else t("после комиссии ${whole(commission)}%", "după comision ${whole(commission)}%")) +
+                t(" останется ≈ ${whole(left)} L", " rămân ≈ ${whole(left)} L")
+            "${number(left / km)} L/км · ${whole(left * 60 / minutes)} " + t("L/час", "L/oră")
         }
-        overlay?.offer(offer, shownPrice, "$priceNote · $timeNote", profit)
+        if (route == null) details += " · " + t("время по данным Bolt", "timp după Bolt")
+        val shown = if (offer.fare != null) "${whole(offer.fare)} L" else shownPrice
+        overlay?.offer(offer, shown, details, rates, timeText)
         if (route != null) overlay?.route(route, boarding())
-        // Почему нет настоящего времени — одной строкой, без повторов.
-        else overlay?.travelStatus(listOfNotNull(
-            t("Bolt: подача ${whole(offer.pickupMinutes)} мин · поездка ${whole(offer.tripMinutes)} мин", "Bolt: preluare ${whole(offer.pickupMinutes)} min · cursă ${whole(offer.tripMinutes)} min"),
-            routeMessage.takeIf { it.isNotBlank() }).joinToString("\n"))
+        // Почему нет настоящего времени — одной строкой.
+        else overlay?.travelStatus(routeMessage)
     }
     private fun whole(n: Double) = String.format(Locale.getDefault(), "%.0f", n)
     private fun number(n: Double) = String.format(Locale.getDefault(), "%.2f", n)
