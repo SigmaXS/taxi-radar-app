@@ -130,12 +130,13 @@ class ScreenshotShareActivity : AppCompatActivity() {
     private fun render(offer: ScreenOfferParser.Offer, route: ScreenTrafficRoute.Result?) {
         (0 until result.childCount).map { result.getChildAt(it) }.filter { it.tag == "calc" }.forEach { result.removeView(it) }
         val routed = route?.applyTo(offer) ?: offer
-        val estimate = if (offer.fare == null && offer.multiplierKnown) BoltFareEstimator.estimate(offer.boltCategory, routed.tripKm, routed.tripMinutes, offer.multiplier) else null
+        val estimate = if (offer.fare == null) BoltFareEstimator.estimate(offer.boltCategory, routed.tripKm, routed.tripMinutes, if (offer.multiplierKnown) offer.multiplier else 1.0) else null
         val fare = offer.fare ?: estimate
         val boarding = DriverPreferences.number(this, "ocr_extra").coerceIn(0.0, 30.0)
         val lines = mutableListOf<String>()
         lines += when {
             offer.fare != null -> "~${n(offer.fare)} L"
+            estimate != null && !offer.multiplierKnown -> t("от ≈ ", "de la ≈ ") + n(estimate) + " L " + t("(без спроса: ×спрос не прочитан)", "(fără cerere)")
             estimate != null -> "≈ ${n(estimate)} L " + t("(оценка по тарифам Bolt)", "(estimare după tarifele Bolt)")
             else -> t("Цену не оценить: тариф или спрос не прочитаны", "Prețul nu poate fi estimat")
         }

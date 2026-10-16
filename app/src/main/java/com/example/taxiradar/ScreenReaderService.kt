@@ -209,12 +209,13 @@ class ScreenReaderService : Service() {
         val route = trafficRoute
         // Пока маршрута нет (или сервис не ответил) — считаем по минутам и км с карточки Bolt, не ждём.
         val routed = route?.applyTo(offer) ?: offer
-        val estimate = if (offer.fare == null && offer.multiplierKnown)
-            BoltFareEstimator.estimate(offer.boltCategory, routed.tripKm, routed.tripMinutes, offer.multiplier) else null
+        // ×спрос не разглядели — всё равно показываем цену, но минимальную (×1), с пометкой «от».
+        val estimate = if (offer.fare == null)
+            BoltFareEstimator.estimate(offer.boltCategory, routed.tripKm, routed.tripMinutes, if (offer.multiplierKnown) offer.multiplier else 1.0) else null
         val fare = offer.fare ?: estimate
-        val shownPrice = if (offer.fare == null && estimate != null) "≈ ${whole(estimate)} L" else ""
+        val shownPrice = if (offer.fare == null && estimate != null) (if (offer.multiplierKnown) "≈ " else t("от ≈ ", "de la ≈ ")) + "${whole(estimate)} L" else ""
         val priceNote = when {
-            offer.fare == null && !offer.multiplierKnown -> t("Коэффициент спроса не прочитан: цену не оцениваем", "Multiplicatorul nu este citit: fără estimare de preț")
+            offer.fare == null && !offer.multiplierKnown && estimate != null -> t("Оценка по тарифам Bolt без спроса (×спрос не прочитан)", "Estimare Bolt fără cerere (multiplicator necitit)")
             offer.fare == null && estimate == null -> t("Тариф не распознан: цену не оцениваем", "Categoria nu este recunoscută: fără estimare de preț")
             offer.fare == null -> t("Оценка по тарифам Bolt · ×", "Estimare după tarifele Bolt · ×") + number(offer.multiplier)
             else -> t("Цена из Bolt", "Preț din Bolt")
