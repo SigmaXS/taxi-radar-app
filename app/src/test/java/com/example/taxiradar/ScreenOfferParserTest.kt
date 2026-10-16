@@ -45,6 +45,25 @@ class ScreenOfferParserTest {
         assertNull(ScreenOfferParser.parse(card().replace("20 min · 13.5 km", "")))
         assertNull(ScreenOfferParser.parse(card() + "\n5 min · 2 km"))
     }
+    // Так прочитал телефон 16.10: цена оказалась ниже строки подачи, под карточкой — надписи карты, точка в «1.2x» потерялась.
+    @Test fun priceReadBelowLegsIsStillThePriceNotAnAddress() {
+        val o = ScreenOfferParser.parse("""
+            Bolt Numerar
+            Cerere mare 12x În afara razei
+            Andreea 5.0 ★ (140)
+            5 min · 1.5 km
+            357,00 MDL
+            Pușkin, Blocul Pușkin 44
+            41 min · 31.5 km
+            Crždieta
+            Acceptă
+        """.trimIndent())!!
+        assertEquals(357.0, o.fare!!, 0.001)
+        assertEquals("Pușkin, Blocul Pușkin 44", o.addresses[0])
+        assertEquals("", o.addresses[1])
+        assertEquals(1.2, o.multiplier, 0.001)
+        assertTrue(o.multiplierKnown)
+    }
     @Test fun dictionaryUsesLiteralReplacementAndRomanianCommaIsAccepted() {
         val input = card().replace("1.7", "1,7").replace("Pușkin", "Puskm")
         val o = ScreenOfferParser.parse(ScreenOfferParser.correct(input, "Puskm => Pușkin\nwrong entry"))!!

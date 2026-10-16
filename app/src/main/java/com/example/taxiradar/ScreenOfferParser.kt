@@ -29,8 +29,10 @@ object ScreenOfferParser {
         if (lines.none { accept.containsMatchIn(it) || rating.containsMatchIn(it) }) return null
         val header = lines.take(headerEnd).joinToString(" ")
         if (Regex("(?iu)\\d+(?:[.,]\\d+)?\\s*(?:EUR|PLN|zł|€|USD)").containsMatchIn(header)) return null
-        val priceIndex = lines.indices.firstOrNull { i -> i < headerEnd &&
-            !Regex("(?iu)(bonus|supliment|серия|надбав|\\+|restante)").containsMatchIn(lines[i]) && money.containsMatchIn(lines[i]) }
+        val notPrice = Regex("(?iu)(bonus|supliment|серия|надбав|\\+|restante)")
+        // Обычно цена над строками подачи и поездки, но OCR иногда читает её ниже — тогда ищем по всей карточке.
+        val priceIndex = lines.indices.firstOrNull { i -> i < headerEnd && !notPrice.containsMatchIn(lines[i]) && money.containsMatchIn(lines[i]) }
+            ?: lines.indices.firstOrNull { i -> !notPrice.containsMatchIn(lines[i]) && money.containsMatchIn(lines[i]) && !leg.containsMatchIn(lines[i]) }
         val price = priceIndex?.let { money.find(lines[it])!!.groupValues[1].replace(',', '.').toDoubleOrNull() }
         val values = legs.map { (_, m) -> m.groupValues[1].replace(',', '.').toDouble() to m.groupValues[2].replace(',', '.').toDouble() }
         if ((price != null && price !in 0.01..10000.0) || values.any { it.first !in 0.1..720.0 || it.second !in 0.01..1000.0 }) return null
@@ -40,7 +42,8 @@ object ScreenOfferParser {
             for (raw in lines.subList(i + 1, end)) {
                 val line = raw.trim().trim('|', '[', ']', '=', '*', ' ')
                 if (accept.containsMatchIn(line)) break
-                if (line.length < 5 || !line.any { it.isLetter() } || rating.containsMatchIn(line) ||
+                // Строка с ценой («357,00 MDL») — не адрес.
+                if (line.length < 5 || !line.any { it.isLetter() } || rating.containsMatchIn(line) || money.containsMatchIn(line) ||
                     Regex("(?iu)(bonus|supliment|comision|commission|комисси|серия|restante|google|openstreetmap)").containsMatchIn(line)) continue
                 parts += line
                 // Join wrapped POI/street lines instead of geocoding just the POI name.
@@ -49,9 +52,11 @@ object ScreenOfferParser {
                         (line.contains(',') && !line.endsWith(',') && line.any { it.isDigit() }))) break
                 if (parts.size == 4) break
             }
-            parts.joinToString(" ").take(260)
+            // Без единой цифры — это не адрес, а надписи с карты под карточкой («Crždieta»).
+            parts.joinToString(" ").take(260).takeIf { it.any(Char::isDigit) }.orEmpty()
         }
-        val caption = if (priceIndex == null) "" else lines.subList(priceIndex, headerEnd).joinToString(" ")
+        val caption = if (priceIndex == null) "" else if (priceIndex >= headerEnd) lines[priceIndex]
+            else lines.subList(priceIndex, headerEnd).joinToString(" ")
         val after = Regex("(?iu)(dup[ăa].*(?:comision|deduc)|after.*commission|net fare|после.*комисси)").containsMatchIn(caption)
         val tariff = when {
             Regex("(?iu)(комфорт|comfort)\\s*\\+").containsMatchIn(header) -> "комфорт+"
@@ -59,7 +64,10 @@ object ScreenOfferParser {
             Regex("(?iu)(эконом|econom|standard)").containsMatchIn(header) -> "эконом"
             else -> null
         }
-        val parsedMultiplier = Regex("""(?iu)(?<![\d.,])([1-9](?:[.,]\d{1,2})?)\s*[xх×](?!\s*\()""").find(header)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()
+        // «1.2x», а если OCR потерял точку — «12x» (это 1.2: спрос у Bolt от 1.1 до 3.0). Сначала в шапке, потом во всей карточке.
+        val mult = Regex("""(?iu)(?<![\d.,])([1-9](?:[.,]\d{1,2})?|[1-3]\d)\s*[xх×](?!\s*\()""")
+        val parsedMultiplier = (mult.find(header) ?: mult.find(lines.joinToString(" ")))?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()
+            ?.let { if (it >= 10) it / 10 else it }?.takeIf { it in 1.0..3.0 }
         val multiplier = parsedMultiplier ?: 1.0
         val multiplierKnown = parsedMultiplier != null || !Regex("(?iu)(спрос|cerere|demand)").containsMatchIn(header)
         val boltCategory = if (Regex("(?iu)\\bUber\\b").containsMatchIn(header)) null else BoltFareEstimator.category(header)
