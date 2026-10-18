@@ -18,7 +18,7 @@ object ScreenTrafficRoute {
      */
     fun calculate(context: Context, lat: Double, lon: Double, addresses: List<String>, boarding: Double,
                   offer: ScreenOfferParser.Offer? = null, tripOnly: Boolean = false): Reply {
-        val body = JSONObject().put("lat", lat).put("lon", lon).put("addresses", JSONArray(addresses)).put("boarding_minutes", boarding)
+        val body = JSONObject().put("lat", lat).put("lon", lon).put("addresses", JSONArray(addresses.map(BoltAddressNormalizer::normalize))).put("boarding_minutes", boarding)
         if (offer != null) body.put("card_pickup_km", offer.pickupKm).put("card_trip_km", offer.tripKm)
         if (tripOnly) body.put("trip_only", true)
         val response = CommunityApi.postBlocking(context, "/api/offer-route", body, 18) ?: return Reply()

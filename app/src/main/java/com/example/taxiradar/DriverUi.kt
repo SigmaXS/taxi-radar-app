@@ -96,6 +96,39 @@ object DriverUi {
         layoutParams = LinearLayout.LayoutParams(-1, -2)
         setOnClickListener { action() }; parent.addView(this)
     }
+    fun navigationCard(c: Context, parent: LinearLayout, title: String, sub: String, open: () -> Unit) {
+        val d = { n: Int -> dp(c, n) }
+        val card = com.google.android.material.card.MaterialCardView(c).apply {
+            radius = d(22).toFloat(); strokeWidth = d(1); strokeColor = c.getColor(R.color.tr_console_border)
+            setCardBackgroundColor(c.getColor(R.color.tr_surface)); isClickable = true; isFocusable = true
+            setOnClickListener { open() }
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(12) }
+        }
+        val row = LinearLayout(c).apply { gravity = android.view.Gravity.CENTER_VERTICAL; setPadding(d(16), d(18), d(16), d(18)) }
+        row.addView(android.widget.ImageView(c).apply {
+            setImageResource(R.drawable.ic_text_size); setPadding(d(9), d(9), d(9), d(9))
+            imageTintList = android.content.res.ColorStateList.valueOf(c.getColor(R.color.ic_teal))
+            background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(c.getColor(R.color.ic_teal_bg)) }
+        }, LinearLayout.LayoutParams(d(44), d(44)).apply { marginEnd = d(14) })
+        val texts = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(android.widget.TextView(c).apply { text = title; textSize = 18f; setTypeface(null, android.graphics.Typeface.BOLD); setTextColor(c.getColor(R.color.tr_text)) })
+        texts.addView(android.widget.TextView(c).apply { text = sub; textSize = 14f; setTextColor(c.getColor(R.color.tr_text_secondary)); setPadding(0, d(4), 0, 0) })
+        row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(android.widget.TextView(c).apply { text = "›"; textSize = 26f; setTextColor(c.getColor(R.color.ic_teal)) })
+        card.addView(row); parent.addView(card)
+    }
+
+    /** Raised cyan actions; Back buttons keep their original yellow appearance. */
+    fun raisedAction(button: MaterialButton) = button.apply {
+        val c = context
+        backgroundTintList = ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf(android.R.attr.state_pressed), intArrayOf()), intArrayOf(c.getColor(R.color.tr_surface_high), android.graphics.Color.parseColor("#53BCCA"), c.getColor(R.color.tr_cyan)))
+        setTextColor(c.getColor(R.color.tr_on_accent))
+        strokeWidth = dp(c, 1)
+        strokeColor = ColorStateList.valueOf(android.graphics.Color.parseColor("#B5F3F8"))
+        rippleColor = ColorStateList.valueOf(0x33000000)
+        elevation = dp(c, 6).toFloat()
+        stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(c, R.animator.raised_action)
+    }
     fun toggle(c: Context, parent: LinearLayout, title: String, explanation: String, checked: Boolean, change: (Boolean) -> Unit) {
         val row = LinearLayout(c).apply { gravity = Gravity.CENTER_VERTICAL }
         val sw = MaterialSwitch(c).apply { text = title; textSize = if (wide(c)) 17f else 15f; minHeight = dp(c, if (wide(c)) 64 else 52); isChecked = checked; setOnCheckedChangeListener { _, value -> change(value) } }

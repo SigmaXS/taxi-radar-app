@@ -12,6 +12,9 @@ import kotlinx.coroutines.*
 class OrderAccessibilityService : AccessibilityService() {
 
     companion object {
+        @Volatile
+        var foregroundPackage: String = ""
+            private set
         // Система реально подключила службу. После обновления APK тумблер в
         // настройках остаётся включённым, а служба — нет; так это и видно.
         @Volatile
@@ -20,6 +23,7 @@ class OrderAccessibilityService : AccessibilityService() {
     }
 
     private val scope = CoroutineScope(Dispatchers.IO)
+    private val boltReader by lazy { BoltAccessibilityReader(this) }
     private var lastTriggerTime = 0L
     private var lastCapturedOrderKey = ""
 
@@ -129,6 +133,12 @@ class OrderAccessibilityService : AccessibilityService() {
         if (event == null) return
 
         val pkg = event.packageName?.toString() ?: ""
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+            pkg != packageName && pkg != "com.android.systemui" && pkg != "android" &&
+            !pkg.contains("inputmethod") && !pkg.contains("keyboard")) foregroundPackage = pkg
+        boltReader.event(event)
+        if (BoltAccessibilityReader.supported(pkg)) return
+        if (!RadarServices.yandex(this)) return
 
         if (isDialer(pkg)) {
             try {
@@ -176,6 +186,7 @@ class OrderAccessibilityService : AccessibilityService() {
     private val processScreen = Runnable { processYandexScreen() }
 
     private fun processYandexScreen() {
+        if (!RadarServices.yandex(this)) return
         try {
             val root = yandexRoot() ?: return
             val allNodes = mutableListOf<NodeData>()
@@ -920,6 +931,7 @@ class OrderAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        boltReader.close()
         isConnected = false
         super.onDestroy()
     }

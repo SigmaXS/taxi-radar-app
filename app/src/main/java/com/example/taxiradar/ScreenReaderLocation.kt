@@ -23,6 +23,14 @@ object ScreenReaderLocation {
     @SuppressLint("MissingPermission")
     suspend fun fix(c: Context): Location? {
         if (!permitted(c)) return null
+        // A running radar normally has a recent GPS fix already; do not wait for a new fix on every offer.
+        val locationManager = c.getSystemService(LocationManager::class.java)
+        val recent = runCatching { locationManager?.let { manager -> manager.getProviders(true).mapNotNull {
+            fresh(manager.getLastKnownLocation(it))?.takeIf { fix ->
+                SystemClock.elapsedRealtimeNanos() - fix.elapsedRealtimeNanos <= 15_000_000_000L
+            }
+        }.maxByOrNull { it.elapsedRealtimeNanos } } }.getOrNull()
+        if (recent != null) return recent
         val fused = withTimeoutOrNull(5000) {
             suspendCancellableCoroutine<Location?> { cont ->
                 val cancel = CancellationTokenSource()

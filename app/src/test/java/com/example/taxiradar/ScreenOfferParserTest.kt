@@ -16,6 +16,12 @@ class ScreenOfferParserTest {
         Bonus +24 MDL
         Acceptă
     """.trimIndent()
+    @Test fun ownEstimateAndNetCaptionAreNotBoltFare() {
+        val raw = "TAXI RADAR · комфорт\n≈ 199 L\n8,00 L/km · 52 min\nПосле комиссии ≈ 159 L\n" + card("fare")
+        val offer = ScreenOfferParser.parse(raw)!!
+        assertEquals(33.0, offer.fare!!, .001)
+        assertFalse(offer.afterCommission)
+    }
     @Test fun readsPickupSeparatelyAndIgnoresBonus() {
         val o = ScreenOfferParser.parse(card())!!
         assertEquals(33.0, o.fare!!, 0.001)

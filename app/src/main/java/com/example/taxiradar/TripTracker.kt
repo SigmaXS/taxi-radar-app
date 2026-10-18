@@ -271,7 +271,8 @@ object TripTracker {
 
         if (now - trip.startedAt < 30_000) return
         if (lower.none { l -> endWords.any { l.contains(it) } }) return
-        val price = parsePrice(lines) ?: trip.meter
+        val finalPrice = parsePrice(lines)
+        val price = finalPrice ?: trip.meter
         active = null
         lastCard = null
         // Экран «Заказ завершён» ещё повисит — страховка «поездки без начала» не должна записать её второй раз.
@@ -280,9 +281,9 @@ object TripTracker {
 
         val app = context.applicationContext
         val elapsedMin = (now - trip.startedAt) / 60_000.0
-        // Screen recognition is fallible: add a draft; driver confirms before totals.
+        // Only a final amount on the completion screen is auto-confirmed; estimates stay drafts.
         DriverJournal.add(app, price ?: trip.estPrice, trip.estPrice, trip.navKm, trip.pickupKm,
-            elapsedMin.toInt().coerceAtLeast(1), "", confirmed = false,
+            elapsedMin.toInt().coerceAtLeast(1), "", confirmed = finalPrice != null,
             id = trip.key, from = trip.route.first(), to = trip.currentB,
             payment = recentPayment(now - trip.startedAt + 30 * 60_000L).orEmpty())
         val finish: (String?) -> Unit = { note ->
@@ -360,7 +361,7 @@ object TripTracker {
     /**
      * «Заказ завершён» с суммой, а начала поездки радар не видел (заказ без Б, короткий,
      * с заездами, радар включили посреди поездки). Записываем в смену хотя бы сумму —
-     * водитель потом подтвердит её в «Моих поездках».
+     * итоговую сумму подтверждаем автоматически; водитель может исправить её в «Моих поездках».
      */
     private fun onOrphanEnd(context: Context, pkg: String, texts: List<String>) {
         if (!pkg.contains("taximeter", true) && !pkg.contains("yandex", true)) return
@@ -380,7 +381,7 @@ object TripTracker {
         lastCard = null
         val minutes = card?.let { ((now - it.at) / 60_000).toInt() }?.coerceAtLeast(1) ?: 1
         DriverJournal.autoStart(app)
-        DriverJournal.add(app, price, 0, 0.0, 0.0, minutes, "", confirmed = false,
+        DriverJournal.add(app, price, 0, 0.0, 0.0, minutes, "", confirmed = true,
             from = card?.from.orEmpty(), to = card?.to.orEmpty(), payment = recentPayment().orEmpty())
         TripLog.d("Поездка по экрану завершения: $price L, ${if (card != null) "$minutes мин от взятия заказа" else "время неизвестно"}, " +
             "оплата ${recentPayment() ?: "?"}${if (card?.from?.isNotEmpty() == true) ", ${card.from} → ${card.to}" else ""}")

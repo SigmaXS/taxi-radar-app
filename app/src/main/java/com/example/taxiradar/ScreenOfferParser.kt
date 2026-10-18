@@ -29,7 +29,7 @@ object ScreenOfferParser {
         if (lines.none { accept.containsMatchIn(it) || rating.containsMatchIn(it) }) return null
         val header = lines.take(headerEnd).joinToString(" ")
         if (Regex("(?iu)\\d+(?:[.,]\\d+)?\\s*(?:EUR|PLN|zł|€|USD)").containsMatchIn(header)) return null
-        val notPrice = Regex("(?iu)(bonus|supliment|серия|надбав|\\+|restante)")
+        val notPrice = Regex("(?iu)(bonus|supliment|серия|надбав|\\+|restante|^\\s*≈|^\\s*(?:после|dup[ăa]|after)(?=\\s|$)|\\bL\\s*/)")
         // Обычно цена над строками подачи и поездки, но OCR иногда читает её ниже — тогда ищем по всей карточке.
         val priceIndex = lines.indices.firstOrNull { i -> i < headerEnd && !notPrice.containsMatchIn(lines[i]) && money.containsMatchIn(lines[i]) }
             ?: lines.indices.firstOrNull { i -> !notPrice.containsMatchIn(lines[i]) && money.containsMatchIn(lines[i]) && !leg.containsMatchIn(lines[i]) }
@@ -52,12 +52,13 @@ object ScreenOfferParser {
                         (line.contains(',') && !line.endsWith(',') && line.any { it.isDigit() }))) break
                 if (parts.size == 4) break
             }
-            // Без единой цифры — это не адрес, а надписи с карты под карточкой («Crždieta»).
-            parts.joinToString(" ").take(260).takeIf { it.any(Char::isDigit) }.orEmpty()
+            // A complete city/POI is a valid destination even without a house number.
+            parts.joinToString(" ").take(260).takeIf {
+                it.any(Char::isDigit) || Regex("(?iu)(shopping|malldova|mall\\b|главн\\S*\\s+вход|intrare|молдов|moldova|[șşs]tefan|штефан|strada|улица|bulevard|clinica|spital|aeroport)").containsMatchIn(it)
+            }.orEmpty()
         }
-        val caption = if (priceIndex == null) "" else if (priceIndex >= headerEnd) lines[priceIndex]
-            else lines.subList(priceIndex, headerEnd).joinToString(" ")
-        val after = Regex("(?iu)(dup[ăa].*(?:comision|deduc)|after.*commission|net fare|после.*комисси)").containsMatchIn(caption)
+        val caption = priceIndex?.let { lines.subList(it, minOf(it + 2, headerEnd.coerceAtLeast(it + 1))).joinToString(" ") }.orEmpty()
+        val after = Regex("(?iu)(dup[ăa] (?:deducerea )?comision|after commission|net fare|после (?:вычета )?комиссии)").containsMatchIn(caption)
         val tariff = when {
             Regex("(?iu)(комфорт|comfort)\\s*\\+").containsMatchIn(header) -> "комфорт+"
             Regex("(?iu)(комфорт|comfort)").containsMatchIn(header) -> "комфорт"

@@ -64,7 +64,7 @@ class ScreenshotShareActivity : AppCompatActivity() {
         if (bmp == null) { status.text = t("Не удалось открыть картинку.", "Imaginea nu a putut fi deschisă."); return }
         ocr = ScreenOcrEngine(this).also { engine ->
             engine.read(bmp) { texts ->
-                val words = DriverPreferences.text(this, "ocr_words")
+                val words = RadarServices.corrections(this)
                 val offer = texts.firstNotNullOfOrNull { ScreenOfferParser.parse(ScreenOfferParser.correct(it, words)) }
                 if (offer == null) {
                     status.text = t("Карточку заказа не распознал. Нужен скриншот с карточкой Bolt целиком: цена (если есть), подача и поездка в минутах и км, адреса.",

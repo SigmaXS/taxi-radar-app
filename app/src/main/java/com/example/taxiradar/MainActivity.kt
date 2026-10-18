@@ -164,8 +164,17 @@ class MainActivity : AppCompatActivity() {
         setupContacts()
         setupReferralCard()
         setupWidgetSize()
+        findViewById<android.widget.TextView>(R.id.btnDriverSettings).apply {
+            backgroundTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.tr_cyan))
+            val colored = android.text.SpannableString(text)
+            for ((word, color) in listOf("Bolt" to R.color.tr_success, "Яндекс" to R.color.tr_yandex_settings, "Yandex" to R.color.tr_yandex_settings)) {
+                val at = colored.toString().indexOf(word)
+                if (at >= 0) colored.setSpan(android.text.style.ForegroundColorSpan(getColor(color)), at, at + word.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            text = colored
+        }
         findViewById<View>(R.id.btnDriverSettings).setOnClickListener {
-            startActivity(Intent(this, DriverToolsActivity::class.java).putExtra("mode", "settings"))
+            startActivity(Intent(this, RadarSettingsActivity::class.java))
         }
         findViewById<View>(R.id.btnDriverShift).setOnClickListener {
             startActivity(Intent(this, DriverToolsActivity::class.java).putExtra("mode", "shift"))

@@ -72,6 +72,12 @@ class FloatingWidgetService : Service() {
         fun showNote(title: String, body: String, colorRes: Int, showMs: Long = 9_000) {
             instance?.displayNote(title, body, colorRes, showMs)
         }
+        fun showBoltNote(title: String, body: String, colorRes: Int, showMs: Long) {
+            instance?.displayNote(title, body, colorRes, showMs, bolt = true)
+        }
+        fun clearBoltNote() {
+            instance?.let { if (it.showingBolt) it.cancelOrderDisplay() }
+        }
 
         /** Ползунок «Размер виджета» в профиле — применяем сразу. */
         fun applyWidgetScale() {
@@ -104,6 +110,7 @@ class FloatingWidgetService : Service() {
     private var autoUpdateJob: Job? = null
     private var orderDisplayJob: Job? = null
     private var isShowingOrder: Boolean = false
+    private var showingBolt = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -169,12 +176,15 @@ class FloatingWidgetService : Service() {
         /** Пусто — цена по маршруту Яндекса (точно); иначе — почему она примерная. */
         doubts: List<String>? = null
     ) {
+        if (!RadarServices.yandex(this)) return
+        showingBolt = false
         orderDisplayJob?.cancel()
         isShowingOrder = true
         val net = NetEarnings.compute(this, price, km, pickupKm)
 
         orderDisplayJob = serviceScope.launch {
             withContext(Dispatchers.Main) {
+                applyScale()
                 setOrderSize(true)
                 tvWidgetSurge?.text = "~$price L"
                 tvWidgetSurge?.setTextColor(getColor(R.color.tr_success))
@@ -247,7 +257,7 @@ class FloatingWidgetService : Service() {
     private fun setOrderSize(order: Boolean) {
         orderSize = order
         // Цена заказа — заметно крупнее надбавки между заказами: её видно с одного взгляда.
-        tvWidgetSurge?.textSize = (if (order) 38f * WidgetStyle.orderScale(this) else 28f * WidgetStyle.valueScale(this)) * scale
+        tvWidgetSurge?.textSize = (if (order) 38f * (if (showingBolt) BoltWidgetStyle.priceScale(this) else WidgetStyle.orderScale(this)) else 28f * WidgetStyle.valueScale(this)) * scale
         // Цена заказа — всегда в полную яркость.
         if (order) floatingView?.alpha = 1f
         tvWidgetSub?.textSize = (if (order) 13f else 11f) * scale
@@ -258,7 +268,8 @@ class FloatingWidgetService : Service() {
 
     /** Размер из настроек: шрифт, отступы и ширина кружка растут вместе. */
     fun applyScale() {
-        scale = WidgetSize.scale(this)
+        val boltStyle = showingBolt || !RadarServices.yandex(this)
+        scale = if (boltStyle) BoltWidgetStyle.scale(this) else WidgetSize.scale(this)
         val dp = resources.displayMetrics.density * scale
         floatingView?.findViewById<View>(R.id.widgetPill)?.apply {
             setPadding((16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
@@ -269,7 +280,7 @@ class FloatingWidgetService : Service() {
         tvWidgetSurge?.maxWidth = available
         floatingView?.findViewById<View>(R.id.widgetPill)?.background = android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = 22 * dp
-            setColor(WidgetStyle.bgColor(this@FloatingWidgetService))
+            setColor(if (boltStyle) BoltWidgetStyle.background(this@FloatingWidgetService) else WidgetStyle.bgColor(this@FloatingWidgetService))
             setStroke(resources.displayMetrics.density.toInt().coerceAtLeast(1), WidgetStyle.strokeColor(this@FloatingWidgetService))
         }
         tvWidgetSub?.setTextColor(WidgetStyle.subColor(this))
@@ -287,20 +298,33 @@ class FloatingWidgetService : Service() {
             for (i in 0 until menu.childCount) (menu.getChildAt(i) as? TextView)?.textSize = 30f * scale
         }
         (tvWidgetSub?.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = (3 * dp).toInt()
+        val onlyPlus = BoltWidgetStyle.plusOnly(this) && !isShowingOrder
+        tvWidgetSurge?.visibility = if (onlyPlus) View.GONE else View.VISIBLE
+        floatingView?.findViewById<View>(R.id.widgetPill)?.visibility = if (onlyPlus && reportMenu?.visibility != View.VISIBLE) View.GONE else View.VISIBLE
+        if (onlyPlus) btnPlus?.apply {
+            visibility = View.VISIBLE
+            layoutParams = (layoutParams as? ViewGroup.MarginLayoutParams)?.apply { width = (48 * dp).toInt(); height = (48 * dp).toInt(); topMargin = 0 }
+            contentDescription = DriverUi.t(this@FloatingWidgetService, "Добавить дорожное событие", "Adaugă un marcaj rutier")
+        }
         setOrderSize(orderSize)
         floatingView?.requestLayout()
     }
 
-    fun displayNote(title: String, body: String, colorRes: Int, showMs: Long) {
+    fun displayNote(title: String, body: String, colorRes: Int, showMs: Long, bolt: Boolean = false) {
+        showingBolt = bolt
         orderDisplayJob?.cancel()
         isShowingOrder = true
         orderDisplayJob = serviceScope.launch {
             withContext(Dispatchers.Main) {
-                setOrderSize(false)
+                applyScale()
+                setOrderSize(bolt)
                 tvWidgetSurge?.text = title
                 tvWidgetSurge?.setTextColor(getColor(colorRes))
-                tvWidgetSub?.text = body
-                tvWidgetSub?.visibility = View.VISIBLE
+                tvWidgetSub?.text = if (bolt) SpannableStringBuilder(body).apply {
+                    val end = body.indexOf('\n').let { if (it < 0) body.length else it }
+                    if (body.substringBefore('\n').contains("≈")) setSpan(ForegroundColorSpan(0xFFFF666F.toInt()), 0, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                } else body
+                tvWidgetSub?.visibility = if (body.isBlank()) View.GONE else View.VISIBLE
             }
             delay(showMs)
             isShowingOrder = false
@@ -309,6 +333,7 @@ class FloatingWidgetService : Service() {
     }
 
     fun cancelOrderDisplay() {
+        showingBolt = false
         orderDisplayJob?.cancel()
         isShowingOrder = false
         refreshData()
@@ -414,6 +439,7 @@ class FloatingWidgetService : Service() {
 
     private fun toggleReportMenu(open: Boolean) {
         reportMenu?.visibility = if (open) View.VISIBLE else View.GONE
+        if (BoltWidgetStyle.plusOnly(this) && !isShowingOrder) applyScale()
         btnPlus?.text = if (open) "✕" else "+"
         menuCloseJob?.cancel()
         // Открыли и забыли — само закроется, чтобы не мешало навигатору.
@@ -708,10 +734,13 @@ class FloatingWidgetService : Service() {
 
     private suspend fun fetchDemand() {
         if (isShowingOrder) return
-        if (!DriverPreferences.flag(this, "surge", true)) {
+        withContext(Dispatchers.Main) { if (!isShowingOrder) { showingBolt = false; applyScale() } }
+        if (!RadarServices.yandex(this) || !DriverPreferences.flag(this, "surge", true)) {
             withContext(Dispatchers.Main) { if (!isShowingOrder) {
+                showingBolt = false
+                applyScale()
                 setOrderSize(false)
-                tvWidgetSurge?.text = DriverUi.t(this@FloatingWidgetService, "Радар", "Radar")
+                tvWidgetSurge?.text = if (!RadarServices.yandex(this@FloatingWidgetService)) "Bolt" else DriverUi.t(this@FloatingWidgetService, "Радар", "Radar")
                 tvWidgetSub?.visibility = View.GONE
             } }
             return

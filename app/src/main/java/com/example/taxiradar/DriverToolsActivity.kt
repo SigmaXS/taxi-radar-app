@@ -35,30 +35,37 @@ class DriverToolsActivity : AppCompatActivity() {
         setContentView(root)
         render()
     }
-    private fun render() { body.removeAllViews(); when (mode) { "shift" -> shift(); "archive" -> archive(); "widget" -> widgetLook(); else -> settings() }; DriverUi.arrangeCards(this, body) }
+    private fun carCosts() {
+        val costs = card("Моя машина и расходы", "Mașina și cheltuielile", "Эти значения нужны для прогноза. Расход можно указать в литрах или кВт·ч на 100 км. Здесь находятся все настройки чистого дохода; второй карточки с теми же параметрами больше нет.", "Valorile sunt necesare pentru estimare. Consumul poate fi în litri sau kWh/100 km. Toate setările venitului net se află aici, fără un al doilea formular duplicat.", R.drawable.ic_payments)
+        val types = arrayOf(t("Бензин", "Benzină"), t("Дизель", "Diesel"), t("Газ", "Gaz"), t("Электричество", "Electricitate"))
+        val spinner = Spinner(this)
+        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
+        spinner.setSelection(DriverPreferences.number(this, "energy_type").toInt().coerceIn(0, 3))
+        costs.addView(spinner)
+        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) { DriverPreferences.set(this@DriverToolsActivity, "energy_type", position.toDouble()) }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        val s = NetEarnings.load(this)
+        val consumption = DriverUi.field(this, costs, t("Расход на 100 км (л / кВт·ч)", "Consum la 100 km (l / kWh)"), fmt(s.consumptionPer100Km))
+        val energy = DriverUi.field(this, costs, t("Цена литра / кВт·ч, L", "Preț litru / kWh, L"), fmt(s.fuelPrice))
+        val commission = DriverUi.field(this, costs, t("Общая комиссия, %", "Comision total, %"), fmt(s.commissionPercent))
+        listOf(consumption, energy, commission).forEach { field -> field.doAfterTextChanged {
+            val values = listOf(consumption, energy, commission).map { it.text.toString().replace(',', '.').toDoubleOrNull() }
+            val valid = values.all { it != null && it.isFinite() && it >= 0 } && (values[0] ?: 1001.0) <= 1000 && (values[1] ?: 10001.0) <= 10000 && (values[2] ?: 101.0) <= 100
+            field.error = if (!valid) t("Проверьте значения (комиссия 0–100%)", "Verificați valorile (comision 0–100%)") else null
+            if (valid) NetEarnings.save(this, NetEarnings.load(this).copy(consumptionPer100Km = values[0]!!, fuelPrice = values[1]!!, commissionPercent = values[2]!!))
+        } }
+        flag(costs, "net", "Показывать чистыми", "Afișează net", "После комиссии и переменных расходов, включая подачу. Аренда за смену вычитается только в итогах смены.", "După comision și costurile variabile, inclusiv preluarea. Chiria se scade doar în totalul turei.", NetEarnings.load(this).enabled)
+        number(costs, "maintenance", "Обслуживание, L/км", "Întreținere, L/km", 0.0, 0.0, 50.0)
+        number(costs, "rent", "Аренда и фиксированные расходы за смену, L", "Chirie și costuri fixe pe tură, L", 0.0, 0.0, 5000.0)
+        number(costs, "daily_target", "Цель смены чистыми, L", "Ținta netă a turei, L", 600.0, 0.0, 20000.0)
+    }
+
+    private fun render() { body.removeAllViews(); when (mode) { "shift" -> shift(); "archive" -> archive(); "widget" -> widgetLook(); "costs" -> carCosts(); else -> settings() }; DriverUi.arrangeCards(this, body) }
 
     /** Большая карточка-переход: значок, заголовок, пояснение и «›». */
-    private fun linkCard(title: String, sub: String, open: () -> Unit) {
-        val d = { n: Int -> DriverUi.dp(this, n) }
-        val card = com.google.android.material.card.MaterialCardView(this).apply {
-            radius = d(22).toFloat(); strokeWidth = d(1); strokeColor = getColor(R.color.tr_console_border)
-            setCardBackgroundColor(getColor(R.color.tr_surface)); isClickable = true; isFocusable = true
-            setOnClickListener { open() }
-            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(12) }
-        }
-        val row = LinearLayout(this).apply { gravity = android.view.Gravity.CENTER_VERTICAL; setPadding(d(16), d(18), d(16), d(18)) }
-        row.addView(android.widget.ImageView(this).apply {
-            setImageResource(R.drawable.ic_text_size); setPadding(d(9), d(9), d(9), d(9))
-            imageTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.ic_teal))
-            background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(getColor(R.color.ic_teal_bg)) }
-        }, LinearLayout.LayoutParams(d(44), d(44)).apply { marginEnd = d(14) })
-        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(android.widget.TextView(this).apply { text = title; textSize = 18f; setTypeface(null, android.graphics.Typeface.BOLD); setTextColor(getColor(R.color.tr_text)) })
-        texts.addView(android.widget.TextView(this).apply { text = sub; textSize = 14f; setTextColor(getColor(R.color.tr_text_secondary)); setPadding(0, d(4), 0, 0) })
-        row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(android.widget.TextView(this).apply { text = "›"; textSize = 26f; setTextColor(getColor(R.color.ic_teal)) })
-        card.addView(row); body.addView(card)
-    }
+    private fun linkCard(title: String, sub: String, open: () -> Unit) = DriverUi.navigationCard(this, body, title, sub, open)
 
     // ---------- вид виджета ----------
 
@@ -292,7 +299,7 @@ class DriverToolsActivity : AppCompatActivity() {
         }
     }
     private fun settings() {
-        body.addView(DriverUi.text(this, t("Ваш радар", "Radarul dvs."), 28f))
+        body.addView(DriverUi.text(this, t("Настройки Яндекса", "Setări Yandex"), 28f))
         body.addView(DriverUi.text(this, t("Оставьте только то, что помогает вам на смене. Настройки сохраняются сразу.", "Păstrați doar informațiile utile în tură. Setările se salvează imediat."), 14f, true))
         linkCard(t("Вид виджета", "Aspectul widgetului"), t("Размер, прозрачность, строки, кнопка «+» — нажмите, чтобы настроить", "Mărime, transparență, rânduri, butonul «+» — apăsați pentru setări")) {
             startActivity(android.content.Intent(this, DriverToolsActivity::class.java).putExtra("mode", "widget"))
@@ -310,9 +317,6 @@ class DriverToolsActivity : AppCompatActivity() {
             "«Rentabilitatea cursei» — opțional arată în widget cât rămâne net, pe km și pe oră.",
             "Restul (drumul spre casă, aeroport) activați doar dacă le folosiți. Totul se salvează imediat, fără buton «Salvează»."
         ))
-        linkCard(t("Чтение экрана Bolt / Uber", "Citirea ecranului Bolt / Uber"), t("Тестовый OCR, карта и MDL/мин · отдельный запуск с разрешением Android", "OCR de test, hartă și MDL/min · pornire separată cu permisiunea Android")) {
-            startActivity(android.content.Intent(this, ScreenReaderActivity::class.java))
-        }
         val widget = card("Цена на виджете", "Prețul în widget", "Можно оставить только примерную цену. Дополнительные строки включаются отдельно.", "Puteți păstra doar prețul estimat. Rândurile suplimentare sunt opționale.", R.drawable.ic_visibility)
         flag(widget, "distance", "Километры", "Kilometri", "Длина поездки. Подача включается отдельно.", "Distanța cursei. Preluarea se activează separat.", true)
         flag(widget, "minutes", "Минуты", "Minute", "Прогноз времени поездки, не время ожидания пассажира.", "Durata estimată a cursei, fără așteptarea pasagerului.", true)
@@ -342,30 +346,7 @@ class DriverToolsActivity : AppCompatActivity() {
         number(profit, "order_min_net", "Чистыми за заказ — от, L", "Net pe cursă — de la, L", 0.0, 0.0, 2000.0)
         number(profit, "pickup_max_km", "Подача — не дальше, км", "Preluare — maxim, km", 0.0, 0.0, 50.0)
         number(profit, "pickup_speed", "Средняя скорость подачи, км/ч", "Viteza medie de preluare, km/h", 25.0, 5.0, 90.0)
-        val costs = card("Моя машина и расходы", "Mașina și cheltuielile", "Эти значения нужны для прогноза. Расход можно указать в литрах или кВт·ч на 100 км. Здесь находятся все настройки чистого дохода; второй карточки с теми же параметрами больше нет.", "Valorile sunt necesare pentru estimare. Consumul poate fi în litri sau kWh/100 km. Toate setările venitului net se află aici, fără un al doilea formular duplicat.", R.drawable.ic_payments)
-        val types = arrayOf(t("Бензин", "Benzină"), t("Дизель", "Diesel"), t("Газ", "Gaz"), t("Электричество", "Electricitate"))
-        val spinner = Spinner(this)
-        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
-        spinner.setSelection(DriverPreferences.number(this, "energy_type").toInt().coerceIn(0, 3))
-        costs.addView(spinner)
-        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) { DriverPreferences.set(this@DriverToolsActivity, "energy_type", position.toDouble()) }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
-        }
-        val s = NetEarnings.load(this)
-        val consumption = DriverUi.field(this, costs, t("Расход на 100 км (л / кВт·ч)", "Consum la 100 km (l / kWh)"), fmt(s.consumptionPer100Km))
-        val energy = DriverUi.field(this, costs, t("Цена литра / кВт·ч, L", "Preț litru / kWh, L"), fmt(s.fuelPrice))
-        val commission = DriverUi.field(this, costs, t("Общая комиссия, %", "Comision total, %"), fmt(s.commissionPercent))
-        listOf(consumption, energy, commission).forEach { field -> field.doAfterTextChanged {
-            val values = listOf(consumption, energy, commission).map { it.text.toString().replace(',', '.').toDoubleOrNull() }
-            val valid = values.all { it != null && it.isFinite() && it >= 0 } && (values[0] ?: 1001.0) <= 1000 && (values[1] ?: 10001.0) <= 10000 && (values[2] ?: 101.0) <= 100
-            field.error = if (!valid) t("Проверьте значения (комиссия 0–100%)", "Verificați valorile (comision 0–100%)") else null
-            if (valid) NetEarnings.save(this, NetEarnings.load(this).copy(consumptionPer100Km = values[0]!!, fuelPrice = values[1]!!, commissionPercent = values[2]!!))
-        } }
-        flag(costs, "net", "Показывать чистыми", "Afișează net", "После комиссии и переменных расходов, включая подачу. Аренда за смену вычитается только в итогах смены.", "După comision și costurile variabile, inclusiv preluarea. Chiria se scade doar în totalul turei.", NetEarnings.load(this).enabled)
-        number(costs, "maintenance", "Обслуживание, L/км", "Întreținere, L/km", 0.0, 0.0, 50.0)
-        number(costs, "rent", "Аренда и фиксированные расходы за смену, L", "Chirie și costuri fixe pe tură, L", 0.0, 0.0, 5000.0)
-        number(costs, "daily_target", "Цель смены чистыми, L", "Ținta netă a turei, L", 600.0, 0.0, 20000.0)
+        carCosts()
         val home = card("Возврат и дорога домой", "Întoarcere și drumul spre casă", "Для последнего заказа можно посчитать пустой возврат. Сохранённый адрес помогает оценить направление, но не меняет выдачу Яндекс Про.", "Puteți calcula întoarcerea fără pasager pentru ultima ofertă. Adresa salvată ajută la evaluarea direcției, fără a schimba ofertele Yandex.", R.drawable.ic_location_on)
         flag(home, "home", "Подсказывать направление домой", "Indică direcția spre casă", "Сравниваем расстояние по прямой от начала и конца заказа до дома. Это подсказка по направлению, не дорожный маршрут.", "Comparăm distanța în linie dreaptă de la începutul și sfârșitul cursei până acasă. Este orientare, nu traseu rutier.")
         val address = DriverUi.field(this, home, t("Дом или точка возвращения", "Acasă sau punctul de întoarcere"), DriverPreferences.text(this, "home_address"), false)

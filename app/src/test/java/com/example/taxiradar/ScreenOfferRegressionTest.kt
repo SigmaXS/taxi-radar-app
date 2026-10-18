@@ -50,6 +50,43 @@ class ScreenOfferRegressionTest {
         state.missing(15000); assertNull(state.current)
         state.update("one", 16000); assertTrue(state.expanded)
     }
+    @Test fun minimizedCardStaysMinimizedAfterAnOcrOutage() {
+        val state = ScreenOfferVisibility()
+        state.update("one", 1000); state.minimize()
+        state.missing(20000); assertNull(state.current)
+        state.update("one", 21000); assertFalse(state.expanded)
+        state.update("two", 22000); assertTrue(state.expanded)
+    }
+    @Test fun peresecinaScreenshotContainsBothAddressesBeforeGeocoding() {
+        val o = offer(2)
+        assertEquals("Pușkin, Blocul Pușkin 44", o.addresses[0])
+        assertEquals("Bogdan Petriceicu Hasdeu 5, Peresecina", o.addresses[1])
+    }
+    @Test fun longDistanceShoppingMallOfferAcceptsPoiAndCityWithoutHouseNumbers() {
+        val parsed = ScreenOfferParser.parse("""
+            Комфорт По карте
+            1.5x Высокий спрос
+            Вне радиуса
+            1733,00 MDL
+            Костя 5.0 ★ (3)
+            7 мин • 4.1 km
+            Главный вход, Shopping
+            Malldova
+            102 мин • 96.6 km
+            Штефан-Водэ, Молдова
+            Принять
+        """.trimIndent())!!
+        assertEquals(1733.0, parsed.fare!!, .001)
+        assertEquals(102.0, parsed.tripMinutes, .001)
+        assertEquals("Главный вход, Shopping Malldova", parsed.addresses[0])
+        assertEquals("Штефан-Водэ, Молдова", parsed.addresses[1])
+    }
+    @Test fun configuredExpiryDoesNotDependOnNewAccessibilityEvents() {
+        val state = ScreenOfferVisibility()
+        state.update("offer", 1000)
+        state.missing(8999, 8000); assertTrue(state.expanded)
+        state.missing(9000, 8000); assertFalse(state.expanded)
+    }
     @Test fun mixedScriptMinuteUnitFromNativeAndroidOcrIsNormalized() {
         val o = offer(3)
         val text = javaClass.getResource("/screen-offers/offer-3.txt")!!.readText().replace("Змин", "3 MuH")

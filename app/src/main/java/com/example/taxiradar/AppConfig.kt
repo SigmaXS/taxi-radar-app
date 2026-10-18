@@ -40,7 +40,9 @@ data class AppConfig(
     val minVersionCode: Int = 0,
     /** Общие пробки по часам (все водители): будни / выходные, null — мало данных. */
     val trafficWeekday: List<Double?> = emptyList(),
-    val trafficWeekend: List<Double?> = emptyList()
+    val trafficWeekend: List<Double?> = emptyList(),
+    /** Centrally managed literal OCR corrections; never executable patterns. */
+    val boltOcrCorrections: String = ""
 ) {
     data class Tariff(val days: Int, val price: Int)
 
@@ -103,7 +105,8 @@ data class AppConfig(
             } ?: emptyMap(),
             minVersionCode = j.optInt("min_version_code", 0),
             trafficWeekday = hours(j.optJSONObject("traffic")?.optJSONArray("wd")),
-            trafficWeekend = hours(j.optJSONObject("traffic")?.optJSONArray("we"))
+            trafficWeekend = hours(j.optJSONObject("traffic")?.optJSONArray("we")),
+            boltOcrCorrections = j.optString("bolt_ocr_corrections", "").take(10000)
         )
 
         private fun hours(a: org.json.JSONArray?): List<Double?> =

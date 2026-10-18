@@ -164,10 +164,7 @@ class SetupCheckActivity : AppCompatActivity() {
             DriverUi.t(this, "Если поездки не попадают в смену — отправьте журнал разработчику.", "Dacă cursele nu intră în tură — trimiteți jurnalul dezvoltatorului."),
             DriverUi.t(this, "Отправить", "Trimite")
         ) {
-            val text = TripLog.text(this).ifBlank { DriverUi.t(this, "Журнал пока пуст", "Jurnalul e gol") }
-            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
-                .putExtra(Intent.EXTRA_SUBJECT, "Taxi Radar — журнал")
-                .putExtra(Intent.EXTRA_TEXT, "Taxi Radar ${packageManager.getPackageInfo(packageName, 0).versionName}\n" + text), DriverUi.t(this, "Отправить журнал", "Trimite jurnalul")))
+            TripLog.share(this)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list += Check(

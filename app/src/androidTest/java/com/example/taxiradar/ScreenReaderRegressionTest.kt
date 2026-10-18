@@ -16,6 +16,29 @@ import org.json.JSONObject
 
 @RunWith(AndroidJUnit4::class)
 class ScreenReaderRegressionTest {
+    @Test fun switchingScreensDiscardsTheCancelledRead() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val images = listOf(1, 2).map { n -> instrumentation.context.assets.open("screen-offers/offer-$n.png").use { BitmapFactory.decodeStream(it) } }
+        lateinit var engine: ScreenOcrEngine
+        val done = CountDownLatch(2)
+        var cancelled = listOf("not completed")
+        var current = emptyList<String>()
+        instrumentation.runOnMainSync {
+            engine = ScreenOcrEngine(instrumentation.targetContext)
+            engine.read(images[0]) { cancelled = it; done.countDown() }
+            engine.cancelCurrent()
+            engine.read(images[1]) { current = it; done.countDown() }
+        }
+        try {
+            assertTrue("New screenshot did not finish", done.await(90, TimeUnit.SECONDS))
+            assertTrue("Previous screenshot must not be delivered", cancelled.isEmpty())
+            assertTrue("Current screenshot must be the 357 MDL offer", current.mapNotNull { ScreenOfferParser.parse(it) }.any { it.fare == 357.0 })
+        } finally {
+            // Do not recycle input pixels until asynchronous recognition has stopped.
+            instrumentation.runOnMainSync { engine.close() }
+            if (done.count == 0L) images.forEach { it.recycle() }
+        }
+    }
     @Test fun routeResponseIsIndependentAndRejectsProviderErrors() {
         val leg = JSONObject().put("km", 12.2).put("minutes", 36.0).put("polyline", "_p~iF~ps|U_ulLnnqC_mqNvxq`@")
         val response = JSONObject().put("ok", true).put("provider", "google").put("calculated_at", 123L).put("pickup", leg).put("trip", leg)
@@ -32,7 +55,7 @@ class ScreenReaderRegressionTest {
         lateinit var engine: ScreenOcrEngine
         instrumentation.runOnMainSync { engine = ScreenOcrEngine(target) }
         try {
-            for (i in 1..3) {
+            for (i in 1..4) {
                 val image = instrumentation.context.assets.open("screen-offers/offer-$i.png").use { BitmapFactory.decodeStream(it) }
                 val done = CountDownLatch(1)
                 var candidates = emptyList<ScreenOfferParser.Offer>()
@@ -51,6 +74,12 @@ class ScreenReaderRegressionTest {
                     1 -> { assertNull(offer!!.fare); assertEquals(12.2, offer.tripKm, .001) }
                     2 -> assertEquals(357.0, offer!!.fare!!, .001)
                     3 -> { assertEquals(206.0, offer!!.fare!!, .001); assertEquals(3.0, offer.pickupMinutes, .001) }
+                    4 -> {
+                        assertEquals(1733.0, offer!!.fare!!, .001)
+                        assertEquals(102.0, offer.tripMinutes, .001)
+                        assertTrue("Pickup POI must survive without a house number", offer.addresses[0].isNotBlank())
+                        assertTrue("Destination town must survive without a house number", offer.addresses[1].isNotBlank())
+                    }
                 }
             }
         } finally { instrumentation.runOnMainSync { engine.close() } }
@@ -59,6 +88,7 @@ class ScreenReaderRegressionTest {
         val i = InstrumentationRegistry.getInstrumentation()
         i.runOnMainSync {
             val c = i.targetContext
+            DriverPreferences.set(c, "bolt_map_auto", false)
             val view = ScreenReaderOverlay(c, {}, {}, {}, {}, {})
             try {
                 fun save(name: String, width: Int) {

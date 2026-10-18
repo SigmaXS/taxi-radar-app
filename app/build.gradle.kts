@@ -28,14 +28,10 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 22
-        versionName = "2.2"
-        // Android-restricted Maps key, supplied locally or by CI. Routes key stays on the server.
-        manifestPlaceholders["googleMapsApiKey"] = providers.environmentVariable("GOOGLE_MAPS_ANDROID_API_KEY")
-            .orElse(providers.gradleProperty("GOOGLE_MAPS_ANDROID_API_KEY")).getOrElse("")
-
+        versionName = if (providers.gradleProperty("boltTest").orNull == "true") "2.2-bolt-test5" else "2.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Только процессоры телефонов и мультимедиа: x86 нужен лишь эмуляторам, а библиотеки OCR весят по 20 МБ на каждый.
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        ndk { abiFilters += if (providers.gradleProperty("emulatorOcrTest").orNull == "true") listOf("x86_64") else if (providers.gradleProperty("arm64Only").orNull == "true") listOf("arm64-v8a") else listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     signingConfigs {
@@ -89,7 +85,7 @@ dependencies {
 
     // Геолокация FusedLocation (для перехвата Fake GPS)
     implementation("com.google.android.gms:play-services-location:21.0.1")
-    implementation("com.google.android.gms:play-services-maps:19.0.0")
+    implementation("org.maplibre.gl:android-sdk:11.13.5")
 
     // Карта спроса (OpenStreetMap, без ключей)
     implementation("org.osmdroid:osmdroid-android:6.1.18")

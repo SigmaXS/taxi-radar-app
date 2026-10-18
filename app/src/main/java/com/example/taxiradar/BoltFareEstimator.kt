@@ -23,6 +23,12 @@ object BoltFareEstimator {
         Regex("(?iu)\\bBolt\\b").containsMatchIn(text) -> "bolt"
         else -> null
     }
+    /** A missing visible fare is not a failed calculation: resolve it once a real route is available. */
+    fun resolve(offer: ScreenOfferParser.Offer, tripKm: Double?, tripMinutes: Double?): Double? {
+        offer.fare?.let { return it }
+        if (!offer.multiplierKnown || tripKm == null || tripMinutes == null) return null
+        return estimate(offer.boltCategory, tripKm, tripMinutes, offer.multiplier)
+    }
     fun estimate(category: String?, km: Double, minutes: Double, multiplier: Double): Double? {
         val t = tariffs[category] ?: return null
         if (!km.isFinite() || !minutes.isFinite() || !multiplier.isFinite() || km < 0 || minutes < 0 || multiplier < 1) return null

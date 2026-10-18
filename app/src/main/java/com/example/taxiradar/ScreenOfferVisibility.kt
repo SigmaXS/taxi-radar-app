@@ -10,13 +10,16 @@ class ScreenOfferVisibility {
         if (current != identity) expanded = identity != dismissed
         current = identity; lastSeen = now
     }
+    fun wasMinimized(identity: String) = dismissed == identity
     fun minimize() { dismissed = current; expanded = false }
+    fun absent() { current = null; expanded = false }
     fun toggle(now: Long) {
         if (expanded) minimize()
         else if (current != null && now - lastSeen < 8000) expanded = true
     }
-    fun missing(now: Long) {
-        if (now - lastSeen > 6000) expanded = false
-        if (now - lastSeen > 12000) { current = null; dismissed = null }
+    fun missing(now: Long, hideAfter: Long = 6000) {
+        if (now - lastSeen >= hideAfter) expanded = false
+        // A gap in OCR must not forget the user's explicit minimize action.
+        if (now - lastSeen > 12000) current = null
     }
 }
