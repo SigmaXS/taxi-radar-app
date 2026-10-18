@@ -10,6 +10,36 @@ import androidx.appcompat.app.AppCompatActivity
 class RadarSettingsActivity : AppCompatActivity() {
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLanguage.wrap(newBase))
     private fun t(ru: String, ro: String) = DriverUi.t(this, ru, ro)
+
+    /** Разведчик надбавки — только для отдельного телефона с Яндекс Go (не для рабочего телефона водителя). */
+    private fun scoutCard(root: LinearLayout) {
+        val box = DriverUi.card(this, root, t("Разведчик надбавки", "Cercetaș supliment"),
+            t("Для отдельного телефона, который лежит на зарядке. Радар по очереди открывает Яндекс Go в точках, где стоят водители, и читает цены — надбавку видят все. Нужно: Яндекс Go с входом, запущенный радар, экран не гаснет. ID этого телефона добавьте в SCOUT_DEVICE_IDS на сервере.",
+                "Pentru un telefon separat, la încărcare. Radarul deschide pe rând Yandex Go în punctele șoferilor și citește prețurile. Necesar: Yandex Go conectat, radar pornit, ecran aprins. Adăugați ID-ul în SCOUT_DEVICE_IDS pe server."))
+        val id = LicenseManager(this).deviceId
+        box.addView(DriverUi.text(this, "ID: $id", 14f).apply {
+            setTextIsSelectable(true)
+            setOnClickListener {
+                (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("id", id))
+                Toast.makeText(this@RadarSettingsActivity, t("ID скопирован", "ID copiat"), Toast.LENGTH_SHORT).show()
+            }
+        })
+        DriverUi.toggle(this, box, t("Режим разведчика", "Mod cercetaș"),
+            t("Включайте только на телефоне-разведчике: Яндекс Go будет постоянно открываться сам.", "Doar pe telefonul-cercetaș: Yandex Go se va deschide singur."),
+            YandexGoScout.enabled(this)) { DriverPreferences.set(this, "scout_mode", it) }
+        // Скидки аккаунта Go (например, Комфорт −10%): без них надбавка выйдет меньше настоящей.
+        for ((key, label) in listOf("econom" to t("Скидка Эконом, %", "Reducere Econom, %"), "comfort" to t("Скидка Комфорт, %", "Reducere Confort, %"), "comfortplus" to t("Скидка Комфорт+, %", "Reducere Confort+, %"))) {
+            val f = DriverUi.field(this, box, label, YandexGoScout.discount(this, key).let { if (it == 0.0) "0" else it.toString() })
+            f.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    val n = s.toString().replace(',', '.').toDoubleOrNull()
+                    if (n != null && n in 0.0..90.0) { f.error = null; DriverPreferences.set(this@RadarSettingsActivity, "scout_disc_$key", n) } else f.error = "0–90"
+                }
+            })
+        }
+    }
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         val root = LinearLayout(this).apply {
@@ -59,6 +89,7 @@ class RadarSettingsActivity : AppCompatActivity() {
         service(t("Яндекс", "Yandex"), t("Тарифы и надбавки, выгодность и вид виджета. Ваши прежние настройки сохранены.", "Categorii și suplimente, rentabilitate și aspectul widgetului. Setările existente sunt păstrate."), R.color.tr_yandex_settings) {
             startActivity(Intent(this, DriverToolsActivity::class.java).putExtra("mode", "settings"))
         }
+        scoutCard(root)
         DriverUi.button(this, root, t("Отправить журнал .txt", "Trimite jurnalul .txt")) { TripLog.share(this) }
     }
 }

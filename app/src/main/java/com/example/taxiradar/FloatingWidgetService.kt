@@ -108,6 +108,8 @@ class FloatingWidgetService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var autoUpdateJob: Job? = null
+    /** Режим «Разведчик» (отдельный телефон с Яндекс Go): обход точек водителей. */
+    private var scoutJob: Job? = null
     private var orderDisplayJob: Job? = null
     private var isShowingOrder: Boolean = false
     private var showingBolt = false
@@ -683,6 +685,8 @@ class FloatingWidgetService : Service() {
         autoUpdateJob?.cancel()
         autoUpdateJob = serviceScope.launch {
             while (isActive) {
+                if (YandexGoScout.enabled(this@FloatingWidgetService) && scoutJob?.isActive != true)
+                    scoutJob = serviceScope.launch(Dispatchers.IO) { YandexGoScout.run(this@FloatingWidgetService) }
                 if (!licenseManager.checkDeviceStatusCached(LICENSE_RECHECK_MS)) {
                     withContext(Dispatchers.Main) { stopSelf() }
                     break
@@ -790,8 +794,15 @@ class FloatingWidgetService : Service() {
         var missing = false
         var hereValue: Int? = null
         val lat = driverLat; val lon = driverLon
+        // Сайт Яндекса сейчас отдаёт только старт тарифа — надбавку берём у разведчика (Яндекс Go), она одна на все тарифы.
+        // Дальше 20 км от Кишинёва — 0. Разведчик точку ещё не проверил — как раньше, с сайта.
+        val scout = ScoutClient.near(this, lat, lon)
         val parts = tariffs.map { (label, key) ->
-            val s = YandexTaxiSurgeChecker.getSurgePrice(lon, lat, key)
+            val s = when {
+                scout?.far == true -> 0
+                scout?.surge != null -> scout.surge
+                else -> YandexTaxiSurgeChecker.getSurgePrice(lon, lat, key)
+            }
             val now = System.currentTimeMillis()
             if (s != null) surgeSnapshots[key] = SurgeSnapshot(s, now, lat, lon)
             val old = surgeSnapshots[key]?.takeIf { now - it.at <= 10 * 60000 && RouteFareCalculator.distanceKm(lat, lon, it.lat, it.lon) < 0.2 }

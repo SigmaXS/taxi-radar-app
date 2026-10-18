@@ -138,6 +138,8 @@ class OrderAccessibilityService : AccessibilityService() {
             !pkg.contains("inputmethod") && !pkg.contains("keyboard")) foregroundPackage = pkg
         boltReader.event(event)
         if (BoltAccessibilityReader.supported(pkg)) return
+        // Телефон-разведчик: экран Яндекс Go — только цены для разведчика, не заказ Яндекс Про.
+        if (pkg == YandexGoScout.PACKAGE) { if (YandexGoScout.enabled(this)) YandexGoScout.onScreen(rootInActiveWindow); return }
         if (!RadarServices.yandex(this)) return
 
         if (isDialer(pkg)) {
