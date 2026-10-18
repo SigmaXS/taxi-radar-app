@@ -85,7 +85,6 @@ dependencies {
 
     // Геолокация FusedLocation (для перехвата Fake GPS)
     implementation("com.google.android.gms:play-services-location:21.0.1")
-    implementation("org.maplibre.gl:android-sdk:11.13.5")
 
     // Карта спроса (OpenStreetMap, без ключей)
     implementation("org.osmdroid:osmdroid-android:6.1.18")

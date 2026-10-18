@@ -13,12 +13,11 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class BoltRouteMapTest {
-    @Test fun keylessMapLoadsStyleAndDrawsBothLegsAndThreeMarkers() {
+    @Test fun mapDrawsBothLegsAndThreeMarkers() {
         val i = InstrumentationRegistry.getInstrumentation()
         val c = i.targetContext
         var routeMap: BoltRouteMap? = null
         var panelRef: ScreenReaderOverlay? = null
-        val rendered = java.util.concurrent.CountDownLatch(1)
         val route = ScreenTrafficRoute.Result(
             ScreenTrafficRoute.Leg(1.2, 3.0, listOf(47.025 to 28.832, 47.022 to 28.839)),
             ScreenTrafficRoute.Leg(3.4, 10.0, listOf(47.022 to 28.839, 47.017 to 28.850, 47.011 to 28.860)), 1L)
@@ -36,23 +35,18 @@ class BoltRouteMapTest {
                     panel.setExpanded(true)
                     panel.route(route)
                     routeMap = panel.mapView.getChildAt(0) as BoltRouteMap
-                    (routeMap!!.getChildAt(0) as org.maplibre.android.maps.MapView).addOnDidBecomeIdleListener {
-                        (routeMap!!.getChildAt(0) as org.maplibre.android.maps.MapView).getMapAsync { if (it.annotations.size == 2) rendered.countDown() }
-                    }
                 }
-                val deadline = System.currentTimeMillis() + 45000
-                var annotations = 0
-                while (System.currentTimeMillis() < deadline && annotations != 2) {
-                    i.runOnMainSync {
-                        (routeMap!!.getChildAt(0) as org.maplibre.android.maps.MapView).getMapAsync { annotations = it.annotations.size }
-                    }
+                // osmdroid: две линии (подача, поездка) и три точки (вы, клиент, флажок).
+                val deadline = System.currentTimeMillis() + 15000
+                var overlays = 0
+                while (System.currentTimeMillis() < deadline && overlays != 5) {
+                    i.runOnMainSync { overlays = (routeMap!!.getChildAt(0) as org.osmdroid.views.MapView).overlays.size }
                     Thread.sleep(200)
                 }
-                assertEquals("OpenFreeMap style must load and route must render without an API key", 2, annotations)
-                assertTrue("Map tiles and fonts must finish loading", rendered.await(60, java.util.concurrent.TimeUnit.SECONDS))
+                assertEquals("Route must render both legs and three markers", 5, overlays)
                 Thread.sleep(1000)
                 val image = i.uiAutomation.takeScreenshot()
-                File(c.cacheDir, "bolt-maplibre.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                File(c.cacheDir, "bolt-route-map.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 image.recycle()
                 i.runOnMainSync {
                     fun find(v: android.view.View, label: String): android.view.View? {
