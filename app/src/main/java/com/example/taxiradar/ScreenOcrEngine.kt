@@ -24,7 +24,9 @@ class ScreenOcrEngine(private val context: Context) {
         val ticket = ++generation
         // Retain Google's Latin pass, then add Russian/Romanian OCR using the same immutable frame.
         latin.process(InputImage.fromBitmap(frame, 0)).addOnCompleteListener { task ->
-            val google = if (task.isSuccessful) task.result?.text.orEmpty() else ""
+            // Строки по месту на экране и только в области карточки: иначе OCR подмешивает в адрес
+            // надписи спроса («Cerere mare 1.2x»), отказа и карты («Stăuceni», «31.5 km · 41 min»).
+            val google = if (task.isSuccessful) task.result?.let { layout(it) }.orEmpty() else ""
             if (closing || ticket != generation) { complete(emptyList()); return@addOnCompleteListener }
             val parsed = ScreenOfferParser.parse(google)
             if (parsed?.fare != null) preview(parsed)
@@ -61,6 +63,22 @@ class ScreenOcrEngine(private val context: Context) {
                 main.post { complete(if (closing || ticket != generation) emptyList() else listOf(russian, google).filter { it.isNotBlank() }) }
             }
         }
+    }
+    /**
+     * Текст ML Kit в порядке чтения по экрану (сверху вниз, слева направо), обрезанный по карточке:
+     * от ~7 строк над первой строкой «мин · km» до ~5 строк под второй. Нет двух таких строк — весь текст как есть.
+     */
+    private fun layout(result: com.google.mlkit.vision.text.Text): String {
+        val lines = result.textBlocks.flatMap { it.lines }.filter { it.boundingBox != null && it.text.isNotBlank() }
+        if (lines.isEmpty()) return result.text
+        val legs = lines.filter { ScreenOfferParser.isLeg(it.text) }.sortedBy { it.boundingBox!!.top }
+        val height = lines.map { it.boundingBox!!.height() }.sorted()[lines.size / 2].coerceAtLeast(8)
+        val window = if (legs.size >= 2) (legs.first().boundingBox!!.top - height * 7)..(legs.last().boundingBox!!.bottom + height * 5)
+            else Int.MIN_VALUE..Int.MAX_VALUE
+        // Строки на одной высоте (в пределах половины строки) — слева направо.
+        return lines.filter { it.boundingBox!!.centerY() in window }
+            .sortedWith(compareBy({ it.boundingBox!!.centerY() / (height / 2 + 1) }, { it.boundingBox!!.left }))
+            .joinToString("\n") { it.text }
     }
     fun cancelCurrent() {
         generation++

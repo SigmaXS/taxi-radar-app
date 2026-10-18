@@ -14,6 +14,10 @@ object ScreenOfferParser {
     private val category = Regex("(?iu)(\\bBolt\\b|\\bUber\\b|комфорт|comfort|эконом|econom|standard|premium|премиум|питомец|pet\\b|\\bXL\\b|детское|scaun)")
     private val rating = Regex("""\d[.,]\d\s*[*★☆хx·‹]?\s*\(\d+\)|\d[.,]\d\s*[*★☆]""")
     private val accept = Regex("(?iu)(accept[ăa]\\b|\\baccept\\b|принять)")
+    // Надписи карточки и карты Bolt, которые OCR подмешивает в адрес: спрос, отказ, оплата, «вне радиуса», «31.5 km · 41 min».
+    private val notAddress = Regex("(?iu)(cerere|спрос|respingerea|отказ|rata de|numerar|наличн|по карте|afara razei|вне радиус|^\\d+[.,]?\\d*\\s*(m|km|км|м)\\b)")
+    /** Строка «3 мин • 1.6 km» — подача или поездка (для разбора по положению на экране). */
+    fun isLeg(line: String) = leg.containsMatchIn(normalize(line))
     fun normalize(text: String): String = text
         .replace(Regex("(?iu)(?<=[0-9Зз])\\s*[mм][uиimм][hнn](?=\\s|[·•.])"), " min")
         .replace(Regex("(?iu)(?<![\\p{L}0-9])[ЗзZz](?=\\s*(?:мин|min))"), "3")
@@ -44,7 +48,8 @@ object ScreenOfferParser {
                 if (accept.containsMatchIn(line)) break
                 // Строка с ценой («357,00 MDL») — не адрес.
                 if (line.length < 5 || !line.any { it.isLetter() } || rating.containsMatchIn(line) || money.containsMatchIn(line) ||
-                    Regex("(?iu)(bonus|supliment|comision|commission|комисси|серия|restante|google|openstreetmap)").containsMatchIn(line)) continue
+                    Regex("(?iu)(bonus|supliment|comision|commission|комисси|серия|restante|google|openstreetmap)").containsMatchIn(line) ||
+                    notAddress.containsMatchIn(line)) continue
                 parts += line
                 // Join wrapped POI/street lines instead of geocoding just the POI name.
                 if (parts.joinToString(" ").any { it.isDigit() } &&

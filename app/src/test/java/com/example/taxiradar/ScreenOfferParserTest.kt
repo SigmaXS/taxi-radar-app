@@ -70,6 +70,25 @@ class ScreenOfferParserTest {
         assertEquals(1.2, o.multiplier, 0.001)
         assertTrue(o.multiplierKnown)
     }
+    // Журнал телефона 19.10: в адрес попадали надписи спроса, отказа и карты.
+    @Test fun demandRefusalAndMapLabelsAreNotPartOfAddresses() {
+        val o = ScreenOfferParser.parse("""
+            Bolt Numerar
+            Cerere mare 1.2x În afara razei
+            357,00 MDL
+            Respingerea cursei nu va afecta rata de acceptare
+            Andreea 5.0 ★ (140)
+            5 min · 1.5 km
+            Pușkin, Blocul Pușkin 44
+            41 min · 31.5 km
+            3 M 16 km
+            Bogdan Petriceicu Hasdeu 5, Peresecina
+            Acceptă
+        """.trimIndent())!!
+        assertEquals("Pușkin, Blocul Pușkin 44", o.addresses[0])
+        assertEquals("Bogdan Petriceicu Hasdeu 5, Peresecina", o.addresses[1])
+        assertEquals(357.0, o.fare!!, .001)
+    }
     @Test fun dictionaryUsesLiteralReplacementAndRomanianCommaIsAccepted() {
         val input = card().replace("1.7", "1,7").replace("Pușkin", "Puskm")
         val o = ScreenOfferParser.parse(ScreenOfferParser.correct(input, "Puskm => Pușkin\nwrong entry"))!!
