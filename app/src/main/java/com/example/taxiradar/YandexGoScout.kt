@@ -90,38 +90,47 @@ object YandexGoScout {
     /** Цикл разведчика (из службы радара): точки с сервера → Go в каждой → результат на сервер. */
     suspend fun run(c: Context) {
         var lastAddress = ""
+        var lastPoint = ""
+        var sinceReload = 0
+        var failed = false
         while (currentCoroutineContext().isActive && enabled(c)) {
-            val tasks = CommunityApi.postBlocking(c, "/api/scout/tasks", JSONObject().put("limit", 8))
+            val tasks = CommunityApi.postBlocking(c, "/api/scout/tasks", JSONObject().put("limit", 20))
             val points = tasks?.optJSONArray("points")
             if (tasks?.optString("code") == "not_scout") {
                 TripLog.d("Разведчик: этот телефон не в списке SCOUT_DEVICE_IDS на сервере")
                 delay(60_000); continue
             }
-            if (points == null || points.length() == 0) { delay(20_000); continue }
+            if (points == null || points.length() == 0) { delay(10_000); continue }
             for (i in 0 until points.length()) {
                 if (!enabled(c)) return
                 val p = points.getJSONObject(i)
                 val lat = p.getDouble("lat"); val lon = p.getDouble("lon")
+                val point = "$lat,$lon"
+                // Другая точка — ссылка в уже открытый Go: адрес и цены меняются за 1–2 с.
+                // Та же точка, раз в 10 проверок или после сбоя — открываем Go заново: иначе он держит старые цены
+                // (утром «нет машин», хотя Эконом уже появился).
+                val reload = point == lastPoint || failed || ++sinceReload >= 10
+                if (reload) sinceReload = 0
                 val before = latest?.seq ?: 0
                 val started = System.currentTimeMillis()
                 try {
                     c.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("yandextaxi://route?start-lat=$lat&start-lon=$lon"))
-                        // Заново, а не в уже открытое окно: иначе Go не перезапрашивает цены и держит «—»
-                        // с прошлой проверки (утром «нет машин», хотя Эконом уже появился).
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or if (reload) Intent.FLAG_ACTIVITY_CLEAR_TASK else 0))
                 } catch (e: Exception) {
                     TripLog.d("Разведчик: Яндекс Go не открылся (${e.javaClass.simpleName}) — он установлен?"); delay(30_000); break
                 }
-                // Ждём, пока Go перейдёт в новую точку (сменится адрес) и покажет цены; не дольше 12 с.
+                // Ждём новый адрес и цены; при полном перезапуске адрес может совпасть с прошлым — тогда ждём дольше.
                 var screen: Screen? = null
-                while (System.currentTimeMillis() - started < 12_000) {
-                    delay(700)
+                while (System.currentTimeMillis() - started < 10_000) {
+                    delay(300)
                     val s = latest ?: continue
-                    if (s.seq <= before || s.at < started + 1200) continue
-                    if (s.address != lastAddress || System.currentTimeMillis() - started > 7_000) { screen = s; break }
+                    if (s.seq <= before || s.at < started + 400) continue
+                    if (s.address != lastAddress || System.currentTimeMillis() - started > (if (reload) 4_000 else 2_500)) { screen = s; break }
                 }
-                if (screen == null) { TripLog.d("Разведчик: в точке $lat,$lon Go не показал цены"); continue }
-                delay(1500) // цены подгружаются чуть позже адреса — берём последний экран
+                lastPoint = point
+                if (screen == null) { failed = true; TripLog.d("Разведчик: в точке $point Go не показал цены"); continue }
+                failed = false
+                delay(700) // цены подгружаются чуть позже адреса — берём последний экран
                 val final = latest?.takeIf { it.seq >= screen.seq } ?: screen
                 lastAddress = final.address
                 val values = surges(c, final)
@@ -129,7 +138,8 @@ object YandexGoScout {
                     values.forEach { (k, v) -> put(k, v ?: JSONObject.NULL) }
                 })
                 val reply = CommunityApi.postBlocking(c, "/api/scout/result", body)
-                TripLog.d("Разведчик: ${final.address.take(40)} → цены ${final.prices}, нет машин ${final.noCars}, надбавка ${reply?.opt("value")}")
+                TripLog.d("Разведчик: ${final.address.take(40)} → цены ${final.prices}, нет машин ${final.noCars}, надбавка ${reply?.opt("value")}" +
+                    " (${System.currentTimeMillis() - started} мс${if (reload) ", заново" else ""})")
             }
         }
     }
