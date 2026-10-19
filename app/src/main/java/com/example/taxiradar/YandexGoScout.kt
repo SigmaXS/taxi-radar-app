@@ -148,18 +148,24 @@ object YandexGoScout {
 /** Радар водителя: надбавка разведчика рядом (раз в цикл обновления). */
 object ScoutClient {
     /** [scouting] — разведчик работает, но эту точку ещё не проверил или машин нет: «?», а не 0 с сайта. */
-    data class Near(val surge: Int?, val far: Boolean, val ageSec: Int, val scouting: Boolean = false)
+    data class Near(val surge: Int?, val far: Boolean, val ageSec: Int, val scouting: Boolean = false,
+                    /** Надбавка в точке Б (куда везём); null — разведчик её ещё не проверил. */
+                    val surgeB: Int? = null)
 
     @Volatile private var cache: Pair<Long, Near?>? = null
 
-    suspend fun near(c: Context, lat: Double, lon: Double): Near? {
+    suspend fun near(c: Context, lat: Double, lon: Double, b: Pair<Double, Double>? = null): Near? {
         val now = System.currentTimeMillis()
         cache?.let { if (now - it.first < 30_000) return it.second }
+        val body = JSONObject().put("lat", lat).put("lon", lon)
+        // Едем по заказу — и точку Б: разведчик проверит её раз в 2–3 минуты, после точек водителей.
+        if (b != null) body.put("b_lat", b.first).put("b_lon", b.second)
         val j = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            CommunityApi.postBlocking(c, "/api/scout/near", JSONObject().put("lat", lat).put("lon", lon))
+            CommunityApi.postBlocking(c, "/api/scout/near", body)
         }
         val r = j?.takeIf { it.optBoolean("ok") }?.let {
-            Near(if (it.isNull("surge")) null else it.optInt("surge"), it.optBoolean("far"), it.optInt("age_s"), it.optBoolean("scouting"))
+            Near(if (it.isNull("surge")) null else it.optInt("surge"), it.optBoolean("far"), it.optInt("age_s"), it.optBoolean("scouting"),
+                if (!it.has("surge_b") || it.isNull("surge_b")) null else it.optInt("surge_b"))
         }
         cache = now to r
         return r

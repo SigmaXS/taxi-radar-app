@@ -792,7 +792,7 @@ class FloatingWidgetService : Service() {
         val lat = driverLat; val lon = driverLon
         // Сайт Яндекса сейчас отдаёт только старт тарифа — надбавку берём у разведчика (Яндекс Go), она одна на все тарифы.
         // Дальше 20 км от Кишинёва — 0. Разведчик точку ещё не проверил — как раньше, с сайта.
-        val scout = ScoutClient.near(this, lat, lon)
+        val scout = ScoutClient.near(this, lat, lon, TripDestination.current().takeIf { DriverPreferences.flag(this, "destination", true) })
         val parts = tariffs.map { (label, key) ->
             val s = when {
                 scout?.far == true -> 0
@@ -826,7 +826,8 @@ class FloatingWidgetService : Service() {
         val key = tariffs.firstOrNull()?.second
         if (dest != null && key != null) {
             val here = hereValue
-            val atB = YandexTaxiSurgeChecker.getSurgePrice(dest.second, dest.first, key)
+            // Б — тоже от разведчика; не проверил ещё — «?», а не 0 с сайта (если разведчик работает).
+            val atB = scout?.surgeB ?: if (scout?.scouting == true) null else YandexTaxiSurgeChecker.getSurgePrice(dest.second, dest.first, key)
             fun line(sb: SpannableStringBuilder, label: String, v: Int?) {
                 val hot = v != null && v > 0
                 val start = sb.length
