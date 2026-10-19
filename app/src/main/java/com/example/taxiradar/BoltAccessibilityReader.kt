@@ -28,6 +28,10 @@ class BoltAccessibilityReader(private val service: AccessibilityService) {
     private var ownsWidget = false
     private var watching = false
     private var lastShownAt = 0L
+    /** Последняя карточка Bolt, когда её впервые увидели, и км по маршруту — для записи в смену. */
+    private var lastSeen: ScreenOfferParser.Offer? = null
+    private var lastSeenAt = 0L
+    private var lastSeenKm: Double? = null
     private val watchdog: Runnable = object : Runnable {
         override fun run() {
             if (!RadarServices.accessibility(service)) { watching = false; reset(); return }
@@ -79,6 +83,8 @@ class BoltAccessibilityReader(private val service: AccessibilityService) {
         } else if (text.isBlank() && now - loggedAt >= 15000) {
             loggedAt = now; TripLog.d("BOLT/A11Y: текст недоступен; нужен резервный OCR")
         }
+        // Экран «Подтвердить стоимость» — заказ закончен: в смену (по последней карточке этого заказа).
+        BoltTripEnd.onScreen(service, text, lastSeen, lastSeenAt, lastSeenKm)
         val corrected = ScreenOfferParser.correct(text, RadarServices.corrections(service))
         val offer = ScreenOfferParser.parse(corrected)
             ?: ScreenOfferParser.parse(corrected.lines().distinct().joinToString("\n"))
@@ -95,6 +101,9 @@ class BoltAccessibilityReader(private val service: AccessibilityService) {
             TripLog.d("BOLT/A11Y предложение #${snapshot.generation}: цена=${offer.fare}; км=${offer.pickupKm}+${offer.tripKm}; мин=${offer.pickupMinutes}+${offer.tripMinutes}; спрос=${if (offer.multiplierKnown) offer.multiplier else "?"}")
         }
         val fixed = snapshot.current ?: return@Runnable
+        // Запоминаем карточку для экрана завершения: к нему снимок предложения уже сброшен.
+        if (fresh || lastSeen == null) lastSeenAt = System.currentTimeMillis()
+        lastSeen = fixed; lastSeenKm = route?.let { it.pickup.km + it.trip.km }
         display(fixed)
         // Маршрут (настоящее время по пробкам) — для любого заказа, как только прочитаны оба адреса;
         // цена с карточки при этом показывается сразу, время уточнится через секунду-две.

@@ -101,8 +101,10 @@ class MyTripsActivity : AppCompatActivity() {
         val date = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(item.at))
         val tariff = o?.optString("tariff")?.replaceFirstChar { it.uppercase() }.orEmpty()
         box.addView(TextView(c).apply {
-            val pay = when (ride?.payment) { "card" -> t("💳 картой", "💳 card"); "cash" -> t("💵 наличными", "💵 numerar"); else -> "" }
-            text = listOf(date, tariff, if ((o?.optInt("surge") ?: 0) > 0) "+${o!!.optInt("surge")}" else "", pay).filter { it.isNotBlank() }.joinToString(" · ")
+            val pay = when (ride?.payment) { "card" -> t("💳 картой", "💳 card"); "cash" -> t("💵 наличными", "💵 numerar"); else -> "" } +
+                (ride?.balance?.takeIf { it > 0 }?.let { t(" · 🎁 компенсация $it L", " · 🎁 compensare $it L") } ?: "")
+            val service = if (ride?.service == "bolt") "Bolt" else t("Яндекс", "Yandex")
+            text = listOf(date, service, tariff, if ((o?.optInt("surge") ?: 0) > 0) "+${o!!.optInt("surge")}" else "", pay).filter { it.isNotBlank() }.joinToString(" · ")
             textSize = 13f; setTextColor(getColor(R.color.tr_text_secondary))
         })
         val from = o?.optString("from")?.takeIf { it.isNotBlank() } ?: ride?.from.orEmpty()

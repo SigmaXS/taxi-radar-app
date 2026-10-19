@@ -10,19 +10,23 @@ object DriverJournal {
     /** id — номер поездки (тот же client_id на сервере), from/to — откуда и куда. */
     data class Ride(val id: String, val at: Long, val shift: String, val price: Int, val estimate: Int, val km: Double, val pickup: Double, val minutes: Int, val confirmed: Boolean, val area: String, val net: Int, val costsReady: Boolean = false, val from: String = "", val to: String = "",
                     /** "card", "cash" или "" — как платил клиент (с экрана Яндекс Про). */
-                    val payment: String = "")
+                    val payment: String = "",
+                    /** "bolt" или "yandex" ("" — старые записи, это Яндекс). */
+                    val service: String = "",
+                    /** Компенсация Bolt на баланс (скидка пассажиру) — входит в price. */
+                    val balance: Int = 0)
     private fun p(c: Context) = c.getSharedPreferences("driver_journal", Context.MODE_PRIVATE)
     @Synchronized fun rides(c: Context): List<Ride> = try {
         val a = JSONArray(p(c).getString("rides", "[]"))
         (0 until a.length()).map { i -> a.getJSONObject(i).let {
-            Ride(it.getString("id"), it.getLong("at"), it.optString("shift"), it.getInt("price"), it.optInt("estimate"), it.optDouble("km"), it.optDouble("pickup"), it.optInt("minutes"), it.optBoolean("confirmed"), it.optString("area"), it.optInt("net"), it.optBoolean("costsReady"), it.optString("from"), it.optString("to"), it.optString("payment"))
+            Ride(it.getString("id"), it.getLong("at"), it.optString("shift"), it.getInt("price"), it.optInt("estimate"), it.optDouble("km"), it.optDouble("pickup"), it.optInt("minutes"), it.optBoolean("confirmed"), it.optString("area"), it.optInt("net"), it.optBoolean("costsReady"), it.optString("from"), it.optString("to"), it.optString("payment"), it.optString("service"), it.optInt("balance"))
         } }
     } catch (_: Exception) { emptyList() }
 
     @Synchronized private fun write(c: Context, list: List<Ride>) {
         val a = JSONArray()
         val old = rides(c)
-        list.takeLast(2000).forEach { a.put(JSONObject().put("id", it.id).put("at", it.at).put("shift", it.shift).put("price", it.price).put("estimate", it.estimate).put("km", it.km).put("pickup", it.pickup).put("minutes", it.minutes).put("confirmed", it.confirmed).put("area", it.area).put("net", it.net).put("costsReady", it.costsReady).put("from", it.from).put("to", it.to).put("payment", it.payment)) }
+        list.takeLast(2000).forEach { a.put(JSONObject().put("id", it.id).put("at", it.at).put("shift", it.shift).put("price", it.price).put("estimate", it.estimate).put("km", it.km).put("pickup", it.pickup).put("minutes", it.minutes).put("confirmed", it.confirmed).put("area", it.area).put("net", it.net).put("costsReady", it.costsReady).put("from", it.from).put("to", it.to).put("payment", it.payment).put("service", it.service).put("balance", it.balance)) }
         p(c).edit().putString("rides", a.toString()).apply()
         // Поездки закрытой смены поменялись (подтвердили, удалили) — обновить её сохранённые итоги.
         val oldById = old.associateBy { it.id }
@@ -31,10 +35,10 @@ object DriverJournal {
         if (changed.isNotEmpty()) refreshSnapshots(c, changed, list)
     }
     @Synchronized fun add(c: Context, price: Int, estimate: Int, km: Double, pickup: Double, minutes: Int, area: String, confirmed: Boolean,
-                          id: String = UUID.randomUUID().toString(), from: String = "", to: String = "", payment: String = ""): String {
+                          id: String = UUID.randomUUID().toString(), from: String = "", to: String = "", payment: String = "", service: String = "", balance: Int = 0): String {
         if (rides(c).any { it.id == id }) return id
         val net = OrderEconomics.calculate(price, km, pickup, minutes, 0.0, DriverPreferences.costs(c)).net
-        write(c, rides(c) + Ride(id, System.currentTimeMillis(), active(c), price, estimate, km, pickup, minutes, confirmed, area, net, DriverPreferences.costsReady(c), from.take(120), to.take(120), payment))
+        write(c, rides(c) + Ride(id, System.currentTimeMillis(), active(c), price, estimate, km, pickup, minutes, confirmed, area, net, DriverPreferences.costsReady(c), from.take(120), to.take(120), payment, service, balance))
         return id
     }
     @Synchronized fun confirm(c: Context, id: String, price: Int, km: Double, pickup: Double, minutes: Int, area: String) {
@@ -73,7 +77,11 @@ object DriverJournal {
 
     /** Итог смены: оплата, чистыми (если заданы расходы), расходы, пробег, поездки. */
     data class ShiftTotals(val shift: Shift, val rides: Int, val toCheck: Int, val gross: Int, val net: Int?, val paidKm: Double,
-                           val cash: Int = 0, val card: Int = 0)
+                           val cash: Int = 0, val card: Int = 0,
+                           /** Доход отдельно: Bolt и Яндекс. */
+                           val bolt: Int = 0, val yandex: Int = 0,
+                           /** Компенсация Bolt на баланс — отдельно от наличных и карты. */
+                           val balance: Int = 0)
 
     @Synchronized private fun archive(c: Context, s: Shift) {
         val a = try { JSONArray(p(c).getString("shifts", "[]")) } catch (_: Exception) { JSONArray() }
@@ -108,7 +116,7 @@ object DriverJournal {
         for (s in shifts) {
             val t = live(c, s, all)
             snap.put(s.id, JSONObject().put("rides", t.rides).put("toCheck", t.toCheck).put("gross", t.gross).put("net", t.net ?: JSONObject.NULL)
-                .put("paidKm", t.paidKm).put("cash", t.cash).put("card", t.card))
+                .put("paidKm", t.paidKm).put("cash", t.cash).put("card", t.card).put("bolt", t.bolt).put("yandex", t.yandex).put("balance", t.balance))
         }
         // Не копим бесконечно: только смены из архива.
         val keep = shifts(c).map { it.id }.toSet()
@@ -123,7 +131,7 @@ object DriverJournal {
         val o = snapshots(c).optJSONObject(s.id) ?: return t
         if (t.rides + t.toCheck >= o.optInt("rides") + o.optInt("toCheck")) return t
         return ShiftTotals(s, o.optInt("rides"), o.optInt("toCheck"), o.optInt("gross"), if (o.isNull("net")) null else o.optInt("net"),
-            o.optDouble("paidKm", 0.0), o.optInt("cash"), o.optInt("card"))
+            o.optDouble("paidKm", 0.0), o.optInt("cash"), o.optInt("card"), o.optInt("bolt"), o.optInt("yandex"), o.optInt("balance"))
     }
 
     private fun live(c: Context, s: Shift, all: List<Ride>): ShiftTotals {
@@ -136,7 +144,10 @@ object DriverJournal {
             (ok.sumOf { it.net } - s.rent - empty * (if (s.perKm > 0) s.perKm else DriverPreferences.costs(c).perKm)).toInt()
         } else null
         return ShiftTotals(s, ok.size, mine.size - ok.size, gross, net, paidKm,
-            ok.filter { it.payment == "cash" }.sumOf { it.price }, ok.filter { it.payment == "card" }.sumOf { it.price })
+            // Наличные и карта — без компенсации Bolt: она приходит на баланс, а не клиентом.
+            ok.filter { it.payment == "cash" }.sumOf { it.price - it.balance }, ok.filter { it.payment == "card" }.sumOf { it.price - it.balance },
+            ok.filter { it.service == "bolt" }.sumOf { it.price }, ok.filter { it.service != "bolt" }.sumOf { it.price },
+            ok.sumOf { it.balance })
     }
     // ---------- перерыв ----------
 
