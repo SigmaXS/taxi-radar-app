@@ -166,6 +166,7 @@ class FloatingWidgetService : Service() {
             windowManager?.addView(floatingView, layoutParams)
 
             startAutoUpdateLoop()
+            startScoutPing()
         } catch (e: Exception) {
             e.printStackTrace()
             stopSelf()
@@ -500,6 +501,9 @@ class FloatingWidgetService : Service() {
                 driverLon = loc.longitude
                 lastFixAt = System.currentTimeMillis()
                 checkRoadReports(loc.latitude, loc.longitude)
+                // Отъехали больше чем на 300 м — сразу сообщаем разведчику новое место, не ждём 20 с.
+                if (pingAt > 0 && RouteFareCalculator.distanceKm(pingLat, pingLon, loc.latitude, loc.longitude) > 0.3)
+                    serviceScope.launch { pingScout() }
             }
         }
 
@@ -674,6 +678,38 @@ class FloatingWidgetService : Service() {
                 }
                 else -> false
             }
+        }
+    }
+
+    // ---------- разведчик надбавки: место водителя раз в 20 с (и сразу при переезде) ----------
+
+    private var scoutPingJob: Job? = null
+    @Volatile private var pingLat = 0.0
+    @Volatile private var pingLon = 0.0
+    @Volatile private var pingAt = 0L
+    @Volatile private var lastScoutSurge: Int? = null
+
+    private fun startScoutPing() {
+        scoutPingJob?.cancel()
+        scoutPingJob = serviceScope.launch {
+            while (isActive) {
+                pingScout()
+                // «?» (новое место ещё не проверено) — переспрашиваем через 15 с, иначе раз в 20 с.
+                delay(if (lastScoutSurge == null) 15_000 else 20_000)
+            }
+        }
+    }
+
+    /** Сообщить место и взять надбавку разведчика; изменилась — сразу перерисовать виджет. */
+    private suspend fun pingScout() {
+        if (System.currentTimeMillis() - lastFixAt > 2 * 60_000) return
+        val lat = driverLat; val lon = driverLon
+        pingLat = lat; pingLon = lon; pingAt = System.currentTimeMillis()
+        val n = ScoutClient.near(this, lat, lon, TripDestination.current().takeIf { DriverPreferences.flag(this, "destination", true) }, force = true)
+        val surge = n?.surge
+        if (surge != lastScoutSurge) {
+            lastScoutSurge = surge
+            if (!isShowingOrder) refreshData()
         }
     }
 
@@ -953,6 +989,7 @@ class FloatingWidgetService : Service() {
         isRunning = false
         serviceScope.cancel()
         autoUpdateJob?.cancel()
+        scoutPingJob?.cancel()
         orderDisplayJob?.cancel()
         roadJob?.cancel()
         menuCloseJob?.cancel()

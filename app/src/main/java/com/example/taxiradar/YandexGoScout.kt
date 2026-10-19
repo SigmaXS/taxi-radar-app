@@ -171,9 +171,10 @@ object ScoutClient {
 
     @Volatile private var cache: Pair<Long, Near?>? = null
 
-    suspend fun near(c: Context, lat: Double, lon: Double, b: Pair<Double, Double>? = null): Near? {
+    suspend fun near(c: Context, lat: Double, lon: Double, b: Pair<Double, Double>? = null, force: Boolean = false): Near? {
         val now = System.currentTimeMillis()
-        cache?.let { if (now - it.first < 30_000) return it.second }
+        // Виджет берёт из памяти (ответ не старше 20 с); отдельный опрос раз в 20 с идёт мимо памяти.
+        if (!force) cache?.let { if (now - it.first < 20_000) return it.second }
         val body = JSONObject().put("lat", lat).put("lon", lon)
         // Едем по заказу — и точку Б: разведчик проверит её раз в 2–3 минуты, после точек водителей.
         if (b != null) body.put("b_lat", b.first).put("b_lon", b.second)
