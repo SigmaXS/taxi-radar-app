@@ -176,6 +176,20 @@ object TripTracker {
     // (завершил раньше, нажал не там). Такую точку в базу не пишем.
     private const val NEAR_ADDRESS_KM = 1.0
 
+    /** Без подъезда и подписей: «улица Ион Крянгэ, 66, подъезд 3» → «улица ион крянгэ, 66». */
+    private fun baseAddress(a: String) = a.lowercase()
+        .replace(Regex("""(?iu),?\s*(подъезд|подьезд|scara|entrance|вход)\s*\S*"""), "")
+        .replace(Regex("[\u200B\u200C\u200D\uFEFF]"), "").trim().trimEnd(',')
+
+    /**
+     * Клиент действительно поменял Б? Нет, если Б раньше не было видно («?» → адрес)
+     * или изменился только подъезд — иначе поездка зря выпадала из сверки цены («маршрут менялся»).
+     */
+    private fun realChange(old: String, new: String): Boolean {
+        if (old.isBlank() || old.trim() == "?") return false
+        return baseAddress(old) != baseAddress(new)
+    }
+
     /** Экран ожидания у А с выбором маршрута до Б — водитель у пассажира. */
     fun onTripStarted(
         context: Context, route: List<String>, tariff: String, surge: Int,
@@ -191,7 +205,8 @@ object TripTracker {
             if (nowMs - prev.startedAt < 20 * 60_000L &&
                 RouteFareCalculator.addressKey(prev.route.first()).equals(RouteFareCalculator.addressKey(route.first()), true)) {
                 if (!prev.currentB.equals(route.last(), true)) {
-                    prev.currentB = route.last(); prev.routeChanged = true; active = prev
+                    if (realChange(prev.currentB, route.last())) prev.routeChanged = true
+                    prev.currentB = route.last(); active = prev
                 }
                 return
             }
@@ -258,9 +273,10 @@ object TripTracker {
             val next = lines[i + 1]
             if (next.length > 5 && next.any { it.isLetter() } && !notAddress.matches(next)) {
                 if (!next.equals(trip.currentB, true) && !RouteFareCalculator.addressKey(trip.route.last()).equals(RouteFareCalculator.addressKey(next), true)) {
-                    TripLog.d("Адрес Б сменился: «${trip.currentB}» → «$next»")
+                    val really = realChange(trip.currentB, next)
+                    TripLog.d("Адрес Б сменился: «${trip.currentB}» → «$next»" + if (really) "" else " (не смена маршрута)")
                     trip.currentB = next
-                    trip.routeChanged = true
+                    if (really) trip.routeChanged = true
                     prefsCtx?.let { save(it, trip) }
                 }
                 break
