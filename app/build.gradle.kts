@@ -27,8 +27,8 @@ android {
         applicationId = "md.taxiradar.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 22
-        versionName = if (providers.gradleProperty("boltTest").orNull == "true") "2.2-bolt-test5" else "2.2"
+        versionCode = 23
+        versionName = "2.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Только процессоры телефонов и мультимедиа: x86 нужен лишь эмуляторам, а библиотеки OCR весят по 20 МБ на каждый.
         ndk { abiFilters += if (providers.gradleProperty("emulatorOcrTest").orNull == "true") listOf("x86_64") else if (providers.gradleProperty("arm64Only").orNull == "true") listOf("arm64-v8a") else listOf("arm64-v8a", "armeabi-v7a") }
