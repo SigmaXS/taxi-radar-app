@@ -4,6 +4,8 @@
 
     <!-- Интернет и сеть -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Разведчик: остановить зависший Яндекс Go перед перезапуском. -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <!-- Обновление из приложения: скачанный APK отдаём системному установщику -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

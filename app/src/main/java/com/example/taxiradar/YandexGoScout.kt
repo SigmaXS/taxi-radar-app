@@ -88,11 +88,25 @@ object YandexGoScout {
     }
 
     /** Цикл разведчика (из службы радара): точки с сервера → Go в каждой → результат на сервер. */
+    // Сдвиги ~20 м (влево, вправо, вверх, вниз): для Go это «новое место» — он сам перезапрашивает цены
+    // за 1–2 с, без перезапуска; надбавка на 20 м та же.
+    private val shifts = listOf(0.0 to 0.0, 0.0 to 0.00026, 0.0 to -0.00026, 0.00018 to 0.0, -0.00018 to 0.0)
+
+    /** Go завис (вечная загрузка, пропал интернет): на главный экран, остановить Go и открыть заново. */
+    private suspend fun restartGo(c: Context) {
+        TripLog.d("Разведчик: Go не отвечает — перезапускаю его")
+        try { c.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+        delay(1200)
+        try { (c.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).killBackgroundProcesses(PACKAGE) } catch (_: Exception) {}
+        delay(800)
+    }
+
     suspend fun run(c: Context) {
         var lastAddress = ""
         var lastPoint = ""
-        var sinceReload = 0
-        var failed = false
+        var shift = 0
+        var failures = 0
+        var noCarsBefore = false
         while (currentCoroutineContext().isActive && enabled(c)) {
             val tasks = CommunityApi.postBlocking(c, "/api/scout/tasks", JSONObject().put("limit", 20))
             val points = tasks?.optJSONArray("points")
@@ -100,46 +114,49 @@ object YandexGoScout {
                 TripLog.d("Разведчик: этот телефон не в списке SCOUT_DEVICE_IDS на сервере")
                 delay(60_000); continue
             }
-            if (points == null || points.length() == 0) { delay(10_000); continue }
+            if (points == null || points.length() == 0) { delay(5_000); continue }
             for (i in 0 until points.length()) {
                 if (!enabled(c)) return
                 val p = points.getJSONObject(i)
                 val lat = p.getDouble("lat"); val lon = p.getDouble("lon")
                 val point = "$lat,$lon"
-                // Другая точка — ссылка в уже открытый Go: адрес и цены меняются за 1–2 с.
-                // Та же точка, раз в 10 проверок или после сбоя — открываем Go заново: иначе он держит старые цены
-                // (утром «нет машин», хотя Эконом уже появился).
-                val reload = point == lastPoint || failed || ++sinceReload >= 10
-                if (reload) sinceReload = 0
+                // Та же точка подряд или в прошлый раз «нет машин» — открываем чуть в стороне, Go обновит цены сам.
+                if (point == lastPoint || noCarsBefore) shift = (shift + 1) % shifts.size else shift = 0
+                val (dLat, dLon) = shifts[shift]
+                // Перезапуск Go — только если он завис (две проверки подряд без цен).
+                val reload = failures >= 2
+                if (reload) { restartGo(c); failures = 0 }
                 val before = latest?.seq ?: 0
                 val started = System.currentTimeMillis()
                 try {
-                    c.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("yandextaxi://route?start-lat=$lat&start-lon=$lon"))
+                    c.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("yandextaxi://route?start-lat=${lat + dLat}&start-lon=${lon + dLon}"))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or if (reload) Intent.FLAG_ACTIVITY_CLEAR_TASK else 0))
                 } catch (e: Exception) {
                     TripLog.d("Разведчик: Яндекс Go не открылся (${e.javaClass.simpleName}) — он установлен?"); delay(30_000); break
                 }
-                // Ждём новый адрес и цены; при полном перезапуске адрес может совпасть с прошлым — тогда ждём дольше.
+                // Ждём новый экран Go с ценами (после перезапуска — дольше).
                 var screen: Screen? = null
-                while (System.currentTimeMillis() - started < 10_000) {
+                val limit = if (reload) 15_000 else 8_000
+                while (System.currentTimeMillis() - started < limit) {
                     delay(300)
                     val s = latest ?: continue
                     if (s.seq <= before || s.at < started + 400) continue
-                    if (s.address != lastAddress || System.currentTimeMillis() - started > (if (reload) 4_000 else 2_500)) { screen = s; break }
+                    if (s.address != lastAddress || System.currentTimeMillis() - started > 2_500) { screen = s; break }
                 }
                 lastPoint = point
-                if (screen == null) { failed = true; TripLog.d("Разведчик: в точке $point Go не показал цены"); continue }
-                failed = false
+                if (screen == null) { failures++; noCarsBefore = false; TripLog.d("Разведчик: в точке $point Go не показал цены"); continue }
+                failures = 0
                 delay(700) // цены подгружаются чуть позже адреса — берём последний экран
                 val final = latest?.takeIf { it.seq >= screen.seq } ?: screen
                 lastAddress = final.address
                 val values = surges(c, final)
+                noCarsBefore = values.values.all { it == null }
                 val body = JSONObject().put("lat", lat).put("lon", lon).put("values", JSONObject().apply {
                     values.forEach { (k, v) -> put(k, v ?: JSONObject.NULL) }
                 })
                 val reply = CommunityApi.postBlocking(c, "/api/scout/result", body)
                 TripLog.d("Разведчик: ${final.address.take(40)} → цены ${final.prices}, нет машин ${final.noCars}, надбавка ${reply?.opt("value")}" +
-                    " (${System.currentTimeMillis() - started} мс${if (reload) ", заново" else ""})")
+                    " (${System.currentTimeMillis() - started} мс${if (reload) ", Go перезапущен" else if (shift > 0) ", сдвиг" else ""})")
             }
         }
     }
