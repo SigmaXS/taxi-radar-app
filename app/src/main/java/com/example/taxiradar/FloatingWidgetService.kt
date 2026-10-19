@@ -44,6 +44,8 @@ class FloatingWidgetService : Service() {
         // Живой GPS водителя для мгновенного старта маршрута (точка А)
         var driverLat: Double = 47.0245
         var driverLon: Double = 28.8353
+        /** Когда точка водителя последний раз обновлялась (0 — ещё ни разу): Bolt берёт её, не дожидаясь нового GPS. */
+        @Volatile var lastFixAt = 0L
 
         fun showOrderData(price: Int, km: Double, min: Int, pickupKm: Double, stops: Int, bonus: Int = 0, doubts: List<String> = emptyList()) {
             instance?.displayOrder(price, km, min, pickupKm, stops, bonus = bonus, doubts = doubts)
@@ -72,7 +74,7 @@ class FloatingWidgetService : Service() {
         fun showNote(title: String, body: String, colorRes: Int, showMs: Long = 9_000) {
             instance?.displayNote(title, body, colorRes, showMs)
         }
-        fun showBoltNote(title: String, body: String, colorRes: Int, showMs: Long) {
+        fun showBoltNote(title: CharSequence, body: CharSequence, colorRes: Int, showMs: Long) {
             instance?.displayNote(title, body, colorRes, showMs, bolt = true)
         }
         fun clearBoltNote() {
@@ -312,7 +314,7 @@ class FloatingWidgetService : Service() {
         floatingView?.requestLayout()
     }
 
-    fun displayNote(title: String, body: String, colorRes: Int, showMs: Long, bolt: Boolean = false) {
+    fun displayNote(title: CharSequence, body: CharSequence, colorRes: Int, showMs: Long, bolt: Boolean = false) {
         showingBolt = bolt
         orderDisplayJob?.cancel()
         isShowingOrder = true
@@ -322,10 +324,8 @@ class FloatingWidgetService : Service() {
                 setOrderSize(bolt)
                 tvWidgetSurge?.text = title
                 tvWidgetSurge?.setTextColor(getColor(colorRes))
-                tvWidgetSub?.text = if (bolt) SpannableStringBuilder(body).apply {
-                    val end = body.indexOf('\n').let { if (it < 0) body.length else it }
-                    if (body.substringBefore('\n').contains("≈")) setSpan(ForegroundColorSpan(0xFFFF666F.toInt()), 0, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                } else body
+                // Bolt присылает уже размеченный текст (цвета и размеры) — показываем как есть.
+                tvWidgetSub?.text = body
                 tvWidgetSub?.visibility = if (body.isBlank()) View.GONE else View.VISIBLE
             }
             delay(showMs)
@@ -546,10 +546,6 @@ class FloatingWidgetService : Service() {
     private fun hasLocationPermission() =
         checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
                 checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
-
-    /** Когда последний раз узнали, где водитель. 0 — ещё ни разу. */
-    @Volatile
-    private var lastFixAt = 0L
 
     @SuppressLint("MissingPermission")
     private fun forceRequestSingleFix() {

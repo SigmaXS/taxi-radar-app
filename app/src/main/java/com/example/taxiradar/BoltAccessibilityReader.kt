@@ -37,6 +37,8 @@ class BoltAccessibilityReader(private val service: AccessibilityService) {
         }
     }
     companion object {
+        /** Минута на посадку пассажира между подачей и поездкой. */
+        const val BOARDING_MIN = 1.0
         fun supported(pkg: String) = pkg == "ee.mtakso.driver" || pkg.startsWith("ee.mtakso.driver.")
     }
     private fun t(ru: String, ro: String) = DriverUi.t(service, ru, ro)
@@ -94,19 +96,27 @@ class BoltAccessibilityReader(private val service: AccessibilityService) {
         }
         val fixed = snapshot.current ?: return@Runnable
         display(fixed)
-        if (fixed.fare == null && routedGeneration != snapshot.generation && fixed.multiplierKnown &&
-            fixed.boltCategory != null && fixed.addresses.size == 2 && fixed.addresses.none { it.isBlank() }) {
+        // Маршрут (настоящее время по пробкам) — для любого заказа, как только прочитаны оба адреса;
+        // цена с карточки при этом показывается сразу, время уточнится через секунду-две.
+        if (routedGeneration != snapshot.generation && fixed.addresses.size == 2 && fixed.addresses.none { it.isBlank() }) {
             val generation = snapshot.generation
             routedGeneration = generation
+            val started = SystemClock.elapsedRealtime()
             routeJob = scope.launch {
-                val fix = ScreenReaderLocation.fix(service) ?: return@launch
+                // Не ждём новый GPS: виджет и так знает, где водитель (точке не больше 2 минут).
+                val recent = FloatingWidgetService.isRunning && System.currentTimeMillis() - FloatingWidgetService.lastFixAt < 120_000
+                val lat: Double; val lon: Double
+                if (recent) { lat = FloatingWidgetService.driverLat; lon = FloatingWidgetService.driverLon }
+                else { val fix = ScreenReaderLocation.fix(service) ?: return@launch; lat = fix.latitude; lon = fix.longitude }
                 if (generation != snapshot.generation) return@launch
                 val reply = withContext(Dispatchers.IO) {
-                    ScreenTrafficRoute.calculate(service, fix.latitude, fix.longitude, fixed.addresses, 0.0, fixed)
+                    ScreenTrafficRoute.calculate(service, lat, lon, fixed.addresses, BOARDING_MIN, fixed)
                 }
                 if (generation != snapshot.generation) return@launch
                 route = reply.route
+                TripLog.d("BOLT/A11Y маршрут за ${SystemClock.elapsedRealtime() - started} мс: ${reply.error.takeIf { reply.route == null } ?: "ок"}")
                 estimatedFare = BoltFareEstimator.resolve(fixed, route?.trip?.km, route?.trip?.minutes)
+                    ?: if (fixed.fare == null) BoltFareEstimator.estimate(fixed.boltCategory, route?.trip?.km ?: fixed.tripKm, route?.trip?.minutes ?: fixed.tripMinutes, 1.0) else null
                 TripLog.d("BOLT/A11Y estimate=$estimatedFare; route=${reply.error}")
                 snapshot.current?.let { display(it) }
             }
@@ -114,23 +124,49 @@ class BoltAccessibilityReader(private val service: AccessibilityService) {
     }
     private fun display(offer: ScreenOfferParser.Offer) {
         if (!RadarServices.accessibility(service)) return
-        val fare = (offer.fare ?: estimatedFare) ?: run {
-            if (ownsWidget) FloatingWidgetService.clearBoltNote()
-            ownsWidget = false; shown = ""; return
-        }
-        val km = (route?.pickup?.km ?: offer.pickupKm) + (route?.trip?.km ?: offer.tripKm)
+        // Скрытую цену до ответа маршрута оцениваем по км и минутам карточки — не ждём.
+        val fare = offer.fare ?: estimatedFare ?: BoltFareEstimator.estimate(offer.boltCategory, offer.tripKm, offer.tripMinutes, if (offer.multiplierKnown) offer.multiplier else 1.0)
+            ?: run {
+                if (ownsWidget) FloatingWidgetService.clearBoltNote()
+                ownsWidget = false; shown = ""; return
+            }
+        val r = route
+        val km = (r?.pickup?.km ?: offer.pickupKm) + (r?.trip?.km ?: offer.tripKm)
+        // Весь заказ: подача + 1 мин на посадку + поездка; по пробкам (TomTom), пока нет ответа — по Bolt.
+        val minutes = (r?.pickup?.minutes ?: offer.pickupMinutes) + BOARDING_MIN + (r?.trip?.minutes ?: offer.tripMinutes)
         val alreadyNet = BoltWidgetStyle.alreadyNet(service, offer)
         val left = BoltWidgetStyle.netValue(service, fare, alreadyNet, km)
-        val title = (if (offer.fare == null) "≈ " else "") + String.format(Locale.getDefault(), "%.0f L", fare)
-        val net = BoltWidgetStyle.netLine(service, fare, alreadyNet, km)
-        val rate = if (km > 0 && DriverPreferences.flag(service, "bolt_per_km", true)) String.format(Locale.getDefault(), "%.2f L/km", left / km) else ""
-        val body = listOf(net, rate).filter { it.isNotBlank() }.joinToString("\n")
-        val changed = shown != "$title|$body"
-        if (changed) { shown = "$title|$body"; TripLog.d("BOLT/WIDGET: $shown") }
+        val loc = Locale.getDefault()
+        val estimate = offer.fare == null
+        val priceText = (if (estimate) (if (offer.multiplierKnown || estimatedFare != null) "≈ " else t("от ≈ ", "de la ≈ ")) else "") + String.format(loc, "%.0f L", fare)
+        // Цена крупно, рядом мельче — сколько останется (если включено «чистыми»).
+        val title = android.text.SpannableStringBuilder(priceText).apply {
+            if (DriverPreferences.flag(service, "bolt_show_net", true) && left != fare) {
+                val start = length
+                append(t("  чистыми ≈ ", "  net ≈ ") + String.format(loc, "%.0f L", left))
+                setSpan(android.text.style.RelativeSizeSpan(0.42f), start, length, 0)
+                setSpan(android.text.style.ForegroundColorSpan(service.getColor(R.color.tr_text)), start, length, 0)
+            }
+        }
+        val body = android.text.SpannableStringBuilder().apply {
+            val start = length
+            append(t("≈ ${String.format(loc, "%.0f", minutes)} мин весь заказ", "≈ ${String.format(loc, "%.0f", minutes)} min toată cursa"))
+            if (r == null) append(t(" · по Bolt", " · după Bolt"))
+            setSpan(android.text.style.ForegroundColorSpan(service.getColor(R.color.tr_accent)), start, length, 0)
+            setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), start, length, 0)
+            setSpan(android.text.style.RelativeSizeSpan(1.25f), start, length, 0)
+            val rates = listOfNotNull(
+                if (km > 0 && DriverPreferences.flag(service, "bolt_per_km", true)) String.format(loc, "%.1f L/km", left / km) else null,
+                if (minutes > 0) String.format(loc, "%.0f ", left * 60 / minutes) + t("L/час", "L/oră") else null)
+            if (rates.isNotEmpty()) append("\n" + rates.joinToString(" · "))
+        }
+        val key = "$title|$body"
+        val changed = shown != key
+        if (changed) { shown = key; TripLog.d("BOLT/WIDGET: ${key.replace('\n', ' ')}") }
         if (ScreenReaderService.running) return
         if (changed || SystemClock.elapsedRealtime() - lastShownAt >= 2000) {
             lastShownAt = SystemClock.elapsedRealtime()
-            FloatingWidgetService.showBoltNote(title, body, R.color.tr_success, RadarServices.hideMs(service) + 1000)
+            FloatingWidgetService.showBoltNote(title, body, if (estimate) R.color.tr_accent else R.color.tr_success, RadarServices.hideMs(service) + 1000)
         }
         ownsWidget = FloatingWidgetService.isRunning
     }
