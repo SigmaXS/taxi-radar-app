@@ -801,6 +801,8 @@ class FloatingWidgetService : Service() {
             val s = when {
                 scout?.far == true -> 0
                 scout?.surge != null -> scout.surge
+                // Разведчик есть, но данных по точке нет — сайт Яндекса сейчас всегда даёт 0: честнее «?».
+                scout?.scouting == true -> null
                 else -> YandexTaxiSurgeChecker.getSurgePrice(lon, lat, key)
             }
             val now = System.currentTimeMillis()

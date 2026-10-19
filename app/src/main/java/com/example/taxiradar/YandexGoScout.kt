@@ -106,7 +106,9 @@ object YandexGoScout {
                 val started = System.currentTimeMillis()
                 try {
                     c.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("yandextaxi://route?start-lat=$lat&start-lon=$lon"))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        // Заново, а не в уже открытое окно: иначе Go не перезапрашивает цены и держит «—»
+                        // с прошлой проверки (утром «нет машин», хотя Эконом уже появился).
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
                 } catch (e: Exception) {
                     TripLog.d("Разведчик: Яндекс Go не открылся (${e.javaClass.simpleName}) — он установлен?"); delay(30_000); break
                 }
@@ -135,7 +137,8 @@ object YandexGoScout {
 
 /** Радар водителя: надбавка разведчика рядом (раз в цикл обновления). */
 object ScoutClient {
-    data class Near(val surge: Int?, val far: Boolean, val ageSec: Int)
+    /** [scouting] — разведчик работает, но эту точку ещё не проверил или машин нет: «?», а не 0 с сайта. */
+    data class Near(val surge: Int?, val far: Boolean, val ageSec: Int, val scouting: Boolean = false)
 
     @Volatile private var cache: Pair<Long, Near?>? = null
 
@@ -146,7 +149,7 @@ object ScoutClient {
             CommunityApi.postBlocking(c, "/api/scout/near", JSONObject().put("lat", lat).put("lon", lon))
         }
         val r = j?.takeIf { it.optBoolean("ok") }?.let {
-            Near(if (it.isNull("surge")) null else it.optInt("surge"), it.optBoolean("far"), it.optInt("age_s"))
+            Near(if (it.isNull("surge")) null else it.optInt("surge"), it.optBoolean("far"), it.optInt("age_s"), it.optBoolean("scouting"))
         }
         cache = now to r
         return r
