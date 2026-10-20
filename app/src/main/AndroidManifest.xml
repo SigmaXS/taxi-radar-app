@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Разведчик: остановить зависший Яндекс Go перед перезапуском. -->
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Обновление из приложения: скачанный APK отдаём системному установщику -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -72,6 +73,9 @@
             android:exported="false" />
 
         <activity android:name=".MyTripsActivity" android:exported="false" />
+        <activity android:name=".ScoutRestActivity" android:exported="false" android:excludeFromRecents="true"
+            android:launchMode="singleTask" android:taskAffinity="md.taxiradar.scoutrest"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
         <!-- «Поделиться» скриншотом карточки Bolt → расчёт цены, L/час, L/км и маршрута. -->
         <activity android:name=".ScreenshotShareActivity" android:exported="true" android:label="Taxi Radar: разбор заказа">
             <intent-filter>

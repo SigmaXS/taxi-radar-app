@@ -24,6 +24,9 @@ object YandexGoScout {
 
     @Volatile var latest: Screen? = null; private set
     private var seq = 0L
+    /** Когда спец. возможность последний раз прислала экран Go и был ли на нём хоть какой-то текст. */
+    @Volatile private var lastEventAt = 0L
+    @Volatile private var lastBlank = false
 
     fun enabled(c: Context) = DriverPreferences.flag(c, "scout_mode", false)
     fun discount(c: Context, tariff: String) = DriverPreferences.number(c, "scout_disc_$tariff", 0.0).coerceIn(0.0, 90.0)
@@ -71,6 +74,8 @@ object YandexGoScout {
             for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
         }
         walk(root, 0)
+        lastEventAt = System.currentTimeMillis()
+        lastBlank = lines.size < 3 // белый экран / вечная загрузка: Go ничего не пишет
         val s = parse(lines, System.currentTimeMillis())
         if (s.prices.isEmpty() && s.noCars.isEmpty()) return
         latest = s.copy(seq = ++seq)
@@ -92,29 +97,82 @@ object YandexGoScout {
     // за 1–2 с, без перезапуска; надбавка на 20 м та же.
     private val shifts = listOf(0.0 to 0.0, 0.0 to 0.00026, 0.0 to -0.00026, 0.00018 to 0.0, -0.00018 to 0.0)
 
-    /** Go завис (вечная загрузка, пропал интернет): на главный экран, остановить Go и открыть заново. */
+    /** Go завис (вечная загрузка, пропал интернет): убрать его с экрана, остановить и открыть заново. */
     private suspend fun restartGo(c: Context) {
         TripLog.d("Разведчик: Go не отвечает — перезапускаю его")
-        try { c.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+        rest(c)
         delay(1200)
         try { (c.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).killBackgroundProcesses(PACKAGE) } catch (_: Exception) {}
         delay(800)
     }
 
+    /** Пауза между кругами: свой чёрный экран почти без подсветки — Go уходит в фон и не рисует карту, телефон не греется. */
+    private fun rest(c: Context) {
+        try { c.startActivity(Intent(c, ScoutRestActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) } catch (_: Exception) {}
+    }
+
+    private fun notifyBroken(c: Context, text: String?) {
+        val nm = c.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        if (text == null) { nm.cancel(7301); return }
+        if (android.os.Build.VERSION.SDK_INT >= 26)
+            nm.createNotificationChannel(android.app.NotificationChannel("scout", "Разведчик", android.app.NotificationManager.IMPORTANCE_HIGH))
+        val tap = android.app.PendingIntent.getActivity(c, 7301, Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        try {
+            nm.notify(7301, androidx.core.app.NotificationCompat.Builder(c, "scout").setSmallIcon(R.drawable.ic_payments)
+                .setContentTitle("Разведчик не работает").setContentText(text)
+                .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText(text))
+                .setContentIntent(tap).setOngoing(true).build())
+        } catch (_: SecurityException) {}
+    }
+
     suspend fun run(c: Context) {
+        // Экран не гаснет (иначе Go не открыть), но может притухнуть — меньше нагрев.
+        @Suppress("DEPRECATION")
+        val wake = (c.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager)
+            .newWakeLock(android.os.PowerManager.SCREEN_DIM_WAKE_LOCK, "TaxiRadar:scout")
+        try { wake.acquire(); loop(c) } finally { if (wake.isHeld) wake.release(); notifyBroken(c, null) }
+    }
+
+    private suspend fun loop(c: Context) {
         var lastAddress = ""
         var lastPoint = ""
         var shift = 0
         var failures = 0
         var noCarsBefore = false
+        var silent = 0          // Go открывали, а спец. возможность не прислала ни одного экрана
+        var a11yOk = true
+        var statusAt = 0L
+        var resting = false
         while (currentCoroutineContext().isActive && enabled(c)) {
+            // Спец. возможность «включена, но не работает» (бывает после обновления или долгой работы).
+            val ok = OrderAccessibilityService.isConnected && AccessibilityAccess.isEnabled(c) && silent < 3
+            if (ok != a11yOk || System.currentTimeMillis() - statusAt > 60_000) {
+                if (ok != a11yOk) TripLog.d("Разведчик: спец. возможность ${if (ok) "снова работает" else "не работает"}")
+                a11yOk = ok; statusAt = System.currentTimeMillis()
+                CommunityApi.postBlocking(c, "/api/scout/status", JSONObject().put("a11y", ok))
+                notifyBroken(c, if (ok) null else "Спец. возможность Taxi Radar включена, но не работает. Выключите и включите её снова или перезагрузите телефон.")
+            }
+            if (!ok) {
+                // Разрешение выдано с компьютера — перезапускаем службу сами: выключить и включить.
+                if (AccessibilityAccess.canEnableSelf(c)) {
+                    AccessibilityAccess.disableSelf(c); delay(1500); AccessibilityAccess.enableSelf(c)
+                    TripLog.d("Разведчик: перезапустил спец. возможность сам")
+                }
+                silent = 0
+                delay(30_000); continue
+            }
             val tasks = CommunityApi.postBlocking(c, "/api/scout/tasks", JSONObject().put("limit", 20))
             val points = tasks?.optJSONArray("points")
             if (tasks?.optString("code") == "not_scout") {
                 TripLog.d("Разведчик: этот телефон не в списке SCOUT_DEVICE_IDS на сервере")
                 delay(60_000); continue
             }
-            if (points == null || points.length() == 0) { delay(5_000); continue }
+            if (points == null || points.length() == 0) {
+                if (!resting) { rest(c); resting = true }
+                delay(5_000); continue
+            }
+            resting = false
             for (i in 0 until points.length()) {
                 if (!enabled(c)) return
                 val p = points.getJSONObject(i)
@@ -144,8 +202,17 @@ object YandexGoScout {
                     if (s.address != lastAddress || System.currentTimeMillis() - started > 2_500) { screen = s; break }
                 }
                 lastPoint = point
-                if (screen == null) { failures++; noCarsBefore = false; TripLog.d("Разведчик: в точке $point Go не показал цены"); continue }
-                failures = 0
+                if (screen == null) {
+                    noCarsBefore = false
+                    silent = if (lastEventAt < started) silent + 1 else 0
+                    // Go открылся, но на экране ни строчки (вечная загрузка) — перезапуск сразу, не ждём второй неудачи.
+                    val blank = lastEventAt >= started && lastBlank
+                    failures = if (blank) 2 else failures + 1
+                    TripLog.d("Разведчик: в точке $point Go не показал цены${if (blank) " (пустой экран)" else if (lastEventAt < started) " (экран Go не читается)" else ""}")
+                    if (silent >= 3) break
+                    continue
+                }
+                failures = 0; silent = 0
                 delay(700) // цены подгружаются чуть позже адреса — берём последний экран
                 val final = latest?.takeIf { it.seq >= screen.seq } ?: screen
                 lastAddress = final.address

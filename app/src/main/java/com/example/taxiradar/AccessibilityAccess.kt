@@ -48,6 +48,18 @@ object AccessibilityAccess {
         return ok
     }
 
+    /** Выключает службу (для перезапуска: выключить и снова включить; нужно WRITE_SECURE_SETTINGS). */
+    fun disableSelf(context: Context): Boolean = try {
+        val resolver = context.contentResolver
+        val me = component(context)
+        val current = Settings.Secure.getString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+        Settings.Secure.putString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+            current.split(':').filter { it.isNotBlank() && ComponentName.unflattenFromString(it) != me }.joinToString(":"))
+        true
+    } catch (e: Exception) {
+        false
+    }
+
     /** Включает службу сам (нужно разрешение WRITE_SECURE_SETTINGS). */
     fun enableSelf(context: Context): Boolean = try {
         val resolver = context.contentResolver
