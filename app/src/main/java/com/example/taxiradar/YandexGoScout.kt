@@ -63,7 +63,16 @@ object YandexGoScout {
         return Screen(now, 0, address, prices, noCars)
     }
 
-    /** Из спец. возможности: экран Go сменился. */
+    /** Из спец. возможности: Go что-то показал (дёшево, без чтения экрана). */
+    fun ping() { lastEventAt = System.currentTimeMillis() }
+
+    /** Прочитать экран Go сейчас (только пока ждём цены). */
+    private fun readNow() {
+        val root = try { OrderAccessibilityService.instance?.rootInActiveWindow } catch (_: Exception) { null } ?: return
+        if (root.packageName?.toString() != PACKAGE) return
+        onScreen(root)
+    }
+
     fun onScreen(root: AccessibilityNodeInfo?) {
         root ?: return
         val lines = ArrayList<String>()
@@ -74,7 +83,6 @@ object YandexGoScout {
             for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
         }
         walk(root, 0)
-        lastEventAt = System.currentTimeMillis()
         lastBlank = lines.size < 3 // белый экран / вечная загрузка: Go ничего не пишет
         val s = parse(lines, System.currentTimeMillis())
         if (s.prices.isEmpty() && s.noCars.isEmpty()) return
@@ -196,7 +204,8 @@ object YandexGoScout {
                 var screen: Screen? = null
                 val limit = if (reload) 15_000 else 8_000
                 while (System.currentTimeMillis() - started < limit) {
-                    delay(300)
+                    delay(400)
+                    readNow()
                     val s = latest ?: continue
                     if (s.seq <= before || s.at < started + 400) continue
                     if (s.address != lastAddress || System.currentTimeMillis() - started > 2_500) { screen = s; break }
@@ -214,6 +223,7 @@ object YandexGoScout {
                 }
                 failures = 0; silent = 0
                 delay(700) // цены подгружаются чуть позже адреса — берём последний экран
+                readNow()
                 val final = latest?.takeIf { it.seq >= screen.seq } ?: screen
                 lastAddress = final.address
                 val values = surges(c, final)

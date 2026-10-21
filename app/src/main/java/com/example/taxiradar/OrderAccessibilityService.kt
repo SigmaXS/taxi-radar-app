@@ -20,6 +20,10 @@ class OrderAccessibilityService : AccessibilityService() {
         @Volatile
         var isConnected: Boolean = false
             private set
+        /** Подключённая служба — разведчик сам читает экран Go, когда ему нужно. */
+        @Volatile
+        var instance: OrderAccessibilityService? = null
+            private set
     }
 
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -126,6 +130,7 @@ class OrderAccessibilityService : AccessibilityService() {
         CrashReporter.install(this)
         super.onServiceConnected()
         isConnected = true
+        instance = this
         Log.d("ORDER_DEBUG", "★★★ Служба ПОДКЛЮЧЕНА системой ★★★")
     }
 
@@ -139,7 +144,8 @@ class OrderAccessibilityService : AccessibilityService() {
         boltReader.event(event)
         if (BoltAccessibilityReader.supported(pkg)) return
         // Телефон-разведчик: экран Яндекс Go — только цены для разведчика, не заказ Яндекс Про.
-        if (pkg == YandexGoScout.PACKAGE) { if (YandexGoScout.enabled(this)) YandexGoScout.onScreen(rootInActiveWindow); return }
+        // Экран не обходим на каждое событие (карта Go шлёт их без конца — нагрев): разведчик читает его сам, когда ждёт цены.
+        if (pkg == YandexGoScout.PACKAGE) { if (YandexGoScout.enabled(this)) YandexGoScout.ping(); return }
         if (!RadarServices.yandex(this)) return
 
         if (isDialer(pkg)) {
@@ -929,12 +935,14 @@ class OrderAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         isConnected = false
+        instance = null
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
         boltReader.close()
         isConnected = false
+        instance = null
         super.onDestroy()
     }
 }
