@@ -72,6 +72,8 @@ class AirportActivity : AppCompatActivity() {
             return
         }
         tvQueue.text = s.queue.toString()
+        // Очередь — только когда в аэропорту правда кто-то стоит; никого нет — карточку не показываем.
+        ((tvQueue.parent as View).parent as View).visibility = if (s.queue > 0) View.VISIBLE else View.GONE
         renderTaxiQueue(s)
         empty.visibility = if (s.flights.isEmpty()) View.VISIBLE else View.GONE
         empty.setText(R.string.airport_no_flights)
@@ -108,6 +110,9 @@ class AirportActivity : AppCompatActivity() {
         val parent = anchor.parent as LinearLayout
         val old = parent.findViewWithTag<View>("taxiQueue")
         if (old != null) parent.removeView(old)
+        // Свежих отметок с экрана Яндекс Про нет (никто из наших не стоит в аэропорту) — очередь не показываем.
+        val fresh = s.taxi.filterValues { it != null && it.ageMin <= 20 }
+        if (fresh.isEmpty()) return
         val card = com.google.android.material.card.MaterialCardView(this).apply {
             tag = "taxiQueue"; radius = DriverUi.dp(this@AirportActivity, 20).toFloat()
             setCardBackgroundColor(getColor(R.color.tr_surface)); strokeColor = getColor(R.color.tr_accent); strokeWidth = DriverUi.dp(this@AirportActivity, 1)
@@ -119,7 +124,7 @@ class AirportActivity : AppCompatActivity() {
         })
         val names = mapOf("econom" to t("Эконом", "Econom"), "comfort" to t("Комфорт", "Confort"), "comfortplus" to t("Комфорт+", "Confort+"))
         for ((k, label) in names) {
-            val q = s.taxi[k]
+            val q = fresh[k] ?: continue
             val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, DriverUi.dp(this@AirportActivity, 10), 0, 0) }
             row.addView(TextView(this).apply { text = label; textSize = 16f; setTypeface(null, Typeface.BOLD); setTextColor(getColor(R.color.tr_text)) },
                 LinearLayout.LayoutParams(DriverUi.dp(this@AirportActivity, 100), -2))
