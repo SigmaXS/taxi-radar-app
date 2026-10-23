@@ -37,6 +37,8 @@ class FloatingWidgetService : Service() {
     companion object {
         // Отключение/бан в админке выбивает работающий радар в течение этого времени.
         private const val LICENSE_RECHECK_MS = 2 * 60_000L
+        /** Надбавку узнать не удалось — только три точки, без пояснений. */
+        private const val UNKNOWN = "…"
 
         var isRunning: Boolean = false
         private var instance: FloatingWidgetService? = null
@@ -671,8 +673,8 @@ class FloatingWidgetService : Service() {
                     if (!isMoved) {
                         val opening = reportMenu?.visibility != View.VISIBLE
                         toggleReportMenu(opening)
-                        // Заодно обновить надбавку — как раньше по нажатию на кружок.
-                        if (opening) refreshData()
+                        // Заодно обновить надбавку, а разведчик проверит место водителя первым.
+                        if (opening) { refreshData(); urgentScout() }
                     }
                     true
                 }
@@ -697,6 +699,20 @@ class FloatingWidgetService : Service() {
                 // «?» (новое место ещё не проверено) — переспрашиваем через 15 с, иначе раз в 20 с.
                 delay(if (lastScoutSurge == null) 15_000 else 20_000)
             }
+        }
+    }
+
+    private var urgentJob: Job? = null
+    /** Когда сайт Яндекса последний раз показал надбавку (> 0): значит, он снова отдаёт настоящие цены. */
+    @Volatile private var siteSurgeAt = 0L
+
+    /** Нажали на кружок: разведчик берёт эту точку вне очереди; минуту переспрашиваем каждые 5 с. */
+    private fun urgentScout() {
+        if (urgentJob?.isActive == true || System.currentTimeMillis() - lastFixAt > 2 * 60_000) return
+        urgentJob = serviceScope.launch(Dispatchers.IO) {
+            ScoutClient.near(this@FloatingWidgetService, driverLat, driverLon,
+                TripDestination.current().takeIf { DriverPreferences.flag(this@FloatingWidgetService, "destination", true) }, force = true, urgent = true)
+            repeat(10) { delay(5_000); pingScout() }
         }
     }
 
@@ -826,16 +842,20 @@ class FloatingWidgetService : Service() {
         var missing = false
         var hereValue: Int? = null
         val lat = driverLat; val lon = driverLon
-        // Сайт Яндекса сейчас отдаёт только старт тарифа — надбавку берём у разведчика (Яндекс Go), она одна на все тарифы.
-        // Дальше 20 км от Кишинёва — 0. Разведчик точку ещё не проверил — как раньше, с сайта.
+        // Главный источник — сайт Яндекса (ровные +15/+35/+55). С 16 по ~23.10 он отдавал только старт тарифа
+        // (всегда 0) — тогда выручает разведчик (Яндекс Go). Сайт «жив», если за 2 часа хоть раз показал надбавку.
+        // Дальше 20 км от Кишинёва — 0. Не узнали ни там, ни там — «…», без пояснений.
         val scout = ScoutClient.near(this, lat, lon, TripDestination.current().takeIf { DriverPreferences.flag(this, "destination", true) })
         val parts = tariffs.map { (label, key) ->
+            val site = if (scout?.far == true) 0 else YandexTaxiSurgeChecker.getSurgePrice(lon, lat, key)
+            if (site != null && site > 0) siteSurgeAt = System.currentTimeMillis()
+            val siteAlive = System.currentTimeMillis() - siteSurgeAt < 2 * 3600_000
             val s = when {
                 scout?.far == true -> 0
+                site != null && (site > 0 || siteAlive) -> site
                 scout?.surge != null -> scout.surge
-                // Разведчик есть, но данных по точке нет — сайт Яндекса сейчас всегда даёт 0: честнее «?».
                 scout?.scouting == true -> null
-                else -> YandexTaxiSurgeChecker.getSurgePrice(lon, lat, key)
+                else -> site
             }
             val now = System.currentTimeMillis()
             if (s != null) surgeSnapshots[key] = SurgeSnapshot(s, now, lat, lon)
@@ -843,7 +863,7 @@ class FloatingWidgetService : Service() {
             if (s == null) { missing = true; staleAge = old?.let { (now - it.at) / 60000 } }
             val shown = s ?: old?.value
             if (hereValue == null) hereValue = shown
-            val value = when { shown == null -> "?"; shown > 0 -> { hasSurge = true; WidgetStyle.value(this, shown) }; else -> "0" }
+            val value = when { shown == null -> UNKNOWN; shown > 0 -> { hasSurge = true; WidgetStyle.value(this, shown) }; else -> "0" }
             getString(label) to value
         }
         // Буква тарифа — мелко («Э», «К+»), сама надбавка — крупно: её видно с одного взгляда.
@@ -862,15 +882,16 @@ class FloatingWidgetService : Service() {
         val key = tariffs.firstOrNull()?.second
         if (dest != null && key != null) {
             val here = hereValue
-            // Б — тоже от разведчика; не проверил ещё — «?», а не 0 с сайта (если разведчик работает).
-            val atB = scout?.surgeB ?: if (scout?.scouting == true) null else YandexTaxiSurgeChecker.getSurgePrice(dest.second, dest.first, key)
+            // Б — тоже от разведчика; не проверил ещё — «…».
+            val atB = YandexTaxiSurgeChecker.getSurgePrice(dest.second, dest.first, key)
+                ?.takeIf { it > 0 || System.currentTimeMillis() - siteSurgeAt < 2 * 3600_000 } ?: scout?.surgeB
             fun line(sb: SpannableStringBuilder, label: String, v: Int?) {
                 val hot = v != null && v > 0
                 val start = sb.length
                 sb.append(WidgetStyle.label(this@FloatingWidgetService, label))
                 sb.setSpan(android.text.style.RelativeSizeSpan(WidgetStyle.labelScale(this@FloatingWidgetService)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 val vStart = sb.length
-                sb.append(if (v == null) "?" else if (hot) WidgetStyle.value(this@FloatingWidgetService, v) else "0")
+                sb.append(if (v == null) UNKNOWN else if (hot) WidgetStyle.value(this@FloatingWidgetService, v) else "0")
                 sb.setSpan(
                     ForegroundColorSpan(if (hot) WidgetStyle.surgeColor(this@FloatingWidgetService) else WidgetStyle.calmColor(this@FloatingWidgetService)),
                     start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -888,7 +909,7 @@ class FloatingWidgetService : Service() {
             // Б на экране есть, но ещё не найден на карте — показываем, что радар о нём знает.
             displayText = SpannableStringBuilder(displayText).append("\n").also {
                 val start = it.length
-                it.append(getString(R.string.widget_point_b) + " ?")
+                it.append(getString(R.string.widget_point_b) + " " + UNKNOWN)
                 it.setSpan(ForegroundColorSpan(getColor(R.color.tr_text_muted)), start, it.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
@@ -908,7 +929,7 @@ class FloatingWidgetService : Service() {
                 val start = sb.length
                 sb.append(WidgetStyle.label(this@FloatingWidgetService, getString(R.string.tariff_delivery_short)))
                 sb.setSpan(android.text.style.RelativeSizeSpan(WidgetStyle.labelScale(this@FloatingWidgetService)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                sb.append(when { shown == null -> "?"; shown > 0 -> WidgetStyle.value(this@FloatingWidgetService, shown); else -> "0" })
+                sb.append(when { shown == null -> UNKNOWN; shown > 0 -> WidgetStyle.value(this@FloatingWidgetService, shown); else -> "0" })
                 sb.setSpan(ForegroundColorSpan(if (shown != null && shown > 0) WidgetStyle.surgeColor(this@FloatingWidgetService) else WidgetStyle.calmColor(this@FloatingWidgetService)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
@@ -919,13 +940,8 @@ class FloatingWidgetService : Service() {
                 tvWidgetSurge?.text = displayText
                 // Подпись — только если что-то не так; «проверено в 23:29» не нужно:
                 // надбавка и так обновляется сама.
-                if (missing) {
-                    tvWidgetSub?.text = if (staleAge != null) DriverUi.t(this@FloatingWidgetService, "Старые данные · $staleAge мин", "Date vechi · $staleAge min")
-                    else DriverUi.t(this@FloatingWidgetService, "Нет данных · проверьте связь", "Fără date · verificați conexiunea")
-                    tvWidgetSub?.visibility = View.VISIBLE
-                } else {
-                    tvWidgetSub?.visibility = View.GONE
-                }
+                // Не узнали надбавку — просто «…» в кружке, без «нет данных» и «старые данные».
+                tvWidgetSub?.visibility = View.GONE
                 val style = this@FloatingWidgetService
                 tvWidgetSurge?.setTextColor(if (hasSurge) WidgetStyle.surgeColor(style) else WidgetStyle.calmColor(style))
                 tintPlusColor(if (hasSurge) WidgetStyle.surgeColor(style) else WidgetStyle.calmColor(style))

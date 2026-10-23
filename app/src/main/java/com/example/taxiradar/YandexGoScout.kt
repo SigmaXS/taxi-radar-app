@@ -248,11 +248,13 @@ object ScoutClient {
 
     @Volatile private var cache: Pair<Long, Near?>? = null
 
-    suspend fun near(c: Context, lat: Double, lon: Double, b: Pair<Double, Double>? = null, force: Boolean = false): Near? {
+    suspend fun near(c: Context, lat: Double, lon: Double, b: Pair<Double, Double>? = null, force: Boolean = false, urgent: Boolean = false): Near? {
         val now = System.currentTimeMillis()
         // Виджет берёт из памяти (ответ не старше 20 с); отдельный опрос раз в 20 с идёт мимо памяти.
         if (!force) cache?.let { if (now - it.first < 20_000) return it.second }
         val body = JSONObject().put("lat", lat).put("lon", lon)
+        // Нажали на виджет — разведчик проверит эту точку первой.
+        if (urgent) body.put("urgent", true)
         // Едем по заказу — и точку Б: разведчик проверит её раз в 2–3 минуты, после точек водителей.
         if (b != null) body.put("b_lat", b.first).put("b_lon", b.second)
         val j = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -264,5 +266,16 @@ object ScoutClient {
         }
         cache = now to r
         return r
+    }
+
+    data class Probe(val surge: Int?, val exact: Boolean)
+
+    /** Флажок на карте: надбавка в точке; exact = false — разведчик её ещё не проверил (точка уже у него первой). */
+    suspend fun probe(c: Context, lat: Double, lon: Double): Probe? {
+        val j = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            CommunityApi.postBlocking(c, "/api/scout/probe", JSONObject().put("lat", lat).put("lon", lon))
+        } ?: return null
+        if (!j.optBoolean("ok")) return null
+        return Probe(if (j.isNull("surge")) null else j.optInt("surge"), j.optBoolean("exact"))
     }
 }
