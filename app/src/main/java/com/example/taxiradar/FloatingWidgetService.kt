@@ -751,8 +751,7 @@ class FloatingWidgetService : Service() {
         val dir = dirs[((best.bearing + 22.5) / 45).toInt() % 8]
         val km = if (best.km < 2) "1,5" else "3"
         OverlayPopup.show(this, DriverUi.t(this, "🔥 Рядом +${best.value}", "🔥 Aproape +${best.value}"),
-            DriverUi.t(this, "≈ $km км на $dir · у вас ${if (here > 0) "+$here" else "0"}",
-                "≈ $km km spre $dir · la dvs. ${if (here > 0) "+$here" else "0"}"),
+            DriverUi.t(this, "≈ $km км на $dir", "≈ $km km spre $dir"),
             R.color.tr_warning, showMs = 15_000)
     }
     /** Когда сайт Яндекса последний раз показал надбавку (> 0): значит, он снова отдаёт настоящие цены. */
