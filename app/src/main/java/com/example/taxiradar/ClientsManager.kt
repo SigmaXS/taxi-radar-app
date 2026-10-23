@@ -180,6 +180,15 @@ object ClientsManager {
                 text,
                 if (warn) R.color.tr_danger else R.color.tr_success
             )
+            // Плашка сверху — видна всегда, даже если система не показывает уведомление; там же отметки.
+            OverlayPopup.show(app, app.getString(R.string.clients_notif_title, PhoneNumbers.tail(number)), text,
+                if (warn) R.color.tr_danger else R.color.tr_success, showMs = 20_000,
+                actions = listOf("noshow", "ok").map { t ->
+                    OverlayPopup.Action(app.getString(TAGS.getValue(t))) { tagFromNotification(app, number, t) {} }
+                } + OverlayPopup.Action(DriverUi.t(app, "Ещё…", "Alte…")) {
+                    app.startActivity(Intent(app, ClientsActivity::class.java).putExtra("number", number).putExtra("tags", true)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                })
             notify(app, number, text)
         }
     }

@@ -169,6 +169,7 @@ class FloatingWidgetService : Service() {
 
             startAutoUpdateLoop()
             startScoutPing()
+            startNearbySurge()
         } catch (e: Exception) {
             e.printStackTrace()
             stopSelf()
@@ -703,6 +704,57 @@ class FloatingWidgetService : Service() {
     }
 
     private var urgentJob: Job? = null
+
+    // ---------- «рядом надбавка»: свободен, а в 1,5–3 км заметно дороже — плашка сверху ----------
+
+    @Volatile private var lastHere: Int? = null
+    @Volatile private var mainTariff = "econom"
+    private var nearbyJob: Job? = null
+    private var nearbyAlertAt = 0L
+    private var nearbyAlertValue = 0
+
+    private fun startNearbySurge() {
+        nearbyJob?.cancel()
+        nearbyJob = serviceScope.launch {
+            delay(60_000)
+            while (isActive) {
+                try { checkNearbySurge() } catch (_: Exception) {}
+                delay(3 * 60_000)
+            }
+        }
+    }
+
+    private suspend fun checkNearbySurge() {
+        if (!DriverPreferences.flag(this, "nearby_surge", true)) return
+        // На заказе (едем к клиенту или везём) — не отвлекаем.
+        if (isShowingOrder || TripTracker.inTrip() || TripDestination.current() != null) return
+        if (System.currentTimeMillis() - lastFixAt > 2 * 60_000) return
+        val here = lastHere ?: return
+        val lat = driverLat; val lon = driverLon
+        // 8 точек: 1,5 км по сторонам света и 3 км по диагоналям.
+        val spots = listOf(0.0, 90.0, 180.0, 270.0).map { it to 1.5 } + listOf(45.0, 135.0, 225.0, 315.0).map { it to 3.0 }
+        data class Hit(val value: Int, val km: Double, val bearing: Double)
+        val hits = spots.mapNotNull { (bearing, km) ->
+            val r = Math.toRadians(bearing)
+            val pLat = lat + km / 111.0 * Math.cos(r)
+            val pLon = lon + km / (111.0 * Math.cos(Math.toRadians(lat))) * Math.sin(r)
+            YandexTaxiSurgeChecker.getSurgePrice(pLon, pLat, mainTariff)?.let { Hit(it, km, bearing) }
+        }
+        // Только если рядом дороже, чем здесь: такая же или ниже — молчим.
+        val best = hits.filter { it.value > here }.maxWithOrNull(compareBy<Hit> { it.value }.thenBy { -it.km }) ?: return
+        val now = System.currentTimeMillis()
+        // Не чаще раза в 15 минут, если только рядом не стало ещё дороже.
+        if (now - nearbyAlertAt < 15 * 60_000 && best.value <= nearbyAlertValue) return
+        nearbyAlertAt = now; nearbyAlertValue = best.value
+        val dirs = DriverUi.t(this, "север|северо-восток|восток|юго-восток|юг|юго-запад|запад|северо-запад",
+            "nord|nord-est|est|sud-est|sud|sud-vest|vest|nord-vest").split('|')
+        val dir = dirs[((best.bearing + 22.5) / 45).toInt() % 8]
+        val km = if (best.km < 2) "1,5" else "3"
+        OverlayPopup.show(this, DriverUi.t(this, "🔥 Рядом +${best.value}", "🔥 Aproape +${best.value}"),
+            DriverUi.t(this, "≈ $km км на $dir · у вас ${if (here > 0) "+$here" else "0"}",
+                "≈ $km km spre $dir · la dvs. ${if (here > 0) "+$here" else "0"}"),
+            R.color.tr_warning, showMs = 15_000)
+    }
     /** Когда сайт Яндекса последний раз показал надбавку (> 0): значит, он снова отдаёт настоящие цены. */
     @Volatile private var siteSurgeAt = 0L
 
@@ -916,6 +968,7 @@ class FloatingWidgetService : Service() {
 
         // Нет спроса рядом — напомнить включить «Только наличными» (раз в 15 мин, пока не включат).
         if (!isShowingOrder) CashReminder.check(this, hereValue)
+        lastHere = hereValue; tariffs.firstOrNull()?.second?.let { mainTariff = it }
 
         // Доставка — своей строкой: «Д +20» (в любом режиме, и в поездке с «Я / Б»).
         if (showExpress) {

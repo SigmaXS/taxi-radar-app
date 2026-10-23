@@ -91,7 +91,6 @@ object CashReminder {
 
     private fun notify(c: Context) {
         val nm = c.getSystemService(NotificationManager::class.java) ?: return
-        if (!nm.areNotificationsEnabled()) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             nm.createNotificationChannel(NotificationChannel("cash_mode", DriverUi.t(c, "Оплата наличными", "Plată numerar"), NotificationManager.IMPORTANCE_DEFAULT))
         // Нажатие — сразу в Яндекс Про, там Профиль → Оплата.
@@ -101,6 +100,9 @@ object CashReminder {
         val text = DriverUi.t(c,
             "Рядом нет спроса — можно на час включить оплату только наличными: Яндекс Про → Профиль → Оплата → «Наличными». Осталось раз сегодня: $left.",
             "Nu e cerere în apropiere — puteți activa pe o oră doar numerar: Yandex Pro → Profil → Plata → «Numerar». Rămase azi: $left.")
+        // Системное уведомление на Xiaomi часто не всплывает — плашка поверх экрана видна всегда.
+        OverlayPopup.show(c, DriverUi.t(c, "💵 Включите «Только наличными»", "💵 Activați «Doar numerar»"), text, R.color.tr_warning,
+            showMs = 15_000, onTap = { yandex?.let { c.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } })
         try {
             nm.notify(ID, NotificationCompat.Builder(c, "cash_mode").setSmallIcon(R.drawable.ic_payments)
                 .setContentTitle(DriverUi.t(c, "Включите «Только наличными»", "Activați «Doar numerar»"))
