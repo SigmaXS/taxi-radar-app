@@ -716,7 +716,7 @@ class FloatingWidgetService : Service() {
     private fun startNearbySurge() {
         nearbyJob?.cancel()
         nearbyJob = serviceScope.launch {
-            delay(60_000)
+            delay(20_000)
             while (isActive) {
                 try { checkNearbySurge() } catch (_: Exception) {}
                 delay(3 * 60_000)
@@ -731,8 +731,9 @@ class FloatingWidgetService : Service() {
         if (System.currentTimeMillis() - lastFixAt > 2 * 60_000) return
         val here = lastHere ?: return
         val lat = driverLat; val lon = driverLon
-        // 8 точек: 1,5 км по сторонам света и 3 км по диагоналям.
-        val spots = listOf(0.0, 90.0, 180.0, 270.0).map { it to 1.5 } + listOf(45.0, 135.0, 225.0, 315.0).map { it to 3.0 }
+        // Два кольца по 8 направлений: 1 км и 2 км (раньше 4+4 точки — пятно в километре проскакивало между ними).
+        val bearings = (0 until 8).map { it * 45.0 }
+        val spots = bearings.map { it to 1.0 } + bearings.map { (it + 22.5) to 2.0 }
         data class Hit(val value: Int, val km: Double, val bearing: Double)
         val hits = spots.mapNotNull { (bearing, km) ->
             val r = Math.toRadians(bearing)
@@ -749,7 +750,7 @@ class FloatingWidgetService : Service() {
         val dirs = DriverUi.t(this, "север|северо-восток|восток|юго-восток|юг|юго-запад|запад|северо-запад",
             "nord|nord-est|est|sud-est|sud|sud-vest|vest|nord-vest").split('|')
         val dir = dirs[((best.bearing + 22.5) / 45).toInt() % 8]
-        val km = if (best.km < 2) "1,5" else "3"
+        val km = if (best.km < 1.5) "1" else "2"
         OverlayPopup.show(this, DriverUi.t(this, "🔥 Рядом +${best.value}", "🔥 Aproape +${best.value}"),
             DriverUi.t(this, "≈ $km км на $dir", "≈ $km km spre $dir"),
             R.color.tr_warning, showMs = 15_000)
