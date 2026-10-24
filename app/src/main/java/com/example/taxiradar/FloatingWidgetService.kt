@@ -731,15 +731,17 @@ class FloatingWidgetService : Service() {
         if (System.currentTimeMillis() - lastFixAt > 2 * 60_000) return
         val here = lastHere ?: return
         val lat = driverLat; val lon = driverLon
-        // Два кольца по 8 направлений: 1 км и 2 км (раньше 4+4 точки — пятно в километре проскакивало между ними).
+        // Два кольца по 8 направлений. Днём далеко не ездят — 0,75 и 1,5 км; ночью (22:00–6:00) машин мало — 1,5 и 3 км.
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val (near, far) = if (hour >= 22 || hour < 6) 1.5 to 3.0 else 0.75 to 1.5
         val bearings = (0 until 8).map { it * 45.0 }
-        val spots = bearings.map { it to 1.0 } + bearings.map { (it + 22.5) to 2.0 }
-        data class Hit(val value: Int, val km: Double, val bearing: Double)
+        val spots = bearings.map { it to near } + bearings.map { (it + 22.5) to far }
+        data class Hit(val value: Int, val km: Double, val bearing: Double, val lat: Double, val lon: Double)
         val hits = spots.mapNotNull { (bearing, km) ->
             val r = Math.toRadians(bearing)
             val pLat = lat + km / 111.0 * Math.cos(r)
             val pLon = lon + km / (111.0 * Math.cos(Math.toRadians(lat))) * Math.sin(r)
-            YandexTaxiSurgeChecker.getSurgePrice(pLon, pLat, mainTariff)?.let { Hit(it, km, bearing) }
+            YandexTaxiSurgeChecker.getSurgePrice(pLon, pLat, mainTariff)?.let { Hit(it, km, bearing, pLat, pLon) }
         }
         // Только если рядом дороже, чем здесь: такая же или ниже — молчим.
         val best = hits.filter { it.value > here }.maxWithOrNull(compareBy<Hit> { it.value }.thenBy { -it.km }) ?: return
@@ -747,12 +749,23 @@ class FloatingWidgetService : Service() {
         // Не чаще раза в 15 минут, если только рядом не стало ещё дороже.
         if (now - nearbyAlertAt < 15 * 60_000 && best.value <= nearbyAlertValue) return
         nearbyAlertAt = now; nearbyAlertValue = best.value
-        val dirs = DriverUi.t(this, "север|северо-восток|восток|юго-восток|юг|юго-запад|запад|северо-запад",
-            "nord|nord-est|est|sud-est|sud|sud-vest|vest|nord-vest").split('|')
-        val dir = dirs[((best.bearing + 22.5) / 45).toInt() % 8]
-        val km = if (best.km < 1.5) "1" else "2"
-        OverlayPopup.show(this, DriverUi.t(this, "🔥 Рядом +${best.value}", "🔥 Aproape +${best.value}"),
-            DriverUi.t(this, "≈ $km км на $dir", "≈ $km km spre $dir"),
+        val km = String.format(java.util.Locale("ru"), "%.1f", best.km).removeSuffix(",0")
+        // Где это: район и ближайшая улица с домом («Ботаника · ул. Дечебал 44»). Сторона света водителю ничего не говорит.
+        val place = CommunityApi.postBlocking(this, "/api/geocode/reverse", org.json.JSONObject().put("lat", best.lat).put("lon", best.lon))
+            ?.takeIf { it.optBoolean("ok") }
+        val district = place?.optString("district").orEmpty()
+        val street = place?.optString("street").orEmpty()
+            .replace(Regex("^улица\\s+"), "ул. ").replace(Regex("^бульвар\\s+"), "бул. ").replace(Regex("^проспект\\s+"), "пр. ")
+        val house = place?.optString("house").orEmpty()
+        val where = listOf(district, listOf(street, house).filter { it.isNotBlank() }.joinToString(" ").let { if (it.isNotBlank()) "≈ $it" else "" })
+            .filter { it.isNotBlank() }.joinToString(" · ")
+        val text = if (where.isNotBlank()) "$where · ≈ $km ${DriverUi.t(this, "км", "km")}" else {
+            val dirs = DriverUi.t(this, "север|северо-восток|восток|юго-восток|юг|юго-запад|запад|северо-запад",
+                "nord|nord-est|est|sud-est|sud|sud-vest|vest|nord-vest").split('|')
+            DriverUi.t(this, "≈ $km км на ${dirs[((best.bearing + 22.5) / 45).toInt() % 8]}",
+                "≈ $km km spre ${dirs[((best.bearing + 22.5) / 45).toInt() % 8]}")
+        }
+        OverlayPopup.show(this, DriverUi.t(this, "🔥 Рядом +${best.value}", "🔥 Aproape +${best.value}"), text,
             R.color.tr_warning, showMs = 15_000)
     }
     /** Когда сайт Яндекса последний раз показал надбавку (> 0): значит, он снова отдаёт настоящие цены. */
