@@ -712,12 +712,15 @@ class OrderAccessibilityService : AccessibilityService() {
      * на карточке их не подписал. Ждём не больше 5 с; нет ответа или маршрут не похож на наш — null (считаем как раньше).
      */
     private suspend fun trafficPrice(route: List<String>, tariff: String, surgeBonus: Int,
-                                     our: RouteFareCalculator.FareResult): RouteFareCalculator.FareResult? {
+                                     our: RouteFareCalculator.FareResult, pickupKm: Double): RouteFareCalculator.FareResult? {
         val recent = FloatingWidgetService.isRunning && System.currentTimeMillis() - FloatingWidgetService.lastFixAt < 120_000
         if (!recent) return null
         val reply = withTimeoutOrNull(5_000) {
             withContext(Dispatchers.IO) {
-                ScreenTrafficRoute.calculate(this@OrderAccessibilityService, FloatingWidgetService.driverLat, FloatingWidgetService.driverLon, route, 0.0)
+                // Адреса сервер ищет сам (Яндекс + TomTom по-румынски) и берёт пару, которая сходится с подачей
+                // с карточки и с нашим км по OSRM — в TomTom уходят уже координаты, не текст.
+                ScreenTrafficRoute.calculate(this@OrderAccessibilityService, FloatingWidgetService.driverLat, FloatingWidgetService.driverLon, route, 0.0,
+                    pickupKm = pickupKm.takeIf { it > 0 }, tripKm = (our.cityKm + our.outOfCityKm).takeIf { it > 0 })
             }
         } ?: return null
         val trip = reply.route?.trip ?: return null
@@ -787,7 +790,7 @@ class OrderAccessibilityService : AccessibilityService() {
                 Log.d("FARE_CALC", "Маршрут с карточки ${cardRoute.km} км не похож на наш ${"%.1f".format(ourKm)} км — не используем")
             }
         } else if (result != null && route.size == 2 &&
-            trafficPrice(route, tariff, surgeBonus, result)?.also { result = it } != null) {
+            trafficPrice(route, tariff, surgeBonus, result, pickupKm)?.also { result = it } != null) {
             // Яндекс на карточке км и минуты поездки не подписал — взяли минуты TomTom с живыми пробками.
         } else if (result != null && result.durationMin > MAX_UNLABELED_MIN) {
             // Подписей на карточке нет — значит, по расчёту Яндекса поездка короче
