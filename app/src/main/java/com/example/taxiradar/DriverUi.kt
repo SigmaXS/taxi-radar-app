@@ -96,7 +96,11 @@ object DriverUi {
         layoutParams = LinearLayout.LayoutParams(-1, -2)
         setOnClickListener { action() }; parent.addView(this)
     }
-    fun navigationCard(c: Context, parent: LinearLayout, title: String, sub: String, open: () -> Unit) {
+    fun navigationCard(c: Context, parent: LinearLayout, title: String, sub: String, open: () -> Unit) =
+        navigationCard(c, parent, title, sub, R.drawable.ic_text_size, R.color.ic_teal, R.color.ic_teal_bg, open)
+
+    /** Строка-переход: цветная иконка в кружке, заголовок, подпись и «›». */
+    fun navigationCard(c: Context, parent: LinearLayout, title: String, sub: String, icon: Int, tint: Int, tintBg: Int, open: () -> Unit) {
         val d = { n: Int -> dp(c, n) }
         val card = com.google.android.material.card.MaterialCardView(c).apply {
             radius = d(22).toFloat(); strokeWidth = d(1); strokeColor = c.getColor(R.color.tr_console_border)
@@ -106,15 +110,15 @@ object DriverUi {
         }
         val row = LinearLayout(c).apply { gravity = android.view.Gravity.CENTER_VERTICAL; setPadding(d(16), d(18), d(16), d(18)) }
         row.addView(android.widget.ImageView(c).apply {
-            setImageResource(R.drawable.ic_text_size); setPadding(d(9), d(9), d(9), d(9))
-            imageTintList = android.content.res.ColorStateList.valueOf(c.getColor(R.color.ic_teal))
-            background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(c.getColor(R.color.ic_teal_bg)) }
+            setImageResource(icon); setPadding(d(9), d(9), d(9), d(9))
+            imageTintList = android.content.res.ColorStateList.valueOf(c.getColor(tint))
+            background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(c.getColor(tintBg)) }
         }, LinearLayout.LayoutParams(d(44), d(44)).apply { marginEnd = d(14) })
         val texts = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL }
         texts.addView(android.widget.TextView(c).apply { text = title; textSize = 18f; setTypeface(null, android.graphics.Typeface.BOLD); setTextColor(c.getColor(R.color.tr_text)) })
         texts.addView(android.widget.TextView(c).apply { text = sub; textSize = 14f; setTextColor(c.getColor(R.color.tr_text_secondary)); setPadding(0, d(4), 0, 0) })
         row.addView(texts, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(android.widget.TextView(c).apply { text = "›"; textSize = 26f; setTextColor(c.getColor(R.color.ic_teal)) })
+        row.addView(android.widget.TextView(c).apply { text = "›"; textSize = 26f; setTextColor(c.getColor(tint)) })
         card.addView(row); parent.addView(card)
     }
 

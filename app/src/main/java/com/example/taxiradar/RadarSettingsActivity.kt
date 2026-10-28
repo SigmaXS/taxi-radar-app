@@ -2,64 +2,94 @@ package com.example.taxiradar
 
 import android.content.Context
 import android.content.Intent
-import android.os.Bundle
 import android.content.res.ColorStateList
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.os.Bundle
+import android.view.Gravity
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 
 class RadarSettingsActivity : AppCompatActivity() {
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLanguage.wrap(newBase))
     private fun t(ru: String, ro: String) = DriverUi.t(this, ru, ro)
+    private fun d(n: Int) = DriverUi.dp(this, n)
+    private fun round(color: Int, radius: Int, stroke: Int? = null) = GradientDrawable().apply {
+        setColor(getColor(color)); cornerRadius = d(radius).toFloat()
+        if (stroke != null) setStroke(d(1), getColor(stroke))
+    }
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(DriverUi.dp(this@RadarSettingsActivity, 18), DriverUi.dp(this@RadarSettingsActivity, 24), DriverUi.dp(this@RadarSettingsActivity, 18), DriverUi.dp(this@RadarSettingsActivity, 24))
+            orientation = LinearLayout.VERTICAL; setPadding(d(16), d(12), d(16), d(24))
             setBackgroundColor(getColor(R.color.tr_bg))
         }
-        setContentView(ScrollView(this).apply { addView(root) })
-        DriverUi.button(this, root, t("‹ Назад", "‹ Înapoi")) { finish() }
-        root.addView(DriverUi.text(this, t("Bolt / Яндекс", "Bolt / Yandex"), 28f).apply {
-            val label = android.text.SpannableString(text)
-            label.setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.tr_success)), 0, 4, 0)
-            label.setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.tr_yandex_settings)), 7, label.length, 0)
-            text = label
+        setContentView(ScrollView(this).apply { setBackgroundColor(getColor(R.color.tr_bg)); addView(root) })
+
+        // Шапка: стрелка назад и заголовок в одну строку — вместо большой жёлтой кнопки.
+        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, 0, 0, d(14)) }
+        top.addView(ImageButton(this).apply {
+            setImageResource(R.drawable.ic_arrow_back); imageTintList = ColorStateList.valueOf(getColor(R.color.tr_text))
+            background = round(R.color.tr_surface, 22, R.color.tr_console_border)
+            contentDescription = t("Назад", "Înapoi"); setOnClickListener { finish() }
+        }, LinearLayout.LayoutParams(d(44), d(44)).apply { marginEnd = d(14) })
+        top.addView(TextView(this).apply {
+            text = t("Bolt и Яндекс", "Bolt și Yandex"); textSize = 22f; setTypeface(null, Typeface.BOLD)
+            setTextColor(getColor(R.color.tr_text))
         })
-        val mode = DriverUi.card(this, root, t("С какими сервисами работаете?", "Cu ce servicii lucrați?"),
+        root.addView(top)
+
+        // С какими сервисами работаете — компактный переключатель на три части.
+        val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        head.addView(TextView(this).apply {
+            text = t("С какими сервисами работаете", "Cu ce servicii lucrați"); textSize = 14f
+            setTextColor(getColor(R.color.tr_text_secondary))
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        head.addView(DriverUi.info(this, t("Сервисы", "Servicii"),
             t("Выбор включает обработку заказов выбранного сервиса. В режиме «Оба» источник определяется по приложению водителя. Расходы машины и смена остаются общими.",
-                "Selectează serviciile pentru citirea ofertelor. În modul «Ambele», sursa se identifică după aplicația șoferului. Cheltuielile și tura rămân comune."))
-        mode.removeViewAt(2) // Keep the explanation behind the question button.
-        mode.removeViewAt(1)
-        val buttons = mutableMapOf<String, RadioButton>()
-        val first = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        mode.addView(first)
-        fun choice(key: String, label: String, parent: LinearLayout) {
-            val button = RadioButton(this).apply {
-                text = label; textSize = 14f; minHeight = DriverUi.dp(this@RadarSettingsActivity, 48)
-                isChecked = RadarServices.selection(this@RadarSettingsActivity) == key
-                setOnClickListener {
-                    RadarServices.select(this@RadarSettingsActivity, key)
-                    buttons.forEach { (k, v) -> v.isChecked = k == key }
-                }
-            }
-            buttons[key] = button
-            parent.addView(button, LinearLayout.LayoutParams(if (parent === first) 0 else -2, -2, if (parent === first) 1f else 0f).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL })
+                "Selectează serviciile pentru citirea ofertelor. În modul «Ambele», sursa se identifică după aplicația șoferului. Cheltuielile și tura rămân comune.")))
+        root.addView(head, LinearLayout.LayoutParams(-1, -2).apply { marginStart = d(4) })
+
+        val segments = LinearLayout(this).apply {
+            setPadding(d(4), d(4), d(4), d(4)); background = round(R.color.tr_surface, 16, R.color.tr_console_border)
         }
-        choice("bolt", t("Только Bolt", "Doar Bolt"), first)
-        choice("yandex", t("Только Яндекс", "Doar Yandex"), first)
-        choice("both", t("Bolt и Яндекс", "Bolt și Yandex"), mode)
-        fun service(title: String, description: String, color: Int, action: () -> Unit) {
-            val box = DriverUi.card(this, root, title, description, R.drawable.ic_nav_radar)
-            DriverUi.button(this, box, t("Настроить ", "Setează ") + title + " ›", action).apply {
-                backgroundTintList = ColorStateList.valueOf(getColor(color)); setTextColor(getColor(R.color.tr_on_accent))
+        val choices = listOf("bolt" to "Bolt", "yandex" to t("Яндекс", "Yandex"), "both" to t("Оба", "Ambele"))
+        val views = mutableMapOf<String, TextView>()
+        fun paint() {
+            val selected = RadarServices.selection(this)
+            views.forEach { (key, v) ->
+                val on = key == selected
+                v.background = if (on) round(R.color.ic_teal_bg, 12, R.color.ic_teal) else null
+                v.setTextColor(getColor(if (on) R.color.ic_teal else R.color.tr_text_secondary))
+                v.setTypeface(null, if (on) Typeface.BOLD else Typeface.NORMAL)
             }
         }
-        service("Bolt", t("Способ чтения, цена и выгодность, время скрытия, диагностика.", "Citire, preț și rentabilitate, ascundere și diagnostic."), R.color.tr_success) {
+        choices.forEach { (key, label) ->
+            val v = TextView(this).apply {
+                text = label; textSize = 15f; gravity = Gravity.CENTER; minHeight = d(44); isClickable = true
+                setOnClickListener { RadarServices.select(this@RadarSettingsActivity, key); paint() }
+            }
+            views[key] = v
+            segments.addView(v, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        paint()
+        root.addView(segments, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = d(22) })
+
+        // Настройки сервисов и журнал — строки одного вида, спокойные цвета вместо ярких кнопок.
+        root.addView(TextView(this).apply {
+            text = t("Настройки", "Setări"); textSize = 14f; setTextColor(getColor(R.color.tr_text_secondary))
+            setPadding(d(4), 0, 0, d(8))
+        })
+        DriverUi.navigationCard(this, root, "Bolt", t("Способ чтения, цена и выгодность, время скрытия, диагностика", "Citire, preț și rentabilitate, ascundere și diagnostic"),
+            R.drawable.ic_nav_radar, R.color.ic_green, R.color.ic_green_bg) {
             startActivity(Intent(this, ScreenReaderActivity::class.java))
         }
-        service(t("Яндекс", "Yandex"), t("Тарифы и надбавки, выгодность и вид виджета. Ваши прежние настройки сохранены.", "Categorii și suplimente, rentabilitate și aspectul widgetului. Setările existente sunt păstrate."), R.color.tr_yandex_settings) {
+        DriverUi.navigationCard(this, root, t("Яндекс", "Yandex"), t("Тарифы и надбавки, выгодность и вид виджета", "Categorii și suplimente, rentabilitate și aspectul widgetului"),
+            R.drawable.ic_nav_radar, R.color.ic_orange, R.color.ic_orange_bg) {
             startActivity(Intent(this, DriverToolsActivity::class.java).putExtra("mode", "settings"))
         }
-        DriverUi.button(this, root, t("Отправить журнал .txt", "Trimite jurnalul .txt")) { TripLog.share(this) }
+        DriverUi.navigationCard(this, root, t("Отправить журнал", "Trimite jurnalul"), t("Файл .txt для разбора ошибок", "Fișier .txt pentru analiza erorilor"),
+            R.drawable.ic_share, R.color.ic_slate, R.color.ic_slate_bg) { TripLog.share(this) }
     }
 }
