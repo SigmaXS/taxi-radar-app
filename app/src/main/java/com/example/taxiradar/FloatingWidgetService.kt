@@ -768,8 +768,6 @@ class FloatingWidgetService : Service() {
         OverlayPopup.show(this, DriverUi.t(this, "🔥 Рядом +${best.value}", "🔥 Aproape +${best.value}"), text,
             R.color.tr_warning, showMs = 15_000)
     }
-    /** Когда сайт Яндекса последний раз показал надбавку (> 0): значит, он снова отдаёт настоящие цены. */
-    @Volatile private var siteSurgeAt = 0L
 
     /** Нажали на кружок: разведчик берёт эту точку вне очереди; минуту переспрашиваем каждые 5 с. */
     private fun urgentScout() {
@@ -913,8 +911,7 @@ class FloatingWidgetService : Service() {
         val scout = ScoutClient.near(this, lat, lon, TripDestination.current().takeIf { DriverPreferences.flag(this, "destination", true) })
         val parts = tariffs.map { (label, key) ->
             val site = if (scout?.far == true) 0 else YandexTaxiSurgeChecker.getSurgePrice(lon, lat, key)
-            if (site != null && site > 0) siteSurgeAt = System.currentTimeMillis()
-            val siteAlive = System.currentTimeMillis() - siteSurgeAt < 2 * 3600_000
+            val siteAlive = System.currentTimeMillis() - YandexTaxiSurgeChecker.surgeSeenAt < 2 * 3600_000
             val s = when {
                 scout?.far == true -> 0
                 site != null && (site > 0 || siteAlive) -> site
@@ -949,7 +946,7 @@ class FloatingWidgetService : Service() {
             val here = hereValue
             // Б — тоже от разведчика; не проверил ещё — «…».
             val atB = YandexTaxiSurgeChecker.getSurgePrice(dest.second, dest.first, key)
-                ?.takeIf { it > 0 || System.currentTimeMillis() - siteSurgeAt < 2 * 3600_000 } ?: scout?.surgeB
+                ?.takeIf { it > 0 || System.currentTimeMillis() - YandexTaxiSurgeChecker.surgeSeenAt < 2 * 3600_000 } ?: scout?.surgeB
             fun line(sb: SpannableStringBuilder, label: String, v: Int?) {
                 val hot = v != null && v > 0
                 val start = sb.length
