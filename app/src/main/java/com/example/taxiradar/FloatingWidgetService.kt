@@ -165,6 +165,7 @@ class FloatingWidgetService : Service() {
             setupTouchListener(layoutParams)
             windowManager?.addView(floatingView, layoutParams)
 
+            CashReminder.radarStarted(this)
             startAutoUpdateLoop()
             startNearbySurge()
         } catch (e: Exception) {

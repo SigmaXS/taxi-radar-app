@@ -73,9 +73,14 @@ object CashReminder {
         if (Triple(cashUntil, usedToday, usedDay) != before) save(c)
     }
 
-    /** Из цикла надбавки: [surgeHere] — надбавка в точке водителя (null — неизвестна). */
+    /** Радар запустили: первая же надбавка 0 — напоминаем сразу, не ждём 15 минут с прошлого раза. */
+    fun radarStarted(c: Context) {
+        load(c); lastRemind = 0L; save(c)
+    }
+
+    /** Из цикла надбавки: [surgeHere] — надбавка в точке водителя (null — неизвестна). Напоминание всегда включено. */
     fun check(c: Context, surgeHere: Int?) {
-        if (!DriverPreferences.flag(c, "cash_reminder", true) || LiteMode.cuts(c, LiteMode.Feature.ALERTS)) return
+        if (LiteMode.cuts(c, LiteMode.Feature.ALERTS)) return
         if (surgeHere != 0) return
         // Везём пассажира — напоминание ни к чему.
         if (TripTracker.inTrip()) return
