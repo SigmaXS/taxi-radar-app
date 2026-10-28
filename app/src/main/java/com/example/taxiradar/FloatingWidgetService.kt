@@ -220,9 +220,9 @@ class FloatingWidgetService : Service() {
                 }
                 sub.append(details)
                 val prefs = this@FloatingWidgetService
+                // Без расходов машины оценку просто не показываем — подсказка раздувала виджет.
                 if (DriverPreferences.flag(prefs, "profit") || DriverPreferences.flag(prefs, "per_km") || DriverPreferences.flag(prefs, "per_hour") || DriverPreferences.flag(prefs, "per_minute")) {
-                    if (!DriverPreferences.costsReady(prefs)) sub.append("\n" + DriverUi.t(prefs, "Оценки нет: заполните расходы машины", "Fără evaluare: completați cheltuielile"))
-                    else {
+                    if (DriverPreferences.costsReady(prefs)) {
                         val r = OrderEconomics.calculate(price, km, pickupKm, min, pickupKm / DriverPreferences.number(prefs, "pickup_speed", 25.0).coerceAtLeast(5.0) * 60, DriverPreferences.costs(prefs))
                         // «После расходов ≈ 65 L · подача 3 км · ≈ 110 L/час» и сверка с желаемыми показателями.
                         val values = mutableListOf<String>()

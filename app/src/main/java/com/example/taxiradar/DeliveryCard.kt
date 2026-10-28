@@ -15,8 +15,11 @@ object DeliveryCard {
     private val totalRegex = Regex("""^(\d{2,4}(?:[.,]\d{1,2})?)\s*(?:L|MDL|lei|лей)\.?$""", RegexOption.IGNORE_CASE)
     private val routeRegex = Regex("""(\d+(?:[.,]\d+)?)\s*(км|km|м|m)\s*[•·]\s*(\d+)\s*(мин|min)""", RegexOption.IGNORE_CASE)
 
+    // Курьерская карточка без заголовка «Доставка»: «2 точки», «1 получение, 1 вручение», «…оплату за доставку».
+    private val pointsRegex = Regex("""^\d+\s*(точк|точек|puncte|punct)""", RegexOption.IGNORE_CASE)
+
     fun isDelivery(lines: List<String>): Boolean =
-        lines.any { it.trim().lowercase() in titles } &&
+        lines.any { val t = it.trim(); t.lowercase() in titles || pointsRegex.containsMatchIn(t) || t.contains("за доставку", true) || t.contains("pentru livrare", true) } &&
             lines.any { it.contains("получени", true) || it.contains("вручени", true) || it.equals("Откуда", true) || it.equals("De unde", true) || it.contains("ridicare", true) || it.contains("predare", true) }
 
     /** null — на карточке не нашли ни одной суммы. */
