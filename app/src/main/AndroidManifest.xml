@@ -73,9 +73,6 @@
             android:exported="false" />
 
         <activity android:name=".MyTripsActivity" android:exported="false" />
-        <activity android:name=".ScoutRestActivity" android:exported="false" android:excludeFromRecents="true"
-            android:launchMode="singleTask" android:taskAffinity="md.taxiradar.scoutrest"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
         <!-- «Поделиться» скриншотом карточки Bolt → расчёт цены, L/час, L/км и маршрута. -->
         <activity android:name=".ScreenshotShareActivity" android:exported="true" android:label="Taxi Radar: разбор заказа">
             <intent-filter>

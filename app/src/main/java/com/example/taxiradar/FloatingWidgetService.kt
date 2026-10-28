@@ -112,8 +112,6 @@ class FloatingWidgetService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var autoUpdateJob: Job? = null
-    /** Режим «Разведчик» (отдельный телефон с Яндекс Go): обход точек водителей. */
-    private var scoutJob: Job? = null
     private var orderDisplayJob: Job? = null
     private var isShowingOrder: Boolean = false
     private var showingBolt = false
@@ -168,7 +166,6 @@ class FloatingWidgetService : Service() {
             windowManager?.addView(floatingView, layoutParams)
 
             startAutoUpdateLoop()
-            startScoutPing()
             startNearbySurge()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -503,10 +500,8 @@ class FloatingWidgetService : Service() {
                 driverLat = loc.latitude
                 driverLon = loc.longitude
                 lastFixAt = System.currentTimeMillis()
+                noteStill(loc.latitude, loc.longitude)
                 checkRoadReports(loc.latitude, loc.longitude)
-                // Отъехали больше чем на 300 м — сразу сообщаем разведчику новое место, не ждём 20 с.
-                if (pingAt > 0 && RouteFareCalculator.distanceKm(pingLat, pingLon, loc.latitude, loc.longitude) > 0.3)
-                    serviceScope.launch { pingScout() }
             }
         }
 
@@ -564,6 +559,7 @@ class FloatingWidgetService : Service() {
                         driverLat = loc.latitude
                         driverLon = loc.longitude
                         lastFixAt = loc.time
+                        noteStill(loc.latitude, loc.longitude)
                     }
                 }
         } catch (e: Exception) {
@@ -593,6 +589,7 @@ class FloatingWidgetService : Service() {
             driverLat = fix.latitude
             driverLon = fix.longitude
             lastFixAt = fix.time
+            noteStill(fix.latitude, fix.longitude)
         }
         // Точка не старше 15 минут — годится; иначе надбавка была бы не про это место.
         return System.currentTimeMillis() - lastFixAt < 2 * 60_000
@@ -674,8 +671,8 @@ class FloatingWidgetService : Service() {
                     if (!isMoved) {
                         val opening = reportMenu?.visibility != View.VISIBLE
                         toggleReportMenu(opening)
-                        // Заодно обновить надбавку, а разведчик проверит место водителя первым.
-                        if (opening) { refreshData(); urgentScout() }
+                        // Заодно обновить надбавку.
+                        if (opening) refreshData()
                     }
                     true
                 }
@@ -683,27 +680,6 @@ class FloatingWidgetService : Service() {
             }
         }
     }
-
-    // ---------- разведчик надбавки: место водителя раз в 20 с (и сразу при переезде) ----------
-
-    private var scoutPingJob: Job? = null
-    @Volatile private var pingLat = 0.0
-    @Volatile private var pingLon = 0.0
-    @Volatile private var pingAt = 0L
-    @Volatile private var lastScoutSurge: Int? = null
-
-    private fun startScoutPing() {
-        scoutPingJob?.cancel()
-        scoutPingJob = serviceScope.launch {
-            while (isActive) {
-                pingScout()
-                // «?» (новое место ещё не проверено) — переспрашиваем через 15 с, иначе раз в 20 с.
-                delay(if (lastScoutSurge == null) 15_000 else 20_000)
-            }
-        }
-    }
-
-    private var urgentJob: Job? = null
 
     // ---------- «рядом надбавка»: свободен, а в 1,5–3 км заметно дороже — плашка сверху ----------
 
@@ -713,13 +689,30 @@ class FloatingWidgetService : Service() {
     private var nearbyAlertAt = 0L
     private var nearbyAlertValue = 0
 
+    // Где и с какого времени водитель стоит: сдвинулся больше чем на 100 м — едет, отсчёт заново.
+    @Volatile private var stillLat = 0.0
+    @Volatile private var stillLon = 0.0
+    @Volatile private var stillSince = 0L
+    private var nearbyCheckedAt = 0L
+
+    private fun noteStill(lat: Double, lon: Double) {
+        if (stillSince == 0L || RouteFareCalculator.distanceKm(stillLat, stillLon, lat, lon) > 0.1) {
+            stillLat = lat; stillLon = lon; stillSince = System.currentTimeMillis()
+        }
+    }
+
+    /** Едет — вокруг не смотрим. Простоял минуту — проверяем сразу, дальше, пока стоит, раз в 3 минуты. */
     private fun startNearbySurge() {
         nearbyJob?.cancel()
         nearbyJob = serviceScope.launch {
-            delay(20_000)
             while (isActive) {
-                try { checkNearbySurge() } catch (_: Exception) {}
-                delay(3 * 60_000)
+                delay(15_000)
+                val now = System.currentTimeMillis()
+                val still = stillSince > 0 && now - stillSince >= 60_000
+                if (still && (nearbyCheckedAt < stillSince || now - nearbyCheckedAt >= 3 * 60_000)) {
+                    nearbyCheckedAt = now
+                    try { checkNearbySurge() } catch (_: Exception) {}
+                }
             }
         }
     }
@@ -769,35 +762,10 @@ class FloatingWidgetService : Service() {
             R.color.tr_warning, showMs = 15_000)
     }
 
-    /** Нажали на кружок: разведчик берёт эту точку вне очереди; минуту переспрашиваем каждые 5 с. */
-    private fun urgentScout() {
-        if (urgentJob?.isActive == true || System.currentTimeMillis() - lastFixAt > 2 * 60_000) return
-        urgentJob = serviceScope.launch(Dispatchers.IO) {
-            ScoutClient.near(this@FloatingWidgetService, driverLat, driverLon,
-                TripDestination.current().takeIf { DriverPreferences.flag(this@FloatingWidgetService, "destination", true) }, force = true, urgent = true)
-            repeat(10) { delay(5_000); pingScout() }
-        }
-    }
-
-    /** Сообщить место и взять надбавку разведчика; изменилась — сразу перерисовать виджет. */
-    private suspend fun pingScout() {
-        if (System.currentTimeMillis() - lastFixAt > 2 * 60_000) return
-        val lat = driverLat; val lon = driverLon
-        pingLat = lat; pingLon = lon; pingAt = System.currentTimeMillis()
-        val n = ScoutClient.near(this, lat, lon, TripDestination.current().takeIf { DriverPreferences.flag(this, "destination", true) }, force = true)
-        val surge = n?.surge
-        if (surge != lastScoutSurge) {
-            lastScoutSurge = surge
-            if (!isShowingOrder) refreshData()
-        }
-    }
-
     private fun startAutoUpdateLoop() {
         autoUpdateJob?.cancel()
         autoUpdateJob = serviceScope.launch {
             while (isActive) {
-                if (YandexGoScout.enabled(this@FloatingWidgetService) && scoutJob?.isActive != true)
-                    scoutJob = serviceScope.launch(Dispatchers.IO) { YandexGoScout.run(this@FloatingWidgetService) }
                 if (!licenseManager.checkDeviceStatusCached(LICENSE_RECHECK_MS)) {
                     withContext(Dispatchers.Main) { stopSelf() }
                     break
@@ -905,20 +873,10 @@ class FloatingWidgetService : Service() {
         var missing = false
         var hereValue: Int? = null
         val lat = driverLat; val lon = driverLon
-        // Главный источник — сайт Яндекса (ровные +15/+35/+55). С 16 по ~23.10 он отдавал только старт тарифа
-        // (всегда 0) — тогда выручает разведчик (Яндекс Go). Сайт «жив», если за 2 часа хоть раз показал надбавку.
-        // Дальше 20 км от Кишинёва — 0. Не узнали ни там, ни там — «…», без пояснений.
-        val scout = ScoutClient.near(this, lat, lon, TripDestination.current().takeIf { DriverPreferences.flag(this, "destination", true) })
+        // Надбавка — с сайта Яндекса (ровные +15/+35/+55). Дальше 20 км от Кишинёва — 0. Не узнали — «…», без пояснений.
+        val far = RouteFareCalculator.distanceKm(lat, lon, 47.0245, 28.8353) > 20
         val parts = tariffs.map { (label, key) ->
-            val site = if (scout?.far == true) 0 else YandexTaxiSurgeChecker.getSurgePrice(lon, lat, key)
-            val siteAlive = System.currentTimeMillis() - YandexTaxiSurgeChecker.surgeSeenAt < 2 * 3600_000
-            val s = when {
-                scout?.far == true -> 0
-                site != null && (site > 0 || siteAlive) -> site
-                scout?.surge != null -> scout.surge
-                scout?.scouting == true -> null
-                else -> site
-            }
+            val s = if (far) 0 else YandexTaxiSurgeChecker.getSurgePrice(lon, lat, key)
             val now = System.currentTimeMillis()
             if (s != null) surgeSnapshots[key] = SurgeSnapshot(s, now, lat, lon)
             val old = surgeSnapshots[key]?.takeIf { now - it.at <= 10 * 60000 && RouteFareCalculator.distanceKm(lat, lon, it.lat, it.lon) < 0.2 }
@@ -944,9 +902,8 @@ class FloatingWidgetService : Service() {
         val key = tariffs.firstOrNull()?.second
         if (dest != null && key != null) {
             val here = hereValue
-            // Б — тоже от разведчика; не проверил ещё — «…».
+            // Не узнали — «…».
             val atB = YandexTaxiSurgeChecker.getSurgePrice(dest.second, dest.first, key)
-                ?.takeIf { it > 0 || System.currentTimeMillis() - YandexTaxiSurgeChecker.surgeSeenAt < 2 * 3600_000 } ?: scout?.surgeB
             fun line(sb: SpannableStringBuilder, label: String, v: Int?) {
                 val hot = v != null && v > 0
                 val start = sb.length
@@ -1068,7 +1025,6 @@ class FloatingWidgetService : Service() {
         isRunning = false
         serviceScope.cancel()
         autoUpdateJob?.cancel()
-        scoutPingJob?.cancel()
         orderDisplayJob?.cancel()
         roadJob?.cancel()
         menuCloseJob?.cancel()

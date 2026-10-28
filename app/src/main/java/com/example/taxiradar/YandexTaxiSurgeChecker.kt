@@ -13,12 +13,6 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object YandexTaxiSurgeChecker {
-    /**
-     * Когда сайт последний раз показал надбавку (> 0) в любой точке — у водителя, на кольцах «рядом», на карте.
-     * Значит, сайт снова отдаёт настоящие цены и его 0 — честный 0.
-     */
-    @Volatile var surgeSeenAt = 0L
-        private set
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(6, TimeUnit.SECONDS)
@@ -142,7 +136,7 @@ object YandexTaxiSurgeChecker {
     private fun surgeForLevel(lvl: JSONObject, className: String): Int? {
         // 1. Явная надбавка из блока surge, если API отдаёт её напрямую
         val directSurge = lvl.optJSONObject("surge")?.optInt("value", 0) ?: 0
-        if (directSurge > 0) { surgeSeenAt = System.currentTimeMillis(); return directSurge }
+        if (directSurge > 0) return directSurge
 
         // 2. Разница между ценой старта и базовой посадкой
         val priceString = lvl.optString("price", "")
@@ -151,7 +145,6 @@ object YandexTaxiSurgeChecker {
             ?: return null
         val base = basePrices[className] ?: 30
         Log.d("TAXI_SURGE", "[$className] Старт: $startPrice L | База: $base L")
-        if (startPrice > base) surgeSeenAt = System.currentTimeMillis()
         return maxOf(0, startPrice - base)
     }
 }
