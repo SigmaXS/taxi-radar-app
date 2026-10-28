@@ -12,6 +12,9 @@
         <item name="colorOnSurfaceVariant">@color/tr_text_secondary</item>
         <item name="colorOutline">@color/tr_stroke</item>
         <item name="colorError">@color/tr_danger</item>
+        <!-- Тумблеры остаются жёлтыми (colorPrimary); кружки выбора и обычные ползунки — голубые. -->
+        <item name="colorControlActivated">@color/tr_cyan</item>
+        <item name="android:colorControlActivated">@color/tr_cyan</item>
         <item name="elevationOverlayEnabled">false</item>
         <item name="android:colorBackground">@color/tr_bg</item>
         <item name="android:statusBarColor">@color/tr_bg</item>

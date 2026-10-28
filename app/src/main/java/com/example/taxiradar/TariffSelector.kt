@@ -27,8 +27,11 @@ object TariffSelector {
             }
         }
         fun paint() = buttons.forEachIndexed { i, b ->
-            b.backgroundTintList = android.content.res.ColorStateList.valueOf(c.getColor(if (i == selected) R.color.tr_cyan else R.color.tr_surface_high))
-            b.setTextColor(c.getColor(if (i == selected) R.color.tr_on_accent else R.color.tr_text))
+            // Выбранный — голубая обводка на тёмном (как «Смена и доход»), без яркой заливки.
+            val on = i == selected
+            b.backgroundTintList = android.content.res.ColorStateList.valueOf(c.getColor(if (on) R.color.tr_accent_container else R.color.tr_surface_high))
+            b.strokeWidth = DriverUi.dp(c, if (on) 2 else 0); b.strokeColor = android.content.res.ColorStateList.valueOf(c.getColor(R.color.tr_cyan))
+            b.setTextColor(c.getColor(if (on) R.color.tr_cyan else R.color.tr_text_secondary))
             b.isSelected = i == selected
         }
         buttons.forEachIndexed { i, b -> b.setOnClickListener {

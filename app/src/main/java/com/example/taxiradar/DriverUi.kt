@@ -93,8 +93,55 @@ object DriverUi {
     }
     fun button(c: Context, parent: LinearLayout, label: String, action: () -> Unit) = MaterialButton(c).apply {
         text = label; isAllCaps = false; gravity = Gravity.CENTER; minHeight = dp(c, if (wide(c)) 64 else 52); cornerRadius = dp(c, 14)
-        layoutParams = LinearLayout.LayoutParams(-1, -2)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(c, 8) }
+        soft(this)
         setOnClickListener { action() }; parent.addView(this)
+    }
+
+    /** Кнопка в общем стиле: тёмный фон, голубая обводка, белый текст — без ярких заливок. */
+    fun soft(button: MaterialButton) = button.apply {
+        val c = context
+        backgroundTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_pressed), intArrayOf()),
+            intArrayOf(c.getColor(R.color.tr_accent_container), c.getColor(R.color.tr_surface_high)))
+        setTextColor(c.getColor(R.color.tr_text))
+        strokeWidth = dp(c, 1); strokeColor = ColorStateList.valueOf(c.getColor(R.color.tr_cyan))
+        rippleColor = ColorStateList.valueOf(0x2267E5F2)
+        elevation = 0f; stateListAnimator = null
+    }
+
+    /** Шапка экрана: круглая стрелка «назад» и заголовок в одну строку. */
+    fun header(a: android.app.Activity, parent: LinearLayout, title: String): TextView {
+        val row = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, 0, 0, dp(a, 14)) }
+        row.addView(ImageButton(a).apply {
+            setImageResource(R.drawable.ic_arrow_back); imageTintList = ColorStateList.valueOf(a.getColor(R.color.tr_text))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(a.getColor(R.color.tr_surface)); cornerRadius = dp(a, 22).toFloat(); setStroke(dp(a, 1), a.getColor(R.color.tr_console_border))
+            }
+            contentDescription = t(a, "Назад", "Înapoi"); setOnClickListener { a.finish() }
+        }, LinearLayout.LayoutParams(dp(a, 44), dp(a, 44)).apply { marginEnd = dp(a, 14) })
+        val label = TextView(a).apply { text = title; textSize = 22f; setTypeface(null, Typeface.BOLD); setTextColor(a.getColor(R.color.tr_text)) }
+        row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+        parent.addView(row, LinearLayout.LayoutParams(-1, -2))
+        return label
+    }
+
+    /** Ползунок: подпись слева, значение справа, бирюзовая дорожка — как у виджета Яндекса. */
+    fun slider(c: Context, parent: LinearLayout, title: String, from: Int, to: Int, value: Int, step: Int = 5, change: (Int) -> Unit) {
+        val row = LinearLayout(c).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(c, 4), dp(c, 6), dp(c, 4), 0) }
+        row.addView(TextView(c).apply { text = title; textSize = 16f; setTextColor(c.getColor(R.color.tr_text)) }, LinearLayout.LayoutParams(0, -2, 1f))
+        val shown = TextView(c).apply { text = "$value%"; textSize = 16f; setTypeface(null, Typeface.BOLD); setTextColor(c.getColor(R.color.ic_teal)) }
+        row.addView(shown)
+        parent.addView(row)
+        parent.addView(com.google.android.material.slider.Slider(c).apply {
+            valueFrom = from.toFloat(); valueTo = to.toFloat(); stepSize = step.toFloat()
+            this.value = (Math.round(value.coerceIn(from, to).toFloat() / step) * step).toFloat().coerceIn(valueFrom, valueTo)
+            labelBehavior = com.google.android.material.slider.LabelFormatter.LABEL_GONE
+            val teal = ColorStateList.valueOf(c.getColor(R.color.ic_teal))
+            thumbTintList = teal; trackActiveTintList = teal
+            trackInactiveTintList = ColorStateList.valueOf(c.getColor(R.color.tr_surface_high))
+            tickActiveTintList = ColorStateList.valueOf(c.getColor(R.color.ic_teal_bg)); tickInactiveTintList = ColorStateList.valueOf(c.getColor(R.color.tr_stroke))
+            addOnChangeListener { _, v, user -> shown.text = "${v.toInt()}%"; if (user) change(v.toInt()) }
+        }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(c, 10) })
     }
     fun navigationCard(c: Context, parent: LinearLayout, title: String, sub: String, open: () -> Unit) =
         navigationCard(c, parent, title, sub, R.drawable.ic_text_size, R.color.ic_teal, R.color.ic_teal_bg, open)
@@ -123,16 +170,7 @@ object DriverUi {
     }
 
     /** Raised cyan actions; Back buttons keep their original yellow appearance. */
-    fun raisedAction(button: MaterialButton) = button.apply {
-        val c = context
-        backgroundTintList = ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf(android.R.attr.state_pressed), intArrayOf()), intArrayOf(c.getColor(R.color.tr_surface_high), android.graphics.Color.parseColor("#53BCCA"), c.getColor(R.color.tr_cyan)))
-        setTextColor(c.getColor(R.color.tr_on_accent))
-        strokeWidth = dp(c, 1)
-        strokeColor = ColorStateList.valueOf(android.graphics.Color.parseColor("#B5F3F8"))
-        rippleColor = ColorStateList.valueOf(0x33000000)
-        elevation = dp(c, 6).toFloat()
-        stateListAnimator = android.animation.AnimatorInflater.loadStateListAnimator(c, R.animator.raised_action)
-    }
+    fun raisedAction(button: MaterialButton) = soft(button)
     fun toggle(c: Context, parent: LinearLayout, title: String, explanation: String, checked: Boolean, change: (Boolean) -> Unit) {
         val row = LinearLayout(c).apply { gravity = Gravity.CENTER_VERTICAL }
         val sw = MaterialSwitch(c).apply { text = title; textSize = if (wide(c)) 17f else 15f; minHeight = dp(c, if (wide(c)) 64 else 52); isChecked = checked; setOnCheckedChangeListener { _, value -> change(value) } }
@@ -161,13 +199,13 @@ object DriverUi {
      */
     fun guide(c: Context, parent: LinearLayout, title: String, steps: List<String>, footer: String? = null, compact: Boolean = false) {
         val card = MaterialCardView(c).apply {
-            radius = dp(c, 22).toFloat(); strokeWidth = dp(c, 1); strokeColor = c.getColor(R.color.tr_accent)
+            radius = dp(c, 22).toFloat(); strokeWidth = dp(c, 1); strokeColor = c.getColor(R.color.tr_console_border)
             setCardBackgroundColor(c.getColor(R.color.tr_surface))
             layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(c, 14) }
         }
         val box = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(c, 16), dp(c, 6), dp(c, 16), dp(c, 6)) }
         val head = LinearLayout(c).apply { gravity = Gravity.CENTER; minimumHeight = dp(c, if (compact) 36 else 52); setBackgroundResource(android.R.drawable.list_selector_background); isClickable = true; isFocusable = true }
-        head.addView(ImageView(c).apply { setImageResource(R.drawable.ic_help); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_accent)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 10) })
+        head.addView(ImageView(c).apply { setImageResource(R.drawable.ic_help); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_cyan)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 10) })
         val label = text(c, "$title  ▾", if (compact) 13f else 16f).apply { setTypeface(null, if (compact) Typeface.NORMAL else Typeface.BOLD); layoutParams = LinearLayout.LayoutParams(-2, -2) }
         head.addView(label)
         box.addView(head)
@@ -177,7 +215,7 @@ object DriverUi {
             row.addView(TextView(c).apply {
                 text = "${i + 1}"; textSize = 14f; gravity = Gravity.CENTER; setTypeface(null, Typeface.BOLD)
                 setTextColor(c.getColor(R.color.tr_on_accent))
-                background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(c.getColor(R.color.tr_accent)) }
+                background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(c.getColor(R.color.tr_cyan)) }
             }, LinearLayout.LayoutParams(dp(c, 26), dp(c, 26)).apply { marginEnd = dp(c, 12) })
             row.addView(TextView(c).apply {
                 text = s; textSize = 15f; setTextColor(c.getColor(R.color.tr_text)); setLineSpacing(dp(c, 2).toFloat(), 1f)
@@ -191,7 +229,7 @@ object DriverUi {
     }
     fun expandable(c: Context, parent: LinearLayout, title: String, body: String, icon: Int = R.drawable.ic_help) {
         val row = LinearLayout(c).apply { gravity = Gravity.CENTER; minimumHeight = dp(c, 52); setBackgroundResource(android.R.drawable.list_selector_background); isFocusable = true; isClickable = true }
-        row.addView(ImageView(c).apply { setImageResource(icon); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_accent)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 10) })
+        row.addView(ImageView(c).apply { setImageResource(icon); imageTintList = ColorStateList.valueOf(c.getColor(R.color.tr_cyan)); contentDescription = null }, LinearLayout.LayoutParams(dp(c, 24), dp(c, 24)).apply { marginEnd = dp(c, 10) })
         val label = text(c, "$title  ▾").apply { layoutParams = LinearLayout.LayoutParams(-2, -2) }
         row.addView(label)
         val details = text(c, body, 14f, true).apply { visibility = View.GONE; setPadding(dp(c, 6), dp(c, 2), dp(c, 6), dp(c, 6)) }

@@ -60,8 +60,8 @@ class RadarSettingsActivity : AppCompatActivity() {
             val selected = RadarServices.selection(this)
             views.forEach { (key, v) ->
                 val on = key == selected
-                v.background = if (on) round(R.color.ic_teal_bg, 12, R.color.ic_teal) else null
-                v.setTextColor(getColor(if (on) R.color.ic_teal else R.color.tr_text_secondary))
+                v.background = if (on) round(R.color.tr_accent_container, 12, R.color.tr_cyan) else null
+                v.setTextColor(getColor(if (on) R.color.tr_cyan else R.color.tr_text_secondary))
                 v.setTypeface(null, if (on) Typeface.BOLD else Typeface.NORMAL)
             }
         }

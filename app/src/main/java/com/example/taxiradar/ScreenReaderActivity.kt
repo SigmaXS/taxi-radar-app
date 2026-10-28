@@ -28,16 +28,15 @@ class ScreenReaderActivity : AppCompatActivity() {
             setBackgroundColor(getColor(R.color.tr_bg))
         }
         setContentView(ScrollView(this).apply { addView(root) })
-        DriverUi.button(this, root, t("‹ Назад", "‹ Înapoi")) { finish() }
-        root.addView(DriverUi.text(this, t("Настройки Bolt", "Setări Bolt"), 28f))
-        root.addView(DriverUi.text(this, t("Цена из Bolt, сумма после комиссии и леи за километр. Если цена скрыта, показываем успешный расчёт с ≈. Если расчёт не удался, карточку не открываем. В OCR дополнительно доступны карта и общее время.", "Prețul din Bolt, suma netă și lei/km. Dacă prețul este ascuns, afișăm estimarea reușită cu ≈. Fără estimare nu deschidem oferta. În OCR sunt disponibile și harta și durata totală."), 15f))
+        DriverUi.header(this, root, t("Настройки Bolt", "Setări Bolt"))
+        root.addView(DriverUi.text(this, t("Цена из Bolt, сумма после комиссии и леи за километр. Если цена скрыта, показываем успешный расчёт с ≈. Если расчёт не удался, карточку не открываем. В OCR дополнительно доступны карта и общее время.", "Prețul din Bolt, suma netă și lei/km. Dacă prețul este ascuns, afișăm estimarea reușită cu ≈. Fără estimare nu deschidem oferta. În OCR sunt disponibile și harta și durata totală."), 14f, true))
         if (!RadarServices.bolt(this)) DriverUi.button(this, root, t("Включить Bolt вместе с Яндексом", "Activează Bolt împreună cu Yandex")) { RadarServices.select(this, "both"); render() }
         if (intent.getBooleanExtra("widget_only", false)) {
             widgetSettings(root)
             return
         }
         DriverUi.navigationCard(this, root, t("Вид виджета Bolt", "Aspectul widgetului Bolt"),
-            t("Размер, прозрачность, цена и кнопка «+»", "Mărime, opacitate, preț și butonul «+»")) {
+            t("Размер, прозрачность, цена и кнопка «+»", "Mărime, opacitate, preț și butonul «+»"), R.drawable.ic_text_size, R.color.ic_teal, R.color.ic_teal_bg) {
             startActivity(Intent(this, ScreenReaderActivity::class.java).putExtra("widget_only", true))
         }
         val reader = DriverUi.card(this, root, t("Как читать заказы", "Cum citim ofertele"),
@@ -125,22 +124,10 @@ class ScreenReaderActivity : AppCompatActivity() {
         val box = DriverUi.card(this, root, t("Вид виджета Bolt", "Aspectul widgetului Bolt"),
             t("Настройки отдельные от Яндекса. В режиме «Только Bolt» без заказа остаётся «+» для дорожных событий. При появлении заказа разворачивается цена, после исчезновения — снова «+». В OCR остаётся также значок управления чтением.",
               "Setări separate de Yandex. În modul «Doar Bolt», fără ofertă rămâne «+» pentru marcaje. La ofertă apare prețul; apoi revine «+». În OCR rămâne și pictograma de control a citirii."))
-        fun slider(key: String, ru: String, ro: String, from: Int, to: Int, default: Int) {
-            val label = DriverUi.text(this, "", 16f); box.addView(label)
-            val current = DriverPreferences.number(this, key, default.toDouble()).toInt().coerceIn(from, to)
-            label.text = t(ru, ro) + ": $current%"
-            box.addView(SeekBar(this).apply {
-                max = to - from; progress = current - from
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(bar: SeekBar?, value: Int, user: Boolean) {
-                        label.text = t(ru, ro) + ": ${value + from}%"
-                        if (user) { DriverPreferences.set(this@ScreenReaderActivity, key, (value + from).toDouble()); FloatingWidgetService.applyWidgetScale() }
-                    }
-                    override fun onStartTrackingTouch(bar: SeekBar?) {}
-                    override fun onStopTrackingTouch(bar: SeekBar?) {}
-                })
-            })
-        }
+        fun slider(key: String, ru: String, ro: String, from: Int, to: Int, default: Int) =
+            DriverUi.slider(this, box, t(ru, ro), from, to, DriverPreferences.number(this, key, default.toDouble()).toInt()) {
+                DriverPreferences.set(this, key, it.toDouble()); FloatingWidgetService.applyWidgetScale()
+            }
         slider("bolt_widget_size", "Размер виджета", "Mărimea widgetului", 75, 130, 100)
         slider("bolt_widget_alpha", "Непрозрачность фона", "Opacitatea fundalului", 30, 100, 92)
         slider("bolt_widget_price", "Размер цены", "Mărimea prețului", 75, 140, 100)

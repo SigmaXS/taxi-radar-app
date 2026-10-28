@@ -17,6 +17,8 @@ import java.util.Locale
 
 class DriverToolsActivity : AppCompatActivity() {
     private lateinit var body: LinearLayout
+    /** Заголовок в шапке рядом со стрелкой «назад» — меняется вместе с экраном. */
+    private lateinit var headerTitle: TextView
     private var mode = "settings"
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLanguage.wrap(newBase))
     private fun t(ru: String, ro: String) = DriverUi.t(this, ru, ro)
@@ -25,10 +27,7 @@ class DriverToolsActivity : AppCompatActivity() {
         mode = intent.getStringExtra("mode") ?: "settings"
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(getColor(R.color.tr_bg)) }
         val header = LinearLayout(this).apply { setPadding(DriverUi.dp(this@DriverToolsActivity, 18), DriverUi.dp(this@DriverToolsActivity, 12), DriverUi.dp(this@DriverToolsActivity, 18), 0) }
-        DriverUi.button(this, header, t("‹  Назад", "‹  Înapoi")) { finish() }.apply {
-            backgroundTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.tr_surface_high))
-            setTextColor(getColor(R.color.tr_text))
-        }
+        headerTitle = DriverUi.header(this, header, "")
         root.addView(header)
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(DriverUi.dp(this@DriverToolsActivity, 18), DriverUi.dp(this@DriverToolsActivity, 12), DriverUi.dp(this@DriverToolsActivity, 18), DriverUi.dp(this@DriverToolsActivity, 24)) }
         root.addView(ScrollView(this).apply { addView(body) }, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -70,7 +69,7 @@ class DriverToolsActivity : AppCompatActivity() {
     // ---------- вид виджета ----------
 
     private fun widgetLook() {
-        body.addView(DriverUi.text(this, t("Вид виджета", "Aspectul widgetului"), 28f))
+        headerTitle.text = t("Вид виджета", "Aspectul widgetului")
         body.addView(DriverUi.text(this, t("Меняйте — пример сразу показывает, как будет выглядеть кружок. Кружок на экране тоже обновляется сам.",
             "Schimbați — exemplul arată imediat cum va arăta. Cercul de pe ecran se actualizează singur."), 14f, true))
         // Пример не рисуем: смотрим на настоящий кружок. Радар выключен — предлагаем включить.
@@ -158,8 +157,10 @@ class DriverToolsActivity : AppCompatActivity() {
         }
         fun paint() = buttons.forEach { b ->
             val on = b.tag == selected
-            b.backgroundTintList = android.content.res.ColorStateList.valueOf(getColor(if (on) R.color.tr_cyan else R.color.tr_surface_high))
-            b.setTextColor(getColor(if (on) R.color.tr_on_accent else R.color.tr_text))
+            // Выбранный — голубая обводка на тёмном, остальные — без обводки.
+            b.backgroundTintList = android.content.res.ColorStateList.valueOf(getColor(if (on) R.color.tr_accent_container else R.color.tr_surface_high))
+            b.strokeWidth = DriverUi.dp(this, if (on) 2 else 0); b.strokeColor = android.content.res.ColorStateList.valueOf(getColor(R.color.tr_cyan))
+            b.setTextColor(getColor(if (on) R.color.tr_cyan else R.color.tr_text_secondary))
         }
         buttons.forEachIndexed { i, b ->
             b.setOnClickListener { selected = b.tag as String; save(selected); paint(); applied() }
@@ -222,7 +223,7 @@ class DriverToolsActivity : AppCompatActivity() {
     }
 
     private fun archive() {
-        body.addView(DriverUi.text(this, t("Архив смен", "Arhiva turelor"), 28f))
+        headerTitle.text = t("Архив смен", "Arhiva turelor")
         body.addView(DriverUi.text(this, t("Выберите день — покажем доход, расходы, пробег и часы. Все смены хранятся на этом телефоне.",
             "Alegeți ziua — arătăm venitul, cheltuielile, kilometrajul și orele. Turele rămân pe acest telefon."), 14f, true))
         val shifts = DriverJournal.shifts(this)
@@ -301,7 +302,7 @@ class DriverToolsActivity : AppCompatActivity() {
         }
     }
     private fun settings() {
-        body.addView(DriverUi.text(this, t("Настройки Яндекса", "Setări Yandex"), 28f))
+        headerTitle.text = t("Настройки Яндекса", "Setări Yandex")
         body.addView(DriverUi.text(this, t("Оставьте только то, что помогает вам на смене. Настройки сохраняются сразу.", "Păstrați doar informațiile utile în tură. Setările se salvează imediat."), 14f, true))
         linkCard(t("Вид виджета", "Aspectul widgetului"), t("Размер, прозрачность, строки, кнопка «+» — нажмите, чтобы настроить", "Mărime, transparență, rânduri, butonul «+» — apăsați pentru setări")) {
             startActivity(android.content.Intent(this, DriverToolsActivity::class.java).putExtra("mode", "widget"))
@@ -375,7 +376,7 @@ class DriverToolsActivity : AppCompatActivity() {
     }
 
     private fun shift() {
-        body.addView(DriverUi.text(this, t("Моя смена", "Tura mea"), 28f))
+        headerTitle.text = t("Моя смена", "Tura mea")
         DriverUi.guide(this, body, t("Как это работает", "Cum funcționează"),
             if (t("ru", "ro") == "ru") listOf(
             "Перед первой сменой откройте «Настройки радара» → «Моя машина и расходы» и впишите расход на 100 км, цену топлива и комиссию. Без этого видна только сумма, без «чистыми».",
