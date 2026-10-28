@@ -787,8 +787,7 @@ class FloatingWidgetService : Service() {
             val alerts = DriverAlerts()
             while (isActive) {
                 if (LiteMode.cuts(this@FloatingWidgetService, LiteMode.Feature.ALERTS)) { delay(180000); continue }
-                val fresh = DriverPreferences.flag(this@FloatingWidgetService, "surge_alert") && awaitFix()
-                alerts.check(this@FloatingWidgetService, if (fresh) driverLat else null, if (fresh) driverLon else null, DriverPreferences.selectedTariff(this@FloatingWidgetService))
+                alerts.check(this@FloatingWidgetService)
                 delay(180000)
             }
         }

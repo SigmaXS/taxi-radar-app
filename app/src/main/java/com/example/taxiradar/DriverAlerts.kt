@@ -7,37 +7,15 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import kotlin.math.cos
 
 /** Optional checks live only for the lifetime of the radar service. */
 class DriverAlerts {
-    private var lastSurgeCheck = 0L
     private var lastAirportCheck = 0L
     private var flights: Set<String>? = null
 
-    suspend fun check(c: Context, lat: Double?, lon: Double?, tariff: String) {
+    // Надбавка рядом — в FloatingWidgetService (checkNearbySurge): только когда водитель стоит минуту.
+    suspend fun check(c: Context) {
         val now = System.currentTimeMillis()
-        if (DriverPreferences.flag(c, "surge_alert") && lat != null && lon != null && now - lastSurgeCheck >= 180000) {
-            lastSurgeCheck = now
-            val radius = DriverPreferences.number(c, "surge_radius", 2.0).coerceIn(0.5, 5.0)
-            val threshold = DriverPreferences.number(c, "surge_threshold", 35.0).toInt()
-            val dx = radius / (111 * cos(Math.toRadians(lat)).coerceAtLeast(0.1))
-            val dy = radius / 111
-            val points = listOf(lat to lon, (lat + dy) to lon, (lat - dy) to lon, lat to (lon + dx), lat to (lon - dx))
-            var max: Int? = null
-            for (point in points) {
-                val value = YandexTaxiSurgeChecker.getSurgePrice(point.second, point.first, tariff)
-                if (value != null && (max == null || value > max)) max = value
-                kotlinx.coroutines.delay(1000)
-            }
-            val lastAlert = DriverPreferences.prefs(c).getLong("surge_alert_at", 0)
-            if (max != null && max >= threshold && now - lastAlert >= 600000) {
-                val title = DriverUi.t(c, "Надбавка рядом +$max L", "Supliment în apropiere +$max L")
-                val message = DriverUi.t(c, "Проверено сейчас в радиусе $radius км. Выбранный тариф. Спрос может измениться до приезда.", "Verificat acum într-o rază de $radius km. Categoria selectată. Cererea se poate schimba până ajungeți.")
-                if (notify(c, 301, title, message)) DriverPreferences.prefs(c).edit().putLong("surge_alert_at", now).apply()
-            }
-        }
-        if (!DriverPreferences.flag(c, "surge_alert")) lastSurgeCheck = 0
         if (DriverPreferences.flag(c, "airport_alert") && now - lastAirportCheck >= 180000) {
             lastAirportCheck = now
             val status = Airport.status(c) ?: return
