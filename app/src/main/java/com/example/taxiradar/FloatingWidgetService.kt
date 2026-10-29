@@ -695,6 +695,9 @@ class FloatingWidgetService : Service() {
     @Volatile private var stillLon = 0.0
     @Volatile private var stillSince = 0L
     private var nearbyCheckedAt = 0L
+    // Бережём Яндекс: кэш точек на 5 минут и пауза 15 минут после отказов.
+    private val nearbyCache = HashMap<String, Pair<Int, Long>>()
+    private var nearbyPausedUntil = 0L
 
     private fun noteStill(lat: Double, lon: Double) {
         if (stillSince == 0L || RouteFareCalculator.distanceKm(stillLat, stillLon, lat, lon) > 0.1) {
@@ -702,7 +705,7 @@ class FloatingWidgetService : Service() {
         }
     }
 
-    /** Едет — вокруг не смотрим. Простоял минуту — проверяем сразу, дальше, пока стоит, раз в 3 минуты. */
+    /** Едет — вокруг не смотрим. Простоял минуту — проверяем сразу, дальше, пока стоит, раз в 5 минут. */
     private fun startNearbySurge() {
         nearbyJob?.cancel()
         nearbyJob = serviceScope.launch {
@@ -710,7 +713,7 @@ class FloatingWidgetService : Service() {
                 delay(15_000)
                 val now = System.currentTimeMillis()
                 val still = stillSince > 0 && now - stillSince >= 60_000
-                if (still && (nearbyCheckedAt < stillSince || now - nearbyCheckedAt >= 3 * 60_000)) {
+                if (still && now >= nearbyPausedUntil && (nearbyCheckedAt < stillSince || now - nearbyCheckedAt >= 5 * 60_000)) {
                     nearbyCheckedAt = now
                     try { checkNearbySurge() } catch (_: Exception) {}
                 }
@@ -724,21 +727,44 @@ class FloatingWidgetService : Service() {
         if (isShowingOrder || TripTracker.inTrip() || TripDestination.current() != null) return
         if (System.currentTimeMillis() - lastFixAt > 2 * 60_000) return
         val here = lastHere ?: return
+        // Здесь уже высокая надбавка (+35 и выше) — искать лучше не нужно.
+        if (here >= 35) return
         val lat = driverLat; val lon = driverLon
         // Два кольца по 8 направлений. Днём далеко не ездят — 0,75 и 1,5 км; ночью (22:00–6:00) машин мало — 1,5 и 3 км.
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         val (near, far) = if (hour >= 22 || hour < 6) 1.5 to 3.0 else 0.75 to 1.5
         val bearings = (0 until 8).map { it * 45.0 }
-        val spots = bearings.map { it to near } + bearings.map { (it + 22.5) to far }
         data class Hit(val value: Int, val km: Double, val bearing: Double, val lat: Double, val lon: Double)
-        val hits = spots.mapNotNull { (bearing, km) ->
+        val tariff = mainTariff
+        var failures = 0
+        // Точки по одной, с паузой 1–2 с; точка из кэша (≈100 м, 5 минут) — без запроса.
+        suspend fun ring(spots: List<Pair<Double, Double>>): List<Hit> = spots.mapNotNull { (bearing, km) ->
+            if (failures >= 2) return@mapNotNull null
             val r = Math.toRadians(bearing)
             val pLat = lat + km / 111.0 * Math.cos(r)
             val pLon = lon + km / (111.0 * Math.cos(Math.toRadians(lat))) * Math.sin(r)
-            YandexTaxiSurgeChecker.getSurgePrice(pLon, pLat, mainTariff)?.let { Hit(it, km, bearing, pLat, pLon) }
+            val key = "$tariff:${"%.3f".format(java.util.Locale.US, pLat)}:${"%.3f".format(java.util.Locale.US, pLon)}"
+            val now = System.currentTimeMillis()
+            val cached = nearbyCache[key]?.takeIf { now - it.second < 5 * 60_000 }?.first
+            val value = cached ?: run {
+                delay(1000L + kotlin.random.Random.nextLong(1000))
+                YandexTaxiSurgeChecker.getSurgePrice(pLon, pLat, tariff)
+                    ?.also { failures = 0; nearbyCache[key] = it to System.currentTimeMillis() }
+                    ?: run { failures++; null }
+            }
+            value?.let { Hit(it, km, bearing, pLat, pLon) }
         }
+        fun better(hits: List<Hit>) = hits.filter { it.value > here }.maxWithOrNull(compareBy<Hit> { it.value }.thenBy { -it.km })
+        nearbyCache.entries.removeAll { System.currentTimeMillis() - it.value.second >= 5 * 60_000 }
+        // Сначала ближнее кольцо; дальнее — только если рядом дороже не нашлось.
+        var best = better(ring(bearings.map { it to near }))
+        if (best == null && failures < 2) best = better(ring(bearings.map { (it + 22.5) to far }))
+        // Яндекс отказал два раза подряд — 15 минут не трогаем.
+        if (failures >= 2) nearbyPausedUntil = System.currentTimeMillis() + 15 * 60_000
         // Только если рядом дороже, чем здесь: такая же или ниже — молчим.
-        val best = hits.filter { it.value > here }.maxWithOrNull(compareBy<Hit> { it.value }.thenBy { -it.km }) ?: return
+        if (best == null) return
+        // На заказ за время проверки (до ~30 с) — плашку не показываем.
+        if (isShowingOrder || TripTracker.inTrip() || TripDestination.current() != null) return
         val now = System.currentTimeMillis()
         // Не чаще раза в 15 минут, если только рядом не стало ещё дороже.
         if (now - nearbyAlertAt < 15 * 60_000 && best.value <= nearbyAlertValue) return
