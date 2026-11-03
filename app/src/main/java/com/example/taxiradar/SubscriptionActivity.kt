@@ -23,7 +23,9 @@ import java.util.Locale
 
 /**
  * «Подписка»: статус, выбор тарифа (из настроек сервера), промокод и «Оплатить» —
- * открывает Telegram продавца с готовым сообщением. Ключ после оплаты вводится тут же.
+ * перевод MIA на номер продавца и «Я оплатил»: продавцу приходит заявка в Telegram,
+ * он подтверждает — подписка продлевается сама, без ключа. Запасной путь — написать
+ * продавцу и ввести ключ тут же.
  */
 class SubscriptionActivity : AppCompatActivity() {
 
@@ -130,7 +132,86 @@ class SubscriptionActivity : AppCompatActivity() {
         btnPay.text = getString(R.string.sub_pay, t.price, config.currencyLabel(this))
     }
 
+    private fun t(ru: String, ro: String) = DriverUi.t(this, ru, ro)
+
+    /** Перевод MIA: номер продавца, сумма, свой номер и «Я оплатил». */
     private fun pay() {
+        val tariff = config.tariffs.getOrNull(selected) ?: return
+        val currency = config.currencyLabel(this)
+        val mia = config.miaPhone.ifBlank { config.phone }
+        if (mia.isBlank()) { writeSeller(); return }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(DriverUi.dp(this@SubscriptionActivity, 22), DriverUi.dp(this@SubscriptionActivity, 8), DriverUi.dp(this@SubscriptionActivity, 22), 0) }
+        box.addView(DriverUi.text(this, t("1. Переведите ${tariff.price} $currency через MIA на номер:", "1. Transferați ${tariff.price} $currency prin MIA la numărul:"), 15f))
+        box.addView(DriverUi.text(this, mia, 26f))
+        if (config.miaName.isNotBlank()) box.addView(DriverUi.text(this, t("Получатель: ${config.miaName}", "Destinatar: ${config.miaName}"), 14f, true))
+        DriverUi.button(this, box, t("Скопировать номер", "Copiază numărul")) {
+            (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("MIA", mia))
+            Toast.makeText(this, t("Номер скопирован", "Numărul a fost copiat"), Toast.LENGTH_SHORT).show()
+        }
+        box.addView(DriverUi.text(this, t("2. Ваш номер — продавец позвонит, если перевод не найдётся:", "2. Numărul dvs. — vânzătorul sună dacă nu găsește transferul:"), 15f))
+        val phone = DriverUi.field(this, box, t("Ваш телефон", "Telefonul dvs."), DriverPreferences.text(this, "my_phone"), false)
+        phone.inputType = android.text.InputType.TYPE_CLASS_PHONE
+        box.addView(DriverUi.text(this, t("3. Нажмите «Я оплатил». Подписка включится сама, как только продавец увидит перевод.", "3. Apăsați «Am plătit». Abonamentul pornește singur când vânzătorul vede transferul."), 14f, true))
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.sub_pay, tariff.price, currency))
+            .setView(android.widget.ScrollView(this).apply { addView(box) })
+            .setPositiveButton(t("Я оплатил", "Am plătit"), null)
+            .setNeutralButton(t("Написать продавцу", "Scrie vânzătorului")) { _, _ -> writeSeller() }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val number = phone.text.toString().trim()
+            if (number.count { it.isDigit() } < 8) { phone.error = t("Введите номер", "Introduceți numărul"); return@setOnClickListener }
+            DriverPreferences.set(this, "my_phone", number)
+            it.isEnabled = false
+            lifecycleScope.launch {
+                val body = org.json.JSONObject().put("days", tariff.days).put("phone", number)
+                    .put("promo", etPromo.text?.toString()?.trim()?.uppercase().orEmpty()).put("device_info", licenseManager.deviceInfo)
+                val r = CommunityApi.post(this@SubscriptionActivity, "/api/pay/claim", body)
+                it.isEnabled = true
+                if (r?.optBoolean("ok") == true) {
+                    dialog.dismiss()
+                    Toast.makeText(this@SubscriptionActivity, t("Заявка отправлена. Подписка включится, как только продавец подтвердит перевод.", "Cererea a fost trimisă. Abonamentul pornește după confirmarea transferului."), Toast.LENGTH_LONG).show()
+                    waitForPayment()
+                } else Toast.makeText(this@SubscriptionActivity, r?.optString("message")?.ifBlank { null } ?: getString(R.string.srv_no_connection), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private var waitJob: kotlinx.coroutines.Job? = null
+
+    /** Пока экран открыт — ждём подтверждения продавца (до 20 минут). */
+    private fun waitForPayment() {
+        waitJob?.cancel()
+        val status = findViewById<TextView>(R.id.tvSubStatus)
+        status.text = t("⏳ Ждём подтверждения оплаты…", "⏳ Așteptăm confirmarea plății…")
+        waitJob = lifecycleScope.launch {
+            repeat(80) {
+                kotlinx.coroutines.delay(15_000)
+                val claim = CommunityApi.post(this@SubscriptionActivity, "/api/pay/status")?.optJSONObject("claim") ?: return@repeat
+                when (claim.optString("status")) {
+                    "ok" -> {
+                        licenseManager.checkDeviceStatus()
+                        renderStatus()
+                        Toast.makeText(this@SubscriptionActivity, t("✓ Оплата подтверждена — подписка продлена", "✓ Plata confirmată — abonamentul prelungit"), Toast.LENGTH_LONG).show()
+                        return@launch
+                    }
+                    "no" -> {
+                        renderStatus()
+                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this@SubscriptionActivity)
+                            .setMessage(t("Продавец не нашёл ваш перевод. Проверьте номер и сумму или напишите ему.", "Vânzătorul nu a găsit transferul. Verificați numărul și suma sau scrieți-i."))
+                            .setPositiveButton(t("Написать", "Scrie")) { _, _ -> writeSeller() }
+                            .setNegativeButton(R.string.cancel, null).show()
+                        return@launch
+                    }
+                }
+            }
+            renderStatus()
+        }
+    }
+
+    /** Запасной путь: написать продавцу в Telegram / WhatsApp / Viber и получить ключ. */
+    private fun writeSeller() {
         val t = config.tariffs.getOrNull(selected) ?: return
         val currency = config.currencyLabel(this)
         val promo = etPromo.text?.toString()?.trim()?.uppercase().orEmpty()

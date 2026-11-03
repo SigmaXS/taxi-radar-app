@@ -220,31 +220,41 @@ class FloatingWidgetService : Service() {
                 }
                 sub.append(details)
                 val prefs = this@FloatingWidgetService
-                // Без расходов машины оценку просто не показываем — подсказка раздувала виджет.
+                // Без расходов машины чистые не показываем — подсказка раздувала виджет.
+                var r: OrderEconomics.Result? = null
                 if (DriverPreferences.flag(prefs, "profit") || DriverPreferences.flag(prefs, "per_km") || DriverPreferences.flag(prefs, "per_hour") || DriverPreferences.flag(prefs, "per_minute")) {
                     if (DriverPreferences.costsReady(prefs)) {
-                        val r = OrderEconomics.calculate(price, km, pickupKm, min, pickupKm / DriverPreferences.number(prefs, "pickup_speed", 25.0).coerceAtLeast(5.0) * 60, DriverPreferences.costs(prefs))
-                        // «После расходов ≈ 65 L · подача 3 км · ≈ 110 L/час» и сверка с желаемыми показателями.
+                        val e = OrderEconomics.calculate(price, km, pickupKm, min, pickupKm / DriverPreferences.number(prefs, "pickup_speed", 25.0).coerceAtLeast(5.0) * 60, DriverPreferences.costs(prefs))
+                        r = e
+                        // «После расходов ≈ 65 L · подача 3 км · ≈ 110 L/час».
                         val values = mutableListOf<String>()
-                        if (DriverPreferences.flag(prefs, "profit")) values += DriverUi.t(prefs, "После расходов ≈ ${r.net} L", "După cheltuieli ≈ ${r.net} L")
+                        if (DriverPreferences.flag(prefs, "profit")) values += DriverUi.t(prefs, "После расходов ≈ ${e.net} L", "După cheltuieli ≈ ${e.net} L")
                         if (DriverPreferences.flag(prefs, "profit") && pickupKm > 0) values += DriverUi.t(prefs, "подача ${formatKm(pickupKm)} км", "preluare ${formatKm(pickupKm)} km")
-                        if (DriverPreferences.flag(prefs, "per_minute") && r.perMinute != null) values += "≈ ${String.format(java.util.Locale.getDefault(), "%.2f", r.perMinute)} MDL/min"
-                        if (DriverPreferences.flag(prefs, "per_km") && r.perKm != null) values += "~${formatKm(r.perKm)} L/km"
-                        if ((DriverPreferences.flag(prefs, "per_hour") || DriverPreferences.flag(prefs, "profit")) && r.perHour != null) values += DriverUi.t(prefs, "≈ ${r.perHour} L/час", "≈ ${r.perHour} L/oră")
+                        if (DriverPreferences.flag(prefs, "per_minute") && e.perMinute != null) values += "≈ ${String.format(java.util.Locale.getDefault(), "%.2f", e.perMinute)} MDL/min"
+                        if (DriverPreferences.flag(prefs, "per_km") && e.perKm != null) values += "~${formatKm(e.perKm)} L/km"
+                        if ((DriverPreferences.flag(prefs, "per_hour") || DriverPreferences.flag(prefs, "profit")) && e.perHour != null) values += DriverUi.t(prefs, "≈ ${e.perHour} L/час", "≈ ${e.perHour} L/oră")
                         if (values.isNotEmpty()) sub.append("\n" + values.joinToString(" · "))
-                        if (DriverPreferences.flag(prefs, "profit")) {
-                            val misses = mutableListOf<String>()
-                            val hourGoal = DriverPreferences.number(prefs, "hour_target", 120.0)
-                            val orderGoal = DriverPreferences.number(prefs, "order_min_net", 0.0)
-                            val pickupGoal = DriverPreferences.number(prefs, "pickup_max_km", 0.0)
-                            if (hourGoal > 0 && r.perHour != null && r.perHour < hourGoal) misses += DriverUi.t(prefs, "в час < ${hourGoal.toInt()}", "pe oră < ${hourGoal.toInt()}")
-                            if (orderGoal > 0 && r.net < orderGoal) misses += DriverUi.t(prefs, "за заказ < ${orderGoal.toInt()}", "pe cursă < ${orderGoal.toInt()}")
-                            if (pickupGoal > 0 && pickupKm > pickupGoal) misses += DriverUi.t(prefs, "подача > ${formatKm(pickupGoal)} км", "preluare > ${formatKm(pickupGoal)} km")
-                            val start = sub.length
-                            sub.append("\n" + if (misses.isEmpty()) DriverUi.t(prefs, "✓ Подходит под ваши цели", "✓ Corespunde țintelor") else DriverUi.t(prefs, "Ниже цели: ", "Sub țintă: ") + misses.joinToString(", "))
-                            sub.setSpan(ForegroundColorSpan(getColor(if (misses.isEmpty()) R.color.tr_success else R.color.tr_warning)), start, sub.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            if (misses.isNotEmpty()) tvWidgetSurge?.setTextColor(getColor(R.color.tr_warning))
-                        }
+                    }
+                }
+                // «Выгодно / невыгодно» по своим порогам (по желанию, по умолчанию выключено). Цена за км
+                // и подача проверяются и без расходов машины; чистые в час и за заказ — только с ними.
+                if (DriverPreferences.flag(prefs, "profit")) {
+                    val misses = mutableListOf<String>()
+                    val kmGoal = DriverPreferences.number(prefs, "km_target", 0.0)
+                    val hourGoal = if (r != null) DriverPreferences.number(prefs, "hour_target", 120.0) else 0.0
+                    val orderGoal = if (r != null) DriverPreferences.number(prefs, "order_min_net", 0.0) else 0.0
+                    val pickupGoal = DriverPreferences.number(prefs, "pickup_max_km", 0.0)
+                    val totalKm = km + pickupKm
+                    if (kmGoal > 0 && totalKm > 0 && price / totalKm < kmGoal) misses += DriverUi.t(prefs, "за км ${formatKm(price / totalKm)} < ${formatKm(kmGoal)}", "pe km ${formatKm(price / totalKm)} < ${formatKm(kmGoal)}")
+                    if (hourGoal > 0 && r?.perHour != null && r.perHour < hourGoal) misses += DriverUi.t(prefs, "в час < ${hourGoal.toInt()}", "pe oră < ${hourGoal.toInt()}")
+                    if (orderGoal > 0 && r != null && r.net < orderGoal) misses += DriverUi.t(prefs, "за заказ < ${orderGoal.toInt()}", "pe cursă < ${orderGoal.toInt()}")
+                    if (pickupGoal > 0 && pickupKm > pickupGoal) misses += DriverUi.t(prefs, "подача > ${formatKm(pickupGoal)} км", "preluare > ${formatKm(pickupGoal)} km")
+                    // Есть хотя бы один порог, который можно проверить, — пишем вывод.
+                    if (kmGoal > 0 || hourGoal > 0 || orderGoal > 0 || pickupGoal > 0) {
+                        val start = sub.length
+                        sub.append((if (sub.isEmpty()) "" else "\n") + if (misses.isEmpty()) DriverUi.t(prefs, "✓ Выгодно", "✓ Rentabil") else DriverUi.t(prefs, "✗ Невыгодно: ", "✗ Nerentabil: ") + misses.joinToString(", "))
+                        sub.setSpan(ForegroundColorSpan(getColor(if (misses.isEmpty()) R.color.tr_success else R.color.tr_danger)), start, sub.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        if (misses.isNotEmpty()) tvWidgetSurge?.setTextColor(getColor(R.color.tr_danger))
                     }
                 }
                 tvWidgetSub?.text = sub
@@ -358,6 +368,18 @@ class FloatingWidgetService : Service() {
     private fun startRoadReports() {
         roadJob?.cancel()
         roadJob = serviceScope.launch {
+            // Помощь на дороге: заявки рядом и отклики на свою — раз в 30 секунд (без Firebase).
+            launch {
+                while (isActive) {
+                    if (System.currentTimeMillis() - lastFixAt < 2 * 60_000 && DriverPreferences.flag(this@FloatingWidgetService, "help_alerts", true)) {
+                        RoadHelp.nearby(this@FloatingWidgetService, driverLat, driverLon)?.let {
+                            RoadHelp.notifyNew(this@FloatingWidgetService, it, isShowingOrder || TripTracker.inTrip() || TripDestination.current() != null)
+                        }
+                    }
+                    if (DriverPreferences.flag(this@FloatingWidgetService, "help_open")) RoadHelp.mine(this@FloatingWidgetService)?.let { RoadHelp.notifyHelpers(this@FloatingWidgetService, it) }
+                    delay(30_000)
+                }
+            }
             while (isActive) {
                 RoadReports.list(this@FloatingWidgetService, driverLat, driverLon)?.let { list ->
                     roadReports = list.filter { RoadReports.type(it.type)?.road == true && !it.mine }

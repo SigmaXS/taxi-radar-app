@@ -37,4 +37,6 @@
     <string name="widget_size_hint">Размер, прозрачность, цвета, кнопка «+» — нажмите, чтобы настроить</string>
     <!-- Надбавка на виджете -->
     <string name="widget_bonus">надбавка +%1$d</string>
+    <string name="road_help_button">🆘 Помощь на дороге</string>
+    <string name="danger_button">🚨 Опасность</string>
 </resources>

@@ -42,7 +42,10 @@ data class AppConfig(
     val trafficWeekday: List<Double?> = emptyList(),
     val trafficWeekend: List<Double?> = emptyList(),
     /** Centrally managed literal OCR corrections; never executable patterns. */
-    val boltOcrCorrections: String = ""
+    val boltOcrCorrections: String = "",
+    /** Оплата переводом MIA: номер и имя получателя (MIA_PHONE / MIA_NAME в Railway). */
+    val miaPhone: String = "",
+    val miaName: String = ""
 ) {
     data class Tariff(val days: Int, val price: Int)
 
@@ -106,7 +109,9 @@ data class AppConfig(
             minVersionCode = j.optInt("min_version_code", 0),
             trafficWeekday = hours(j.optJSONObject("traffic")?.optJSONArray("wd")),
             trafficWeekend = hours(j.optJSONObject("traffic")?.optJSONArray("we")),
-            boltOcrCorrections = j.optString("bolt_ocr_corrections", "").take(10000)
+            boltOcrCorrections = j.optString("bolt_ocr_corrections", "").take(10000),
+            miaPhone = j.optString("mia_phone", ""),
+            miaName = j.optString("mia_name", "")
         )
 
         private fun hours(a: org.json.JSONArray?): List<Double?> =

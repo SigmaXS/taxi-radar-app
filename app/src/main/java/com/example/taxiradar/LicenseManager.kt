@@ -46,7 +46,7 @@ class LicenseManager(private val context: Context) {
     ) ?: "unknown_device"
 
     /** Для админки: «Xiaomi M2007J3SG · Android 12 · v1.2». */
-    private val deviceInfo: String by lazy {
+    val deviceInfo: String by lazy {
         val manufacturer = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
         val model = if (Build.MODEL.startsWith(Build.MANUFACTURER, ignoreCase = true)) {
             Build.MODEL

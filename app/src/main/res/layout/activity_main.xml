@@ -368,6 +368,8 @@
                         <ImageButton android:id="@+id/btnDriverInfo" android:layout_width="48dp" android:layout_height="48dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_help" android:contentDescription="@string/driver_tools_help" app:tint="@color/tr_on_accent_container" />
                     </LinearLayout>
                     <TextView style="@style/TaxiRadar.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginBottom="6dp" android:text="@string/driver_tools_caption" />
+                    <!-- Время на линии текущей смены (без перерывов) и в заказах -->
+                    <TextView android:id="@+id/tvOnlineTime" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginBottom="6dp" android:textColor="@color/tr_text" android:textSize="15sp" android:textStyle="bold" android:visibility="gone" />
                     <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverSettings" style="@style/TaxiRadar.Button" app:backgroundTint="@color/tr_cyan" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/radar_services_settings" android:gravity="center" app:iconGravity="textStart" app:icon="@drawable/ic_settings" />
                     <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverShift" style="@style/TaxiRadar.Button.Outlined" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_shift_short" android:gravity="center" app:iconGravity="textStart" app:strokeColor="@color/tr_cyan" app:icon="@drawable/ic_payments" />
                 </LinearLayout>
@@ -615,6 +617,34 @@
                         app:tint="@color/tr_text_muted" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            <!-- Помощь на дороге и отдельная красная «Опасность» -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRoadHelp"
+                    style="@style/TaxiRadar.Button.Outlined"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:text="@string/road_help_button"
+                    app:strokeColor="@color/tr_cyan" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnDanger"
+                    style="@style/TaxiRadar.Button"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:text="@string/danger_button"
+                    app:backgroundTint="@color/tr_danger" />
+            </LinearLayout>
 
 
 

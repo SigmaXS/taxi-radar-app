@@ -441,6 +441,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.rowClients).setOnClickListener {
             startActivity(Intent(this, ClientsActivity::class.java))
         }
+        findViewById<View>(R.id.btnRoadHelp).setOnClickListener { startActivity(Intent(this, RoadHelpActivity::class.java)) }
+        findViewById<View>(R.id.btnDanger).setOnClickListener { startActivity(Intent(this, RoadHelpActivity::class.java).putExtra("danger", true)) }
         findViewById<View>(R.id.rowAirport).setOnClickListener {
             startActivity(Intent(this, AirportActivity::class.java))
         }
@@ -937,12 +939,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** «На линии 5 ч 20 мин · в заказах 2 ч 10 мин» — время текущей смены без перерывов. */
+    private fun renderOnlineTime() {
+        val tv = findViewById<TextView>(R.id.tvOnlineTime)
+        if (DriverJournal.active(this).isEmpty()) { tv.visibility = View.GONE; return }
+        val online = (DriverJournal.elapsedMinutes(this) - DriverJournal.pausedMinutes(this)).coerceAtLeast(0)
+        val inRides = DriverJournal.rides(this).filter { it.shift == DriverJournal.active(this) && it.confirmed }.sumOf { it.minutes }.toLong()
+        fun hm(m: Long) = DriverUi.t(this, "${m / 60} ч ${m % 60} мин", "${m / 60} h ${m % 60} min")
+        tv.text = DriverUi.t(this, "⏱ На линии ${hm(online)}", "⏱ Pe linie ${hm(online)}") +
+            (if (inRides > 0) DriverUi.t(this, " · в заказах ${hm(inRides)}", " · în curse ${hm(inRides)}") else "") +
+            (if (DriverJournal.paused(this)) DriverUi.t(this, " · перерыв", " · pauză") else "")
+        tv.visibility = View.VISIBLE
+    }
+
     override fun onResume() {
         super.onResume()
         AccessibilityAccess.ensureEnabled(this)
         renderYandexState()
         renderTraffic()
         renderSetupWarning()
+        renderOnlineTime()
         if (currentTab == R.id.nav_map) mapController?.onShow()
         // Вернулись из настроек «Установка приложений» — продолжаем установку сами.
         pendingApk?.let { if (it.exists() && !AppUpdater.needsInstallPermission(this)) installUpdate(it) }

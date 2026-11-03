@@ -33,4 +33,6 @@
     <string name="widget_size_value">%1$d%%</string>
     <string name="widget_size_hint">Mărime, transparență, culori, butonul «+» — apăsați pentru setări</string>
     <string name="widget_bonus">supliment +%1$d</string>
+    <string name="road_help_button">🆘 Ajutor pe drum</string>
+    <string name="danger_button">🚨 Pericol</string>
 </resources>
