@@ -361,17 +361,17 @@
 
 
             <com.google.android.material.card.MaterialCardView android:id="@+id/cardDriverTools" style="@style/TaxiRadar.Card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" app:cardBackgroundColor="@color/tr_surface" app:strokeColor="@color/tr_cyan">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_driver_console" android:padding="8dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_driver_console" android:paddingHorizontal="8dp" android:paddingTop="2dp" android:paddingBottom="6dp">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
-                        <Space android:layout_width="48dp" android:layout_height="1dp" />
-                        <TextView style="@style/TaxiRadar.CardTitle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="@string/driver_tools_title" android:textSize="19sp" />
-                        <ImageButton android:id="@+id/btnDriverInfo" android:layout_width="48dp" android:layout_height="48dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_help" android:contentDescription="@string/driver_tools_help" app:tint="@color/tr_on_accent_container" />
+                        <Space android:layout_width="40dp" android:layout_height="1dp" />
+                        <TextView style="@style/TaxiRadar.CardTitle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="@string/driver_tools_title" android:textSize="16sp" />
+                        <ImageButton android:id="@+id/btnDriverInfo" android:layout_width="40dp" android:layout_height="40dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_help" android:contentDescription="@string/driver_tools_help" app:tint="@color/tr_on_accent_container" />
                     </LinearLayout>
-                    <TextView style="@style/TaxiRadar.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginBottom="6dp" android:text="@string/driver_tools_caption" />
-                    <!-- Время на линии текущей смены (без перерывов) и в заказах -->
-                    <TextView android:id="@+id/tvOnlineTime" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginBottom="6dp" android:textColor="@color/tr_text" android:textSize="15sp" android:textStyle="bold" android:visibility="gone" />
-                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverSettings" style="@style/TaxiRadar.Button" app:backgroundTint="@color/tr_cyan" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/radar_services_settings" android:gravity="center" app:iconGravity="textStart" app:icon="@drawable/ic_settings" />
-                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverShift" style="@style/TaxiRadar.Button.Outlined" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/driver_shift_short" android:gravity="center" app:iconGravity="textStart" app:strokeColor="@color/tr_cyan" app:icon="@drawable/ic_payments" />
+                    <TextView style="@style/TaxiRadar.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginTop="-6dp" android:layout_marginBottom="4dp" android:text="@string/driver_tools_caption" android:textSize="12sp" />
+                    <!-- Время на линии текущей смены (без перерывов) и в заказах: одна строка -->
+                    <TextView android:id="@+id/tvOnlineTime" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginBottom="4dp" android:maxLines="1" android:ellipsize="end" android:textColor="@color/tr_text" android:textSize="13sp" android:textStyle="bold" android:visibility="gone" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverSettings" style="@style/TaxiRadar.Button" app:backgroundTint="@color/tr_cyan" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" android:insetTop="0dp" android:insetBottom="0dp" android:textSize="14sp" android:text="@string/radar_services_settings" android:gravity="center" app:iconGravity="textStart" app:icon="@drawable/ic_settings" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnDriverShift" style="@style/TaxiRadar.Button.Outlined" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="6dp" android:textSize="14sp" android:text="@string/driver_shift_short" android:gravity="center" app:iconGravity="textStart" app:strokeColor="@color/tr_cyan" app:icon="@drawable/ic_payments" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 <com.google.android.material.card.MaterialCardView
@@ -426,58 +426,24 @@
                             android:text="@string/setup_checking" />
                     </LinearLayout>
 
+                    <!-- «Исправить» — только когда что-то не настроено -->
+                    <TextView
+                        android:id="@+id/tvSetupFix"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:text="@string/setup_fix"
+                        android:textColor="@color/tr_danger"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+
                     <ImageView
                         android:layout_width="24dp"
                         android:layout_height="24dp"
                         android:contentDescription="@null"
                         android:src="@drawable/ic_chevron_right"
                         app:tint="@color/tr_text_muted" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-<com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardSetupWarning"
-                style="@style/TaxiRadar.Card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground"
-                android:visibility="gone"
-                app:cardBackgroundColor="@color/tr_accent_container"
-                app:strokeWidth="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:contentDescription="@null"
-                        android:src="@drawable/ic_error"
-                        app:tint="@color/tr_warning" />
-
-                    <TextView
-                        android:id="@+id/tvSetupWarning"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:layout_weight="1"
-                        android:text="@string/setup_warning"
-                        android:textColor="@color/tr_on_accent_container"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:text="@string/setup_fix"
-                        android:textColor="@color/tr_accent"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -619,32 +585,49 @@
             </com.google.android.material.card.MaterialCardView>
 
             <!-- Помощь на дороге и отдельная красная «Опасность» -->
-            <LinearLayout
+            <com.google.android.material.card.MaterialCardView
+                style="@style/TaxiRadar.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+                app:contentPaddingBottom="8dp"
+                app:contentPaddingTop="8dp">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnRoadHelp"
-                    style="@style/TaxiRadar.Button.Outlined"
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
-                    android:layout_weight="1"
-                    android:text="@string/road_help_button"
-                    app:strokeColor="@color/tr_cyan" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnDanger"
-                    style="@style/TaxiRadar.Button"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:layout_weight="1"
-                    android:text="@string/danger_button"
-                    app:backgroundTint="@color/tr_danger" />
-            </LinearLayout>
+                    <!-- Тап по названию — помощь на дороге -->
+                    <TextView
+                        android:id="@+id/btnRoadHelp"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:text="@string/road_help_button"
+                        android:textColor="@color/tr_text"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnDanger"
+                        style="@style/TaxiRadar.Button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="44dp"
+                        android:text="@string/danger_button"
+                        android:textSize="14sp"
+                        app:backgroundTint="@color/tr_danger" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
 
 
@@ -1677,6 +1660,11 @@
             </LinearLayout>
         </ScrollView>
 
+        <include
+            android:id="@+id/pageThrottle"
+            layout="@layout/page_throttle"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
     </FrameLayout>
 
     <!-- Тонкая линия над панелью вкладок -->

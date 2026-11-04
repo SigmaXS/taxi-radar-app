@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="throttle_license_expired_title">Подписка «Отмена» закончилась</string>
+    <string name="throttle_license_expired_text">Продлите подписку, чтобы снова пропускать заказы</string>
+    <string name="throttle_license_channel">Подписка «Отмена»</string>
+    <string name="throttle_license_soon_title">Подписка «Отмена» заканчивается</string>
+    <string name="throttle_license_soon_text">Осталась минута — продлите, чтобы не останавливать скрипт</string>
+</resources>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_throttle">Отмена</string>
+
+    <string name="throttle_title">Отмена</string>
+    <string name="throttle_subtitle">1. Запустите радар и нажмите «Включить».\n2. Ждём заказ. Не хотите брать — ничего не делайте, подождите 30–40 секунд.\n3. Хотите взять — нажмите «Стоп» и принимайте заказ.</string>
+
+    <string name="throttle_state_off">Тормоз выключен</string>
+    <string name="throttle_state_on">Тормоз включён</string>
+    <string name="throttle_state_burst">Идёт отмена</string>
+
+    <string name="throttle_hint_off">Яндекс Про работает на полной скорости</string>
+    <string name="throttle_hint_on">Отправка запросов Яндекса ограничена</string>
+    <string name="throttle_hint_burst">Отправка почти заблокирована — ждём, пока заказ уйдёт</string>
+
+    <string name="throttle_enable">Включить тормоз</string>
+    <string name="throttle_disable">Выключить</string>
+    <string name="throttle_stop_all">Стоп</string>
+    <string name="throttle_burst">Отмена · 30 секунд</string>
+    <string name="throttle_burst_stop">Остановить сейчас</string>
+    <string name="throttle_burst_hint">Нажмите, когда пришёл невыгодный заказ</string>
+
+    <string name="throttle_settings_title">Виджет и шторка</string>
+    <string name="throttle_bubble">Плавающая кнопка поверх Яндекс Про</string>
+    <string name="throttle_bubble_hint">Круглая кнопка на экране: тап — старт/стоп</string>
+    <string name="throttle_tile_hint">Плитка «Отмена» в шторке быстрых настроек</string>
+
+    <string name="throttle_permission_vpn">Разрешите VPN, чтобы включить тормоз</string>
+    <string name="throttle_permission_overlay">Нужно разрешение «Поверх других приложений»</string>
+    <string name="throttle_started">Тормоз включён</string>
+    <string name="throttle_stopped">Тормоз выключен</string>
+    <string name="throttle_burst_started">Отмена на 30 секунд</string>
+    <string name="throttle_footnote">Включили — и дальше само: на каждый новый заказ 33 секунды. «Стоп» на плавающей кнопке — пауза на минуту, чтобы взять заказ.</string>
+
+    <string name="throttle_notification_title">Тормоз включён</string>
+    <string name="throttle_notification_text">Интернет для Яндекс Про замедлен</string>
+    <string name="throttle_channel">Тормоз</string>
+    <string name="throttle_stop">Стоп</string>
+
+    <string name="cancel_key_title">Ключ «Отмена»</string>
+    <string name="cancel_key_hint">CANC-XXXX-XXXX</string>
+    <string name="cancel_activate">Активировать</string>
+    <string name="cancel_license_required">Пробный день закончился. Введите ключ «Отмена» — он покупается отдельно от радара (999 лей в месяц).</string>
+    <string name="cancel_license_left">Подписка «Отмена»: осталось %1$d дн.</string>
+    <string name="cancel_trial_started">Тестовый день «Отмены» включён</string>
+    <string name="cancel_buy">Купить · 999 лей</string>
+    <string name="cancel_buy_title">Подписка «Отмена»</string>
+    <string name="cancel_buy_message">999 лей за 30 дней. Переведите на MIA и нажмите «Отправить» — админ подтвердит, подписка включится сама.</string>
+    <string name="cancel_phone_hint">Номер телефона</string>
+    <string name="cancel_send">Отправить</string>
+    <string name="cancel_claim_sent">Заявка отправлена. После подтверждения подписка включится автоматически.</string>
+    <string name="throttle_state_paused">Пауза</string>
+    <string name="throttle_hint_paused">Интернет вернулся — можно взять заказ. Через минуту всё включится само</string>
+</resources>

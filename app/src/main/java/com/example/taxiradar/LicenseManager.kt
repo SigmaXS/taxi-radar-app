@@ -104,8 +104,8 @@ class LicenseManager(private val context: Context) {
     private fun bootCount(): Int =
         Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, -1)
 
-    private fun rememberServerTime(response: Response) {
-        val serverMs = response.headers.getDate("Date")?.time ?: return
+    // Время сервера берём только из подписанного ответа (LicenseSignature): заголовок Date подставной сервер подделал бы.
+    private fun rememberServerTime(serverMs: Long) {
         prefs.edit()
             .putLong(KEY_SERVER_TIME, serverMs)
             .putLong(KEY_ELAPSED_AT_SERVER_TIME, SystemClock.elapsedRealtime())
@@ -139,6 +139,8 @@ class LicenseManager(private val context: Context) {
         return isStillValid
     }
 
+    fun expiresAtMillis(): Long = parseDateMillis(prefs.getString(KEY_EXPIRES, null))
+
     fun getRemainingDays(): Int {
         val now = trustedNow() ?: return 0
         val diff = parseDateMillis(prefs.getString(KEY_EXPIRES, null)) - now
@@ -161,7 +163,8 @@ class LicenseManager(private val context: Context) {
             }
         }
 
-        val jsonBody = requestBody()
+        val nonce = LicenseSignature.newNonce()
+        val jsonBody = requestBody("nonce" to nonce)
         val request = Request.Builder()
             .url("$BASE_URL/api/request-trial")
             .post(jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType()))
@@ -169,13 +172,16 @@ class LicenseManager(private val context: Context) {
 
         try {
             client.newCall(request).execute().use { response ->
-                rememberServerTime(response)
                 val bodyStr = response.body?.string() ?: return@withContext Pair(false, context.getString(R.string.srv_error))
                 val json = JSONObject(bodyStr)
                 val isValid = json.optBoolean("valid", false)
                 val msg = ServerText.localize(context, json.optString("message", ""))
 
                 if (isValid) {
+                    // «Доступ открыт» принимаем только с подписью сервера.
+                    val proof = LicenseSignature.verify(json, "radar", deviceId, nonce, true)
+                        ?: return@withContext Pair(false, context.getString(R.string.srv_error))
+                    rememberServerTime(proof.ts)
                     prefs.edit()
                         .putBoolean(KEY_IS_ACTIVATED, true)
                         .putBoolean(KEY_TRIAL_ALREADY_USED, true)
@@ -197,7 +203,8 @@ class LicenseManager(private val context: Context) {
 
     suspend fun activateKey(key: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         val cleanKey = key.trim().uppercase()
-        val jsonBody = requestBody("key" to cleanKey)
+        val nonce = LicenseSignature.newNonce()
+        val jsonBody = requestBody("key" to cleanKey, "nonce" to nonce)
 
         val request = Request.Builder()
             .url("$BASE_URL/api/activate-device")
@@ -206,13 +213,15 @@ class LicenseManager(private val context: Context) {
 
         try {
             client.newCall(request).execute().use { response ->
-                rememberServerTime(response)
                 val bodyStr = response.body?.string() ?: return@withContext Pair(false, context.getString(R.string.srv_empty))
                 val json = JSONObject(bodyStr)
                 val isValid = json.optBoolean("valid", false)
                 val message = ServerText.localize(context, json.optString("message", context.getString(R.string.srv_generic_error)))
 
                 if (isValid) {
+                    val proof = LicenseSignature.verify(json, "radar", deviceId, nonce, true)
+                        ?: return@withContext Pair(false, context.getString(R.string.srv_error))
+                    rememberServerTime(proof.ts)
                     prefs.edit()
                         .putBoolean(KEY_IS_ACTIVATED, true)
                         .putString(KEY_SAVED_LICENSE, cleanKey)
@@ -233,7 +242,8 @@ class LicenseManager(private val context: Context) {
      * серверному времени (если телефон не перезагружался), иначе доступ закрыт.
      */
     suspend fun checkDeviceStatus(): Boolean = withContext(Dispatchers.IO) {
-        val jsonBody = requestBody()
+        val nonce = LicenseSignature.newNonce()
+        val jsonBody = requestBody("nonce" to nonce)
         val request = Request.Builder()
             .url("$BASE_URL/api/check-license")
             .post(jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType()))
@@ -241,11 +251,14 @@ class LicenseManager(private val context: Context) {
 
         try {
             client.newCall(request).execute().use { response ->
-                rememberServerTime(response)
                 val bodyStr = response.body?.string() ?: return@withContext isLicensed()
                 val json = JSONObject(bodyStr)
 
                 if (json.optBoolean("valid", false)) {
+                    // Без верной подписи ответ считаем «нет связи»: решает то, что уже было подтверждено раньше.
+                    val proof = LicenseSignature.verify(json, "radar", deviceId, nonce, true)
+                        ?: return@withContext isLicensed()
+                    rememberServerTime(proof.ts)
                     prefs.edit()
                         .putBoolean(KEY_IS_ACTIVATED, true)
                         .putString(KEY_EXPIRES, json.optString("expires", ""))

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="throttle_auto_switch">Запускать тормоз самому при новом заказе</string>
+    <string name="throttle_auto_switch_hint">Включили — и дальше всё само: 40 секунд на каждый новый заказ</string>
+    <string name="throttle_state_auto">Авто включено</string>
+    <string name="throttle_hint_auto">Ждём новый заказ — тормоз сработает сам</string>
+    <string name="throttle_enable_auto">Включить</string>
+    <string name="throttle_auto_started">Авто включено: ждём заказ</string>
+    <string name="throttle_auto_stopped">Авто выключено</string>
+
+    <string name="throttle_widget_paused">Пауза</string>
+    <string name="throttle_widget_off">Выключено</string>
+    <string name="throttle_widget_auto">Авто · ждём заказ</string>
+    <string name="throttle_widget_burst">Отмена…</string>
+    <string name="throttle_widget_start">СТАРТ</string>
+    <string name="throttle_widget_stop">СТОП</string>
+
+    <string name="throttle_notif_access">Разрешить доступ к уведомлениям — тогда тормоз сам поймает новый заказ</string>
+    <string name="throttle_notif_access_action">Открыть настройки</string>
+</resources>

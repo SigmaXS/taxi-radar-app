@@ -30,7 +30,8 @@ object RoadHelp {
     data class Kind(val key: String, val emoji: String, val ru: String, val ro: String)
 
     val KINDS = listOf(
-        Kind("tire", "🛞", "Колесо / насос", "Roată / pompă"),
+        // 🛞 (Юникод 14) на многих телефонах рисуется пустым квадратом — берём значок, который есть везде.
+        Kind("tire", "🔧", "Колесо / насос", "Roată / pompă"),
         Kind("jump", "🔋", "Прикурить", "Pornire de la baterie"),
         Kind("fuel", "⛽", "Кончился бензин или газ", "S-a terminat benzina sau gazul"),
         Kind("tow", "🚗", "Буксир", "Remorcare"),
@@ -128,7 +129,14 @@ object RoadHelp {
                 .setTimeoutAfter(60 * 60_000L)
                 .setAutoCancel(true)
                 .build()
-            try { nm.notify(HELP_ID_BASE + (r.id % 1000).toInt(), n) } catch (_: SecurityException) {}
+            try { nm.notify(HELP_ID_BASE + (r.id % 1000).toInt(), n) } catch (_: Exception) {}
+            // Как «Только наличными» и «Надбавка рядом»: плашка поверх экрана. На заказе — только «опасность».
+            if (!busy || danger) {
+                OverlayPopup.show(c, "${label(c, r.kind)} · ${distance(c, r.dist)}",
+                    listOf(priceText(c, r), r.note).filter { it.isNotBlank() }.joinToString(" · "),
+                    if (danger) R.color.tr_danger else R.color.tr_warning, showMs = if (danger) 20_000 else 15_000,
+                    onTap = { try { open.send() } catch (_: Exception) {} })
+            }
         }
     }
 
@@ -190,9 +198,37 @@ object RoadHelp {
         try { c.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
     }
 
-    /** Точка в навигаторе: Яндекс Навигатор, Waze, Google — что стоит на телефоне. */
+    private class Navigator(val name: String, val pkg: String, val uri: (Double, Double) -> String)
+
+    private val NAVIGATORS = listOf(
+        Navigator("Google Maps", "com.google.android.apps.maps") { la, lo -> "google.navigation:q=$la,$lo" },
+        Navigator("Waze", "com.waze") { la, lo -> "waze://?ll=$la,$lo&navigate=yes" },
+        Navigator("Яндекс Карты", "ru.yandex.yandexmaps") { la, lo -> "yandexmaps://maps.yandex.ru/?rtext=~$la,$lo&rtt=auto" },
+        Navigator("Яндекс Навигатор", "ru.yandex.yandexnavi") { la, lo -> "yandexnavi://build_route_on_map?lat_to=$la&lon_to=$lo" }
+    )
+
+    private fun installed(c: Context, pkg: String) = try { c.packageManager.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
+
+    /**
+     * Маршрут до точки: список навигаторов, которые стоят на телефоне (Google Maps, Waze, Яндекс Карты,
+     * Яндекс Навигатор). Установлен один — открываем сразу; ни одного — любая карта по geo:.
+     */
     fun navigate(c: Context, lat: Double, lon: Double) {
-        val geo = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try { c.startActivity(Intent.createChooser(geo, DriverUi.t(c, "Открыть в навигаторе", "Deschide în navigator")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+        val found = NAVIGATORS.filter { installed(c, it.pkg) }
+        fun open(i: Intent) { try { c.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {} }
+        fun launch(n: Navigator) = open(Intent(Intent.ACTION_VIEW, Uri.parse(n.uri(lat, lon))).setPackage(n.pkg))
+        fun anyMap() = open(Intent.createChooser(Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon")),
+            DriverUi.t(c, "Открыть в навигаторе", "Deschide în navigator")))
+        when {
+            found.isEmpty() -> anyMap()
+            found.size == 1 || c !is android.app.Activity -> launch(found.first())
+            else -> {
+                val names = (found.map { it.name } + DriverUi.t(c, "Другая карта…", "Altă hartă…")).toTypedArray()
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(c)
+                    .setTitle(DriverUi.t(c, "Проложить маршрут", "Alegeți navigatorul"))
+                    .setItems(names) { _, i -> if (i < found.size) launch(found[i]) else anyMap() }
+                    .setNegativeButton(R.string.close, null).show()
+            }
+        }
     }
 }

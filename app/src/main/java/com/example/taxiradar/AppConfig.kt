@@ -45,7 +45,10 @@ data class AppConfig(
     val boltOcrCorrections: String = "",
     /** Оплата переводом MIA: номер и имя получателя (MIA_PHONE / MIA_NAME в Railway). */
     val miaPhone: String = "",
-    val miaName: String = ""
+    val miaName: String = "",
+    /** Тарифы «Отмены» (3 / 7 / 30 дней: чем дольше, тем дешевле день) и цена пакета «Радар + Отмена». */
+    val cancelTariffs: List<Tariff> = listOf(Tariff(3, 199), Tariff(7, 399), Tariff(30, 999)),
+    val bundlePrice: Int = 999
 ) {
     data class Tariff(val days: Int, val price: Int)
 
@@ -111,11 +114,22 @@ data class AppConfig(
             trafficWeekend = hours(j.optJSONObject("traffic")?.optJSONArray("we")),
             boltOcrCorrections = j.optString("bolt_ocr_corrections", "").take(10000),
             miaPhone = j.optString("mia_phone", ""),
-            miaName = j.optString("mia_name", "")
+            miaName = j.optString("mia_name", ""),
+            cancelTariffs = parseCancelTariffs(j),
+            bundlePrice = j.optInt("bundle_price", 999).takeIf { it > 0 } ?: 999
         )
 
         private fun hours(a: org.json.JSONArray?): List<Double?> =
             if (a == null) emptyList() else (0 until a.length()).map { i -> if (a.isNull(i)) null else a.optDouble(i).takeIf { !it.isNaN() } }
+
+        private fun parseCancelTariffs(j: JSONObject): List<Tariff> {
+            val fallback = listOf(Tariff(3, 199), Tariff(7, 399), Tariff(30, 999))
+            val arr = j.optJSONArray("cancel_tariffs") ?: return fallback
+            val list = (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { Tariff(it.optInt("days"), it.optInt("price")) }
+            }.filter { it.days > 0 && it.price > 0 }
+            return list.ifEmpty { fallback }
+        }
 
         private fun parseTariffs(j: JSONObject): List<Tariff> {
             val arr = j.optJSONArray("tariffs") ?: return listOf(Tariff(30, 99))

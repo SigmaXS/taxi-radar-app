@@ -301,6 +301,44 @@ class SurgeMapController(private val activity: AppCompatActivity, root: View) {
             reports = it
             renderReports()
         }
+        RoadHelp.nearby(activity, c.latitude, c.longitude)?.let { helpRequests = it; renderHelp() }
+    }
+
+    // Заявки «Помощь на дороге»: точка есть у «опасности» и у заявок, на которые водитель нажал «Помогу».
+    private var helpRequests: List<RoadHelp.Request> = emptyList()
+    private val helpMarkers = mutableListOf<Marker>()
+
+    private fun renderHelp() {
+        helpMarkers.forEach { map.overlays.remove(it) }
+        helpMarkers.clear()
+        for (r in helpRequests) {
+            val lat = r.lat ?: continue
+            val lon = r.lon ?: continue
+            val danger = r.kind == RoadHelp.DANGER.key
+            val m = Marker(map).apply {
+                position = GeoPoint(lat, lon)
+                icon = MapIcons.circle(activity, RoadHelp.kind(r.kind).emoji, if (danger) 0xFFD32F2F.toInt() else 0xFF00838F.toInt(), 44)
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                setInfoWindow(null)
+                setOnMarkerClickListener { _, _ -> showHelp(r, lat, lon); true }
+            }
+            helpMarkers += m
+            map.overlays.add(1, m)
+        }
+        map.invalidate()
+    }
+
+    /** Нажали на метку помощи: что просят и «Проложить маршрут» в Google Maps / Waze / Яндекс. */
+    private fun showHelp(r: RoadHelp.Request, lat: Double, lon: Double) {
+        val text = listOf(RoadHelp.priceText(activity, r), r.note, RoadHelp.distance(activity, r.dist))
+            .filter { it.isNotBlank() }.joinToString("\n")
+        val b = com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+            .setTitle(RoadHelp.label(activity, r.kind))
+            .setMessage(text)
+            .setPositiveButton(DriverUi.t(activity, "🧭 Проложить маршрут", "🧭 Traseu")) { _, _ -> RoadHelp.navigate(activity, lat, lon) }
+            .setNegativeButton(R.string.close, null)
+        r.phone?.let { phone -> b.setNeutralButton(DriverUi.t(activity, "Позвонить", "Sună")) { _, _ -> RoadHelp.call(activity, phone) } }
+        b.show()
     }
 
     private fun renderReports() {

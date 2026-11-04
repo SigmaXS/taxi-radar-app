@@ -548,6 +548,9 @@ object RouteFareCalculator {
     // («Gara de Nord» он находит в Бухаресте). Лучше без цены, чем с неверной.
     private const val MAX_DISTANCE_KM = 150.0
 
+    // Кишинёв с пригородами (Дурлешты, Яловены, Кричова) — до ~25 км от центра.
+    private const val CITY_ADDRESS_KM = 25.0
+
     // Яндекс уверен в точке: дом найден точно / по номеру / рядом.
     private val GOOD_PRECISION = setOf("exact", "number", "near")
 
@@ -575,9 +578,18 @@ object RouteFareCalculator {
         if (airportRegex.containsMatchIn(clean) && !otherCityRegex.containsMatchIn(clean)) {
             return LatLng(lat = 46.9350, lon = 28.9330)
         }
-        val found = geocodeNear(clean, apiKey, context)
-            ?: if (Regex("(?iu)chi[șs]in|кишин").containsMatchIn(clean)) null
-            else geocodeNear("Chișinău, $clean", apiKey, context)
+        val named = Regex("(?iu)chi[șs]in|кишин").containsMatchIn(clean)
+        var found = geocodeNear(clean, apiKey, context)
+            ?: if (named) null else geocodeNear("Chișinău, $clean", apiKey, context)
+        // Улица без названия города нашлась далеко от Кишинёва (бульвар Москова — в 44 км, в другом
+        // городе): заказы такси у нас городские, поэтому сначала ищем эту же улицу в самом Кишинёве.
+        if (found != null && !named && haversineKm(found.lat, found.lon, CITY_CENTER_LAT, CITY_CENTER_LON) > CITY_ADDRESS_KM) {
+            val inCity = geocodeNear("Chișinău, $clean", apiKey, context)
+            if (inCity != null && haversineKm(inCity.lat, inCity.lon, CITY_CENTER_LAT, CITY_CENTER_LON) <= CITY_ADDRESS_KM) {
+                Log.d("FARE_CALC", "«$clean» нашёлся далеко от города — взяли точку в Кишинёве: ${inCity.lat},${inCity.lon}")
+                found = inCity
+            }
+        }
         if (found == null) {
             Log.e("FARE_CALC", "Яндекс Геокодер не нашёл адрес рядом с Кишинёвом: \"$address\"")
             // В список для админа: он поставит точку вручную, или её принесёт поездка.

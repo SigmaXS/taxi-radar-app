@@ -6,6 +6,7 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import com.example.taxiradar.throttle.ThrottleAuto
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.*
 
@@ -145,7 +146,7 @@ class OrderAccessibilityService : AccessibilityService() {
         if (BoltAccessibilityReader.supported(pkg)) return
         // Яндекс Go (пассажирское) — не заказ Яндекс Про; карта Go шлёт события без конца — нагрев.
         if (pkg == "ru.yandex.taxi") return
-        if (!RadarServices.yandex(this)) return
+if (!RadarServices.yandex(this)) return
 
         if (isDialer(pkg)) {
             try {
@@ -216,6 +217,8 @@ class OrderAccessibilityService : AccessibilityService() {
                 it.contains("Принять", ignoreCase = true) || it.contains("Accept", ignoreCase = true)
             }
             if (!hasAccept) {
+                // Карточка ушла — снимаем «тормоз», не дожидаясь таймера.
+                if (ThrottleAuto.enabled) ThrottleAuto.onOrderGone(this)
                 // Экран «Ожидание в очереди» в аэропорту — цифры очереди для всех водителей.
                 AirportQueue.onScreen(this, allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() })
                 // Лёгкий режим выключает только пробки и надбавку в Б; поездки в смену пишутся всегда.
@@ -361,6 +364,10 @@ class OrderAccessibilityService : AccessibilityService() {
 
             lastTriggerTime = now
             lastCapturedOrderKey = orderKey
+            if (ThrottleAuto.enabled) {
+                Log.d("ThrottleAuto", "card seen: ${route.joinToString("|")}")
+                ThrottleAuto.onOrderDetected(this, "card", route.joinToString("|"))
+            }
 
             // По-румынски тарифы — «Econom», «Confort», «Confort+».
             val tariff = when {
@@ -706,30 +713,6 @@ class OrderAccessibilityService : AccessibilityService() {
     @Volatile
     private var calcSeq = 0L
 
-    /**
-     * Км и минуты поездки А→Б от TomTom с пробками на сейчас (тот же запрос, что у Bolt), когда Яндекс
-     * на карточке их не подписал. Ждём не больше 5 с; нет ответа или маршрут не похож на наш — null (считаем как раньше).
-     */
-    private suspend fun trafficPrice(route: List<String>, tariff: String, surgeBonus: Int,
-                                     our: RouteFareCalculator.FareResult, pickupKm: Double): RouteFareCalculator.FareResult? {
-        val recent = FloatingWidgetService.isRunning && System.currentTimeMillis() - FloatingWidgetService.lastFixAt < 120_000
-        if (!recent) return null
-        val reply = withTimeoutOrNull(5_000) {
-            withContext(Dispatchers.IO) {
-                // Адреса сервер ищет сам (Яндекс + TomTom по-румынски) и берёт пару, которая сходится с подачей
-                // с карточки и с нашим км по OSRM — в TomTom уходят уже координаты, не текст.
-                ScreenTrafficRoute.calculate(this@OrderAccessibilityService, FloatingWidgetService.driverLat, FloatingWidgetService.driverLon, route, 0.0,
-                    pickupKm = pickupKm.takeIf { it > 0 }, tripKm = (our.cityKm + our.outOfCityKm).takeIf { it > 0 })
-            }
-        } ?: return null
-        val trip = reply.route?.trip ?: return null
-        val ourKm = our.cityKm + our.outOfCityKm
-        if (ourKm <= 0 || trip.km !in (ourKm * 0.6)..(ourKm * 1.8)) return null
-        val scale = trip.km / ourKm
-        val price = RouteFareCalculator.price(tariff, our.cityKm * scale, our.outOfCityKm * scale, trip.minutes, surgeBonus)
-        Log.d("FARE_CALC", "TomTom с пробками: ${"%.1f".format(trip.km)} км, ${"%.0f".format(trip.minutes)} мин → $price L (OSRM с поправкой ${our.price} L)")
-        return our.copy(price = price, distanceKm = trip.km, durationMin = Math.round(trip.minutes).toInt())
-    }
 
     private suspend fun calculateAndShow(
         route: List<String>, tariff: String, surgeBonus: Int, apiKey: String, pickupKm: Double,
@@ -788,9 +771,6 @@ class OrderAccessibilityService : AccessibilityService() {
             } else {
                 Log.d("FARE_CALC", "Маршрут с карточки ${cardRoute.km} км не похож на наш ${"%.1f".format(ourKm)} км — не используем")
             }
-        } else if (result != null && route.size == 2 &&
-            trafficPrice(route, tariff, surgeBonus, result, pickupKm)?.also { result = it } != null) {
-            // Яндекс на карточке км и минуты поездки не подписал — взяли минуты TomTom с живыми пробками.
         } else if (result != null && result.durationMin > MAX_UNLABELED_MIN) {
             // Подписей на карточке нет — значит, по расчёту Яндекса поездка короче
             // 40 минут (длиннее он подписывает км и минуты). Наша оценка вышла

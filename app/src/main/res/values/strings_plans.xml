@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plan_radar">Радар · %1$d дн.</string>
+    <string name="plan_cancel">Отмена · 30 дн.</string>
+    <string name="plan_cancel_note">Отдельная подписка на «Отмену»</string>
+    <string name="plan_both">Радар + Отмена · 30 дн.</string>
+    <string name="plan_both_note">Всё вместе — 999 лей вместо 1098</string>
+</resources>

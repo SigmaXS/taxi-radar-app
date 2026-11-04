@@ -33,6 +33,9 @@ class SubscriptionActivity : AppCompatActivity() {
     private lateinit var config: AppConfig
     private lateinit var btnPay: MaterialButton
     private lateinit var etPromo: TextInputEditText
+    private data class Plan(val product: String, val days: Int, val price: Int, val title: String, val note: String)
+
+    private var plans: List<Plan> = emptyList()
     private val cards = mutableListOf<MaterialCardView>()
     private var selected = 0
 
@@ -112,12 +115,22 @@ class SubscriptionActivity : AppCompatActivity() {
         box.removeAllViews()
         cards.clear()
         val currency = config.currencyLabel(this)
-        config.tariffs.forEachIndexed { i, t ->
+        val radar = config.tariffs.firstOrNull() ?: AppConfig.Tariff(30, 99)
+        plans = listOf(
+            Plan("radar", radar.days, radar.price, getString(R.string.plan_radar, radar.days), ""),
+        ) + config.cancelTariffs.sortedBy { it.days }.mapIndexed { i, t ->
+            // Чем длиннее срок, тем дешевле день: выгоднее всего самый длинный.
+            val last = i == config.cancelTariffs.size - 1
+            Plan("cancel", t.days, t.price, getString(R.string.plan_cancel_days, t.days), if (last) getString(R.string.plan_best_gift, ratio(config.cancelTariffs, t)) else "")
+        }
+        plans.forEachIndexed { i, plan ->
             val card = LayoutInflater.from(this).inflate(R.layout.item_tariff, box, false) as MaterialCardView
-            card.findViewById<TextView>(R.id.tvTariffDays).text = getString(R.string.sub_days, t.days)
-            card.findViewById<TextView>(R.id.tvTariffPrice).text = getString(R.string.sub_price, t.price, currency)
-            val perDay = String.format(Locale.US, "%.1f", t.price.toDouble() / t.days).removeSuffix(".0")
-            card.findViewById<TextView>(R.id.tvTariffPerDay).text = getString(R.string.sub_per_day, perDay, currency)
+            card.findViewById<TextView>(R.id.tvTariffDays).text = plan.title
+            card.findViewById<TextView>(R.id.tvTariffPrice).text = getString(R.string.sub_price, plan.price, currency)
+            card.findViewById<TextView>(R.id.tvTariffPerDay).text = plan.note.ifBlank {
+                val perDay = String.format(Locale.US, "%.1f", plan.price.toDouble() / plan.days).removeSuffix(".0")
+                getString(R.string.sub_per_day, perDay, currency)
+            }
             card.setOnClickListener { select(i) }
             box.addView(card)
             cards += card
@@ -125,23 +138,30 @@ class SubscriptionActivity : AppCompatActivity() {
         select(selected.coerceIn(0, (cards.size - 1).coerceAtLeast(0)))
     }
 
+    /** Во сколько раз день на этом тарифе дешевле, чем на самом коротком («2,5»). */
+    private fun ratio(all: List<AppConfig.Tariff>, t: AppConfig.Tariff): String {
+        val short = all.minByOrNull { it.days } ?: return "1"
+        val r = (short.price.toDouble() / short.days) / (t.price.toDouble() / t.days)
+        return String.format(Locale.getDefault(), "%.1f", r).removeSuffix(",0").removeSuffix(".0")
+    }
+
     private fun select(index: Int) {
         selected = index
         cards.forEachIndexed { i, c -> c.isChecked = i == index }
-        val t = config.tariffs.getOrNull(index) ?: return
-        btnPay.text = getString(R.string.sub_pay, t.price, config.currencyLabel(this))
+        val plan = plans.getOrNull(index) ?: return
+        btnPay.text = getString(R.string.sub_pay, plan.price, config.currencyLabel(this))
     }
 
     private fun t(ru: String, ro: String) = DriverUi.t(this, ru, ro)
 
     /** Перевод MIA: номер продавца, сумма, свой номер и «Я оплатил». */
     private fun pay() {
-        val tariff = config.tariffs.getOrNull(selected) ?: return
+        val plan = plans.getOrNull(selected) ?: return
         val currency = config.currencyLabel(this)
         val mia = config.miaPhone.ifBlank { config.phone }
         if (mia.isBlank()) { writeSeller(); return }
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(DriverUi.dp(this@SubscriptionActivity, 22), DriverUi.dp(this@SubscriptionActivity, 8), DriverUi.dp(this@SubscriptionActivity, 22), 0) }
-        box.addView(DriverUi.text(this, t("1. Переведите ${tariff.price} $currency через MIA на номер:", "1. Transferați ${tariff.price} $currency prin MIA la numărul:"), 15f))
+        box.addView(DriverUi.text(this, t("1. Переведите ${plan.price} $currency через MIA на номер:", "1. Transferați ${plan.price} $currency prin MIA la numărul:"), 15f))
         box.addView(DriverUi.text(this, mia, 26f))
         if (config.miaName.isNotBlank()) box.addView(DriverUi.text(this, t("Получатель: ${config.miaName}", "Destinatar: ${config.miaName}"), 14f, true))
         DriverUi.button(this, box, t("Скопировать номер", "Copiază numărul")) {
@@ -153,7 +173,7 @@ class SubscriptionActivity : AppCompatActivity() {
         phone.inputType = android.text.InputType.TYPE_CLASS_PHONE
         box.addView(DriverUi.text(this, t("3. Нажмите «Я оплатил». Подписка включится сама, как только продавец увидит перевод.", "3. Apăsați «Am plătit». Abonamentul pornește singur când vânzătorul vede transferul."), 14f, true))
         val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(getString(R.string.sub_pay, tariff.price, currency))
+            .setTitle(getString(R.string.sub_pay, plan.price, currency))
             .setView(android.widget.ScrollView(this).apply { addView(box) })
             .setPositiveButton(t("Я оплатил", "Am plătit"), null)
             .setNeutralButton(t("Написать продавцу", "Scrie vânzătorului")) { _, _ -> writeSeller() }
@@ -165,7 +185,7 @@ class SubscriptionActivity : AppCompatActivity() {
             DriverPreferences.set(this, "my_phone", number)
             it.isEnabled = false
             lifecycleScope.launch {
-                val body = org.json.JSONObject().put("days", tariff.days).put("phone", number)
+                val body = org.json.JSONObject().put("product", plan.product).put("days", plan.days).put("phone", number)
                     .put("promo", etPromo.text?.toString()?.trim()?.uppercase().orEmpty()).put("device_info", licenseManager.deviceInfo)
                 val r = CommunityApi.post(this@SubscriptionActivity, "/api/pay/claim", body)
                 it.isEnabled = true
@@ -212,13 +232,13 @@ class SubscriptionActivity : AppCompatActivity() {
 
     /** Запасной путь: написать продавцу в Telegram / WhatsApp / Viber и получить ключ. */
     private fun writeSeller() {
-        val t = config.tariffs.getOrNull(selected) ?: return
+        val plan = plans.getOrNull(selected) ?: return
         val currency = config.currencyLabel(this)
         val promo = etPromo.text?.toString()?.trim()?.uppercase().orEmpty()
         val message = getString(
             R.string.sub_pay_message,
-            getString(R.string.sub_days, t.days),
-            getString(R.string.sub_price, t.price, currency),
+            plan.title,
+            getString(R.string.sub_price, plan.price, currency),
             promo.ifEmpty { getString(R.string.sub_no_promo) },
             licenseManager.deviceId
         )

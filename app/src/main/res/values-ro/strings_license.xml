@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cancel_need_network">Este nevoie de conexiune la server pentru a verifica abonamentul «Anulare». Încercați din nou.</string>
+    <string name="cancel_widget_need_subscription">Abonamentul «Anulare» nu este activ. Deschideți aplicația → Profil → Abonament.</string>
+    <string name="plan_cancel_days">Anulare · %1$d zile</string>
+    <string name="plan_best">Cel mai avantajos</string>
+    <string name="plan_best_gift">Radar pe o lună cadou · ziua e de %1$s ori mai ieftină</string>
+    <string name="throttle_license_offer">Luna costă acum %1$d lei pe zi, iar radarul pe o lună e cadou</string>
+    <string name="throttle_license_buy">Cumpără luna</string>
+</resources>

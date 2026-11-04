@@ -8,9 +8,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.net.Uri
+import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import android.text.InputType
 import android.view.LayoutInflater
@@ -22,6 +26,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -36,6 +41,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputLayout
+import com.example.taxiradar.throttle.CancelLicense
+import com.example.taxiradar.throttle.ThrottleAuto
+import com.example.taxiradar.throttle.ThrottleBubbleService
+import com.example.taxiradar.throttle.ThrottleState
+import com.example.taxiradar.throttle.ThrottleVpnService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -65,6 +75,24 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pages: Map<Int, View>
     private var mapController: SurgeMapController? = null
     private var currentTab = R.id.nav_radar
+
+    // --- вкладка «Отмена» ---
+    private lateinit var tvThrottleState: TextView
+    private lateinit var tvThrottleHint: TextView
+    private lateinit var progressThrottle: ProgressBar
+    private lateinit var viewThrottleDot: View
+    private lateinit var btnThrottleToggle: MaterialButton
+    private var throttleTicker: Runnable? = null
+    private var pendingThrottleAction: (() -> Unit)? = null
+
+    private val vpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        val action = pendingThrottleAction
+        pendingThrottleAction = null
+        if (it.resultCode == RESULT_OK) action?.invoke()
+        renderThrottle()
+    }
 
 
     private lateinit var cardReferral: View
@@ -134,6 +162,7 @@ class MainActivity : AppCompatActivity() {
         pages = mapOf(
             R.id.nav_radar to findViewById(R.id.pageRadar),
             R.id.nav_map to findViewById(R.id.pageMap),
+            R.id.nav_throttle to findViewById(R.id.pageThrottle),
             R.id.nav_useful to findViewById(R.id.pageUseful),
             R.id.nav_profile to findViewById(R.id.pageProfile)
         )
@@ -186,13 +215,11 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnLite).setOnClickListener { LiteMode.show(this) { renderLite(); applyEffects() } }
 
         setupTabs(savedInstanceState?.getInt(STATE_TAB) ?: R.id.nav_radar)
+        setupThrottleTab()
         renderLite()
         showWhatsNew()
         handleUpdateIntent(intent)
         setupUsefulTiles()
-        findViewById<View>(R.id.cardSetupWarning).setOnClickListener {
-            startActivity(Intent(this, SetupCheckActivity::class.java))
-        }
         findViewById<TextView>(R.id.tvVersion).text = getString(
             R.string.app_version, packageManager.getPackageInfo(packageName, 0).versionName
         )
@@ -282,6 +309,12 @@ class MainActivity : AppCompatActivity() {
         } else {
             mapController?.onHide()
         }
+        if (tab == R.id.nav_throttle) {
+            startThrottleTicker()
+            renderThrottle()
+        } else {
+            stopThrottleTicker()
+        }
     }
 
     private fun askMapLocation() {
@@ -294,12 +327,12 @@ class MainActivity : AppCompatActivity() {
     /** Что умеет карта — со значками, как в мастере настройки. */
     private fun showMapIntro(then: () -> Unit) {
         val rows = listOf(
-            "🔥" to R.string.intro_map_surge,
-            "📍" to R.string.intro_map_here,
-            "➕" to R.string.intro_map_add,
-            "👆" to R.string.intro_map_tap,
-            "🔔" to R.string.intro_map_alerts,
-            "🗂" to R.string.intro_map_layers
+            "рџ”Ґ" to R.string.intro_map_surge,
+            "рџ“Ќ" to R.string.intro_map_here,
+            "вћ•" to R.string.intro_map_add,
+            "рџ‘†" to R.string.intro_map_tap,
+            "рџ””" to R.string.intro_map_alerts,
+            "рџ—‚" to R.string.intro_map_layers
         )
         val d = resources.displayMetrics.density
         val box = LinearLayout(this).apply {
@@ -415,6 +448,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         chatJob?.cancel()
+        stopThrottleTicker()
         GlowBorder.stop(findViewById(R.id.cardDriverTools))
         GlowBorder.stop(btnLaunchWidget)
         mapController?.onHide()
@@ -462,14 +496,29 @@ class MainActivity : AppCompatActivity() {
             !Settings.canDrawOverlays(this),
             !pm.isIgnoringBatteryOptimizations(packageName)
         ).count { it }
-        findViewById<View>(R.id.cardSetupWarning).visibility = if (problems > 0) View.VISIBLE else View.GONE
+        // Предупреждение встроено в сам блок «Проверка настроек»: красная рамка и «Исправить».
+        // Всё в порядке — блок спокойный, не пропадает.
+        val setupCard = findViewById<com.google.android.material.card.MaterialCardView>(R.id.btnSetupCheck)
+        if (setupCard.tag == null) setupCard.tag = Pair(setupCard.cardBackgroundColor, setupCard.strokeColorStateList)
+        @Suppress("UNCHECKED_CAST")
+        val normal = setupCard.tag as Pair<android.content.res.ColorStateList, android.content.res.ColorStateList?>
+        setupCard.visibility = View.VISIBLE
+        if (problems > 0) {
+            setupCard.setCardBackgroundColor(getColor(R.color.tr_danger_container))
+            setupCard.strokeColor = getColor(R.color.tr_danger)
+            setupCard.strokeWidth = (1.5f * resources.displayMetrics.density).toInt()
+        } else {
+            setupCard.setCardBackgroundColor(normal.first)
+            normal.second?.let { setupCard.setStrokeColor(it) }
+        }
+        findViewById<View>(R.id.tvSetupFix).visibility = if (problems > 0) View.VISIBLE else View.GONE
         findViewById<TextView>(R.id.tvSetupSub).apply {
             text = if (problems > 0) getString(R.string.setup_fix_count, problems) else getString(R.string.setup_all_ok)
-            setTextColor(getColor(if (problems > 0) R.color.tr_warning else R.color.tr_success))
+            setTextColor(getColor(if (problems > 0) R.color.tr_danger else R.color.tr_success))
         }
         findViewById<TextView>(R.id.tvLanguageSub).text = when (AppLanguage.current()) {
             "ru" -> "Русский"
-            "ro" -> "Română"
+            "ro" -> "RomГўnДѓ"
             else -> getString(R.string.lang_system)
         }
     }
@@ -844,7 +893,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // «Изменить» не стирает рабочий ключ: он остаётся, пока новый не пройдёт проверку.
+        // В«РР·РјРµРЅРёС‚СЊВ» РЅРµ СЃС‚РёСЂР°РµС‚ СЂР°Р±РѕС‡РёР№ РєР»СЋС‡: РѕРЅ РѕСЃС‚Р°С‘С‚СЃСЏ, РїРѕРєР° РЅРѕРІС‹Р№ РЅРµ РїСЂРѕР№РґС‘С‚ РїСЂРѕРІРµСЂРєСѓ.
         btnYandexDisconnect.setOnClickListener {
             layoutYandexConnected.visibility = View.GONE
             layoutYandexSetup.visibility = View.VISIBLE
@@ -945,15 +994,20 @@ class MainActivity : AppCompatActivity() {
         if (DriverJournal.active(this).isEmpty()) { tv.visibility = View.GONE; return }
         val online = (DriverJournal.elapsedMinutes(this) - DriverJournal.pausedMinutes(this)).coerceAtLeast(0)
         val inRides = DriverJournal.rides(this).filter { it.shift == DriverJournal.active(this) && it.confirmed }.sumOf { it.minutes }.toLong()
-        fun hm(m: Long) = DriverUi.t(this, "${m / 60} ч ${m % 60} мин", "${m / 60} h ${m % 60} min")
-        tv.text = DriverUi.t(this, "⏱ На линии ${hm(online)}", "⏱ Pe linie ${hm(online)}") +
-            (if (inRides > 0) DriverUi.t(this, " · в заказах ${hm(inRides)}", " · în curse ${hm(inRides)}") else "") +
-            (if (DriverJournal.paused(this)) DriverUi.t(this, " · перерыв", " · pauză") else "")
+        // Коротко, чтобы влезало в одну строку: «⏱ 5ч 20м · заказы 2ч 10м · ⏸»
+        fun hm(m: Long) = DriverUi.t(this, "${m / 60}ч ${m % 60}м", "${m / 60}h ${m % 60}m")
+        tv.text = "⏱ ${hm(online)}" +
+            (if (inRides > 0) DriverUi.t(this, " · заказы ${hm(inRides)}", " · curse ${hm(inRides)}") else "") +
+            (if (DriverJournal.paused(this)) " · ⏸" else "")
         tv.visibility = View.VISIBLE
     }
 
     override fun onResume() {
         super.onResume()
+        if (currentTab == R.id.nav_throttle) {
+            startThrottleTicker()
+            renderThrottle()
+        }
         AccessibilityAccess.ensureEnabled(this)
         renderYandexState()
         renderTraffic()
@@ -1072,7 +1126,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setLicenseStatus(text: String, @ColorRes dotColor: Int) {
-        tvLicenseStatus.text = text
+        val cancelLine = if (CancelLicense.allowed(this)) {
+            "Отмена активна до " + java.text.SimpleDateFormat("dd.MM", java.util.Locale.getDefault())
+                .format(java.util.Date(System.currentTimeMillis() + CancelLicense.msLeft(this)))
+        } else {
+            "Отмена не активна"
+        }
+        tvLicenseStatus.text = text + "\n" + cancelLine
         viewLicenseDot.backgroundTintList = ColorStateList.valueOf(color(dotColor))
         // Дни подписки — ещё и в шапке «Радара», рядом с названием.
         val days = licenseManager.getRemainingDays()
@@ -1153,7 +1213,7 @@ class MainActivity : AppCompatActivity() {
             val days = licenseManager.getRemainingDays()
 
             if (isServerValid && days > 0) {
-                setLicenseStatus(getString(R.string.license_active_days, days), R.color.tr_success)
+                setLicenseStatus("Радар активен до " + java.text.SimpleDateFormat("dd.MM", java.util.Locale.getDefault()).format(java.util.Date(licenseManager.expiresAtMillis().takeIf { it > 0 } ?: System.currentTimeMillis())), R.color.tr_success)
                 layoutActivation.visibility = View.GONE
                 btnLaunchWidget.visibility = View.VISIBLE
             } else {
@@ -1203,7 +1263,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupWidgetSize() {
         val slider = findViewById<Slider>(R.id.sliderWidgetSize)
         slider.visibility = View.GONE
-        findViewById<TextView>(R.id.tvWidgetSize).text = "›"
+        findViewById<TextView>(R.id.tvWidgetSize).text = "вЂє"
         // Вид виджета теперь в «Радар и виджет» — в Профиле карточку не показываем.
         (slider.parent.parent as View).visibility = View.GONE
     }
@@ -1438,6 +1498,189 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton(R.string.got_it, null)
                 .show()
         }
+    }
+
+    // ---------- вкладка «Отмена» ----------
+
+    private fun setupThrottleTab() {
+        tvThrottleState = findViewById(R.id.tvThrottleState)
+        tvThrottleHint = findViewById(R.id.tvThrottleHint)
+        progressThrottle = findViewById(R.id.progressThrottle)
+        viewThrottleDot = findViewById(R.id.viewThrottleDot)
+        btnThrottleToggle = findViewById(R.id.btnThrottleToggle)
+        val sizeSlider = findViewById<Slider>(R.id.sliderThrottleSize)
+        // Значение должно попадать в шаг 0,1 от 0,6, иначе Slider падает (было сохранено 0,714).
+        sizeSlider.value = (0.6f + Math.round((ThrottleBubbleService.scale(this).coerceIn(0.6f, 1.4f) - 0.6f) / 0.1f) * 0.1f).coerceIn(0.6f, 1.4f)
+        sizeSlider.addOnChangeListener { _, value, fromUser ->
+            ThrottleBubbleService.setScale(this, value)
+            if (fromUser && ThrottleBubbleService.isRunning) {
+                ThrottleBubbleService.stop(this)
+                sizeSlider.postDelayed({ startThrottleBubble() }, 250)
+            }
+        }
+
+        ThrottleState.ensureLoaded(this)
+        ThrottleAuto.load(this)
+        restoreThrottleIfEnabled()
+
+        btnThrottleToggle.setOnClickListener {
+            if (ThrottleAuto.enabled) {
+                ThrottleAuto.setEnabled(this, false)
+                ThrottleBubbleService.stop(this)
+                Toast.makeText(this, getString(R.string.throttle_auto_stopped), Toast.LENGTH_SHORT).show()
+                btnThrottleToggle.postDelayed({ renderThrottle() }, 400)
+                return@setOnClickListener
+            }
+
+            if (!Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, R.string.throttle_permission_overlay, Toast.LENGTH_LONG).show()
+                startActivity(
+                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                )
+                return@setOnClickListener
+            }
+
+            btnThrottleToggle.postDelayed({ renderThrottle() }, 500)
+            lifecycleScope.launch {
+                val status = CancelLicense.status(this@MainActivity)
+                when {
+                    // Нет связи: пускаем только если подписка ещё идёт по серверному времени (подписанный ответ).
+                    status == null -> if (CancelLicense.allowed(this@MainActivity)) enableThrottle()
+                    else Toast.makeText(this@MainActivity, R.string.cancel_need_network, Toast.LENGTH_LONG).show()
+                    status.active -> enableThrottle()
+                    status.trialAvailable && !status.banned -> {
+                        // Тестовый день стартует по нажатию «Включить», но только после разрешения VPN:
+                        // откажется — день не сгорает.
+                        withVpnPermission {
+                            lifecycleScope.launch {
+                                if (CancelLicense.startTrial(this@MainActivity) != null) {
+                                    enableThrottle()
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        getString(R.string.cancel_trial_started),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    Toast.makeText(this@MainActivity, R.string.cancel_need_network, Toast.LENGTH_LONG).show()
+                                }
+                                renderThrottle()
+                            }
+                        }
+                    }
+                    else -> openSubscription()
+                }
+                renderThrottle()
+            }
+        }
+    }
+
+    /** Включает авто-режим и плавающую кнопку (лицензия уже проверена). */
+    private fun enableThrottle() {
+        withVpnPermission {
+            ThrottleAuto.setEnabled(this, true)
+            startThrottleBubble()
+            Toast.makeText(this, getString(R.string.throttle_auto_started), Toast.LENGTH_SHORT).show()
+            renderThrottle()
+        }
+    }
+
+    /** После перезапуска приложения возвращаем включённое авто и плавающую кнопку. */
+    private fun restoreThrottleIfEnabled() {
+        if (!ThrottleAuto.enabled) return
+        if (Settings.canDrawOverlays(this) && !ThrottleBubbleService.isRunning) {
+            startThrottleBubble()
+        }
+        if (VpnService.prepare(this) == null && !ThrottleVpnService.isRunning) {
+            ThrottleVpnService.connect(this)
+        }
+    }
+
+    private fun startThrottleBubble() {
+        val intent = Intent(this, ThrottleBubbleService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+    }
+
+    private fun withVpnPermission(action: () -> Unit) {
+        val prepare = VpnService.prepare(this)
+        if (prepare == null) {
+            action()
+        } else {
+            pendingThrottleAction = action
+            vpnPermissionLauncher.launch(prepare)
+        }
+    }
+
+    private fun startThrottleTicker() {
+        stopThrottleTicker()
+        val handler = Handler(Looper.getMainLooper())
+        val runnable = object : Runnable {
+            override fun run() {
+                renderThrottle()
+                handler.postDelayed(this, 500)
+            }
+        }
+        throttleTicker = runnable
+        handler.post(runnable)
+    }
+
+    private fun stopThrottleTicker() {
+        val runnable = throttleTicker ?: return
+        Handler(Looper.getMainLooper()).removeCallbacks(runnable)
+        throttleTicker = null
+    }
+
+    private fun renderThrottle() {
+        if (!::tvThrottleState.isInitialized) return
+
+        val now = SystemClock.elapsedRealtime()
+        val endsAt = ThrottleState.endsAtElapsedRealtime.value
+        val burst = ThrottleState.isRunning.value && endsAt > now
+        val vpnOn = ThrottleVpnService.isRunning
+        val autoOn = ThrottleAuto.enabled
+        val autoHint = autoOn && ThrottleAuto.autoOnOrder && vpnOn
+
+        val dotColor = when {
+            burst -> R.color.tr_surge
+            autoHint -> R.color.tr_success
+            vpnOn -> R.color.tr_accent
+            else -> R.color.tr_text_muted
+        }
+        viewThrottleDot.backgroundTintList = ColorStateList.valueOf(color(dotColor))
+
+        when {
+            burst -> {
+                tvThrottleState.setText(R.string.throttle_state_burst)
+                tvThrottleHint.setText(R.string.throttle_hint_burst)
+                progressThrottle.visibility = View.VISIBLE
+            }
+            ThrottleAuto.isPaused() -> {
+                tvThrottleState.setText(R.string.throttle_state_paused)
+                tvThrottleHint.setText(R.string.throttle_hint_paused)
+                progressThrottle.visibility = View.GONE
+            }
+            autoHint -> {
+                tvThrottleState.setText(R.string.throttle_state_auto)
+                tvThrottleHint.setText(R.string.throttle_hint_auto)
+                progressThrottle.visibility = View.GONE
+            }
+            vpnOn -> {
+                tvThrottleState.setText(R.string.throttle_state_on)
+                tvThrottleHint.setText(R.string.throttle_hint_on)
+                progressThrottle.visibility = View.GONE
+            }
+            else -> {
+                tvThrottleState.setText(R.string.throttle_state_off)
+                tvThrottleHint.setText(R.string.throttle_hint_off)
+                progressThrottle.visibility = View.GONE
+            }
+        }
+
+        btnThrottleToggle.setText(if (autoOn) R.string.throttle_stop_all else R.string.throttle_enable_auto)
+        btnThrottleToggle.backgroundTintList = ColorStateList.valueOf(
+            color(if (autoOn) R.color.tr_danger_container else R.color.tr_accent)
+        )
+        btnThrottleToggle.setTextColor(color(if (autoOn) R.color.tr_danger else R.color.tr_on_accent))
+
     }
 
     private fun startOverlayService() {

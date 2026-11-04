@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="throttle_size_title">Размер плавающей кнопки</string>
+    <string name="throttle_pay_hint">Если подписка закончилась — нажмите «Купить», переведите 999 лей на номер %1$s и отправьте свой номер телефона. Админ подтвердит — подписка включится сама.</string>
+    <string name="throttle_buy_title">Подписка «Отмена»</string>
+    <string name="throttle_buy_price">999 лей · 30 дней</string>
+    <string name="throttle_buy_mia">Перевод MIA на номер %1$s</string>
+    <string name="throttle_buy_phone_hint">Ваш номер телефона для связи</string>
+    <string name="throttle_buy_key_hint">Ключ CANC-XXXX-XXXX</string>
+    <string name="throttle_buy_send">Купить</string>
+</resources>
