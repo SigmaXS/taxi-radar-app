@@ -24,6 +24,10 @@ class ThrottleWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == ACTION_TOGGLE) {
             ThrottleAuto.ensureLoaded(context)
+            if (!ThrottleAuto.enabled && !com.example.taxiradar.OrderAccessibilityService.isConnected) {
+                android.widget.Toast.makeText(context, R.string.cancel_need_accessibility_short, android.widget.Toast.LENGTH_LONG).show()
+                return
+            }
             if (!ThrottleAuto.enabled && !CancelLicense.allowed(context)) {
                 android.widget.Toast.makeText(context, R.string.cancel_widget_need_subscription, android.widget.Toast.LENGTH_LONG).show()
             }

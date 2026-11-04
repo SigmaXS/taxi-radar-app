@@ -45,7 +45,8 @@ class ThrottleBubbleService : Service() {
         private const val LICENSE_CHANNEL_ID = "throttle_license"
         private const val NOTIF_ID = 2
         private const val LICENSE_NOTIF_ID = 3
-        private const val PAUSE_MS = 60_000L
+        // «Стоп» держит интернет, пока водитель сам не нажмёт «Старт» (страховка — сутки).
+        private const val PAUSE_MS = 24 * 3_600_000L
         private const val CHECK_MS = 60_000L
 
         const val UI_PREFS = "throttle_ui"
@@ -77,6 +78,7 @@ class ThrottleBubbleService : Service() {
     private var spinner: ProgressBar? = null
     private var label: TextView? = null
     private var icon: ImageView? = null
+    private var cancelCross: TextView? = null
     private var background: GradientDrawable? = null
     private var params: WindowManager.LayoutParams? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -183,9 +185,36 @@ class ThrottleBubbleService : Service() {
         pill.addView(progress)
         pill.addView(text)
 
+        // Маленький крестик под кнопкой — только пока идёт отмена: «отменить отмену» и взять заказ.
+        val cross = TextView(this).apply {
+            this.text = "✕"
+            gravity = Gravity.CENTER
+            textSize = 13f * scale
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#DC2626"))
+                setStroke(dp(2), Color.WHITE)
+            }
+            elevation = dp(6).toFloat()
+            visibility = View.GONE
+            setOnClickListener {
+                ThrottleVpnService.endBurst(this@ThrottleBubbleService)
+                visibility = View.GONE
+            }
+        }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            addView(pill, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(60)))
+            addView(cross, LinearLayout.LayoutParams(dp(34), dp(34)).apply { topMargin = dp(6) })
+        }
+        cancelCross = cross
+
         val lp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
-            dp(60),
+            WindowManager.LayoutParams.WRAP_CONTENT,
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
@@ -216,16 +245,18 @@ class ThrottleBubbleService : Service() {
                     if (dragging) {
                         lp.x = startX + dx.toInt()
                         lp.y = startY + dy.toInt()
-                        runCatching { windowManager?.updateViewLayout(pill, lp) }
+                        runCatching { windowManager?.updateViewLayout(root, lp) }
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!dragging) {
                         if (SystemClock.elapsedRealtime() - downAt > 700) {
+                            // Долгое нажатие — приложение на вкладке «Отмена».
                             startActivity(
                                 Intent(this@ThrottleBubbleService, MainActivity::class.java)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    .putExtra("open_tab", "throttle")
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                             )
                         } else {
                             onBubbleTap()
@@ -237,8 +268,8 @@ class ThrottleBubbleService : Service() {
             }
         }
 
-        runCatching { windowManager?.addView(pill, lp) }
-        bubble = pill
+        runCatching { windowManager?.addView(root, lp) }
+        bubble = root
         spinner = progress
         label = text
         icon = iconView
@@ -246,7 +277,7 @@ class ThrottleBubbleService : Service() {
         updateBubble()
     }
 
-    /** Тап: пауза на минуту (или сразу вернуться, если уже на паузе). */
+    /** Тап: «Стоп» — интернет вернулся, пока не нажмёшь «Старт» (или вернуться, если уже на паузе). */
     private fun onBubbleTap() {
         if (ThrottleAuto.isPaused()) {
             ThrottleAuto.resume(this)
@@ -335,6 +366,7 @@ class ThrottleBubbleService : Service() {
         val active = ThrottleState.isRunning.value && endsAt > now
         val paused = ThrottleAuto.isPaused()
 
+        cancelCross?.visibility = if (active) View.VISIBLE else View.GONE
         when {
             active -> {
                 progress.visibility = View.VISIBLE
@@ -353,7 +385,7 @@ class ThrottleBubbleService : Service() {
                 iconView.visibility = View.VISIBLE
                 iconView.imageTintList = ColorStateList.valueOf(Color.parseColor("#0B2B1E"))
                 text.visibility = View.VISIBLE
-                text.text = "ПАУЗА"
+                text.text = "СТАРТ"
                 text.setTextColor(Color.parseColor("#0B2B1E"))
                 bg.colors = intArrayOf(
                     Color.parseColor("#4ADE80"),

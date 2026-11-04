@@ -7,4 +7,6 @@
     <string name="plan_best_gift">Радар на месяц в подарок · день в %1$s раза дешевле</string>
     <string name="throttle_license_offer">Месяц сейчас — %1$d лея в день, и радар на месяц в подарок</string>
     <string name="throttle_license_buy">Купить месяц</string>
+    <string name="cancel_need_accessibility">Сначала включите радар: «Специальные возможности». Без них «Отмена» не увидит заказ.</string>
+    <string name="cancel_need_accessibility_short">Сначала включите специальные возможности радара — без них «Отмена» не увидит заказ.</string>
 </resources>

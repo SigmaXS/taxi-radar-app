@@ -1439,6 +1439,11 @@ class MainActivity : AppCompatActivity() {
 
     /** Нажали уведомление «Вышла версия …» — сразу качаем. */
     private fun handleUpdateIntent(i: Intent?) {
+        // Долгое нажатие на плавающую кнопку «Отмены» — сразу вкладка «Отмена».
+        if (i?.getStringExtra("open_tab") == "throttle") {
+            i.removeExtra("open_tab")
+            bottomNav.selectedItemId = R.id.nav_throttle
+        }
         if (i?.getBooleanExtra(UpdateNotifier.EXTRA_START_UPDATE, false) != true) return
         i.removeExtra(UpdateNotifier.EXTRA_START_UPDATE)
         bottomNav.selectedItemId = R.id.nav_radar
@@ -1529,6 +1534,13 @@ class MainActivity : AppCompatActivity() {
                 ThrottleBubbleService.stop(this)
                 Toast.makeText(this, getString(R.string.throttle_auto_stopped), Toast.LENGTH_SHORT).show()
                 btnThrottleToggle.postDelayed({ renderThrottle() }, 400)
+                return@setOnClickListener
+            }
+
+            // Без специальных возможностей радара «Отмена» не увидит заказ: не стартуем и не тратим тестовый день.
+            if (!OrderAccessibilityService.isConnected) {
+                Toast.makeText(this, R.string.cancel_need_accessibility, Toast.LENGTH_LONG).show()
+                startActivity(Intent(this, SetupCheckActivity::class.java))
                 return@setOnClickListener
             }
 

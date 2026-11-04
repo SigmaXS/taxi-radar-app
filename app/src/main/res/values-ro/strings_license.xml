@@ -7,4 +7,6 @@
     <string name="plan_best_gift">Radar pe o lună cadou · ziua e de %1$s ori mai ieftină</string>
     <string name="throttle_license_offer">Luna costă acum %1$d lei pe zi, iar radarul pe o lună e cadou</string>
     <string name="throttle_license_buy">Cumpără luna</string>
+    <string name="cancel_need_accessibility">Mai întâi activați radarul: «Accesibilitate». Fără ea «Anulare» nu vede comanda.</string>
+    <string name="cancel_need_accessibility_short">Mai întâi activați accesibilitatea radarului — fără ea «Anulare» nu vede comanda.</string>
 </resources>

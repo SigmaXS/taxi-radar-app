@@ -8,7 +8,7 @@
     <string name="throttle_auto_started">Авто включено: ждём заказ</string>
     <string name="throttle_auto_stopped">Авто выключено</string>
 
-    <string name="throttle_widget_paused">Пауза</string>
+    <string name="throttle_widget_paused">Стоп · нажмите «Старт»</string>
     <string name="throttle_widget_off">Выключено</string>
     <string name="throttle_widget_auto">Авто · ждём заказ</string>
     <string name="throttle_widget_burst">Отмена…</string>
