@@ -45,8 +45,10 @@ class ThrottleBubbleService : Service() {
         private const val LICENSE_CHANNEL_ID = "throttle_license"
         private const val NOTIF_ID = 2
         private const val LICENSE_NOTIF_ID = 3
-        // «Стоп» держит интернет, пока водитель сам не нажмёт «Старт» (страховка — сутки).
-        private const val PAUSE_MS = 24 * 3_600_000L
+        // Во время отмены «Стоп» / крестик — пауза на минуту, потом скрипт включается сам.
+        private const val PAUSE_ORDER_MS = 60_000L
+        // Заказа нет: «Стоп» держится, пока водитель сам не нажмёт «Старт» (страховка — сутки).
+        private const val PAUSE_IDLE_MS = 24 * 3_600_000L
         private const val CHECK_MS = 60_000L
 
         const val UI_PREFS = "throttle_ui"
@@ -200,8 +202,10 @@ class ThrottleBubbleService : Service() {
             elevation = dp(6).toFloat()
             visibility = View.GONE
             setOnClickListener {
-                ThrottleVpnService.endBurst(this@ThrottleBubbleService)
+                // Взяли заказ: интернет возвращается, через минуту скрипт включится сам.
+                ThrottleAuto.pause(this@ThrottleBubbleService, PAUSE_ORDER_MS)
                 visibility = View.GONE
+                updateBubble()
             }
         }
         val root = LinearLayout(this).apply {
@@ -277,12 +281,16 @@ class ThrottleBubbleService : Service() {
         updateBubble()
     }
 
-    /** Тап: «Стоп» — интернет вернулся, пока не нажмёшь «Старт» (или вернуться, если уже на паузе). */
+    /**
+     * Тап. Идёт отмена (пришёл заказ) — пауза на минуту, потом скрипт включается сам.
+     * Заказа нет — «Стоп» держится до нажатия «Старт». На паузе тап возвращает скрипт сразу.
+     */
     private fun onBubbleTap() {
         if (ThrottleAuto.isPaused()) {
             ThrottleAuto.resume(this)
         } else {
-            ThrottleAuto.pause(this, PAUSE_MS)
+            val burst = ThrottleState.isRunning.value && ThrottleState.endsAtElapsedRealtime.value > SystemClock.elapsedRealtime()
+            ThrottleAuto.pause(this, if (burst) PAUSE_ORDER_MS else PAUSE_IDLE_MS)
         }
         updateBubble()
     }

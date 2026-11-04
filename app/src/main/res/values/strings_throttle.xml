@@ -30,7 +30,7 @@
     <string name="throttle_started">Тормоз включён</string>
     <string name="throttle_stopped">Тормоз выключен</string>
     <string name="throttle_burst_started">Отмена на 30 секунд</string>
-    <string name="throttle_footnote">Включили — и дальше само: на каждый новый заказ 33 секунды. «Стоп» на плавающей кнопке — интернет вернётся, пока снова не нажмёте «Старт».</string>
+    <string name="throttle_footnote">Включили — и дальше само: на каждый новый заказ 33 секунды. «Стоп» во время заказа — пауза на минуту, без заказа — пока не нажмёте «Старт».</string>
 
     <string name="throttle_notification_title">Тормоз включён</string>
     <string name="throttle_notification_text">Интернет для Яндекс Про замедлен</string>
@@ -50,5 +50,5 @@
     <string name="cancel_send">Отправить</string>
     <string name="cancel_claim_sent">Заявка отправлена. После подтверждения подписка включится автоматически.</string>
     <string name="throttle_state_paused">Пауза</string>
-    <string name="throttle_hint_paused">Интернет вернулся — можно взять заказ. Нажмите «Старт» на плавающей кнопке, чтобы продолжить</string>
+    <string name="throttle_hint_paused">Интернет вернулся — можно взять заказ. «Старт» на кнопке включает скрипт сразу; пауза во время заказа кончается сама через минуту</string>
 </resources>
