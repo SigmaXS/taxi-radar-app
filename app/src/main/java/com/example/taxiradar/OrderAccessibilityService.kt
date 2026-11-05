@@ -308,6 +308,8 @@ if (!RadarServices.yandex(this)) return
             // Заказ без точки Б: на карточке только «А». Цены нет — запоминаем
             // тариф и надбавку, посчитаем после «Поехали» по маршруту Яндекса.
             if (addrAIndex >= 0 && allLines.none { isMarkerFor(it, 'Б') }) {
+                // «Отмена» должна сработать и на такой карточке: раньше возврат отсюда её пропускал.
+                if (ThrottleAuto.enabled) ThrottleAuto.onOrderDetected(this, "card", "A:$addrA")
                 rememberNoDestination(root, allTexts, allLines, addrA)
                 return
             }
@@ -333,6 +335,8 @@ if (!RadarServices.yandex(this)) return
 
             if (addrA.isEmpty() || addrB.isEmpty()) {
                 Log.e("ORDER_DEBUG", "ОСТАНОВКА: addrA или addrB пустые после fallback (addrA=\"$addrA\" addrB=\"$addrB\")")
+                // Карточка есть («Принять» на экране) — тормоз всё равно включаем.
+                if (ThrottleAuto.enabled) ThrottleAuto.onOrderDetected(this, "card", "A:$addrA|B:$addrB")
                 return
             }
 
