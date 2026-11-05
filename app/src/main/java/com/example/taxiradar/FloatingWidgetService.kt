@@ -132,6 +132,8 @@ class FloatingWidgetService : Service() {
         DriverJournal.radarStarted(this)
         licenseManager = LicenseManager(this)
         startInForeground()
+        // «Только Отмена»: радар не нужен. Уведомление уже показано (так требует Android), дальше службу не держим.
+        if (CancelOnly.on(this)) { stopSelf(); return }
 
         initFusedGps()
 

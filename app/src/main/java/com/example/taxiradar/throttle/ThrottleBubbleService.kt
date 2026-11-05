@@ -50,6 +50,8 @@ class ThrottleBubbleService : Service() {
         // Заказа нет: «Стоп» держится, пока водитель сам не нажмёт «Старт» (страховка — сутки).
         private const val PAUSE_IDLE_MS = 24 * 3_600_000L
         private const val CHECK_MS = 60_000L
+        // Без заказов столько — «Отмена» выключается сама.
+        private const val AUTO_OFF_MS = 3 * 3_600_000L
 
         const val UI_PREFS = "throttle_ui"
         const val KEY_SCALE = "bubble_scale"
@@ -81,6 +83,7 @@ class ThrottleBubbleService : Service() {
     private var label: TextView? = null
     private var icon: ImageView? = null
     private var cancelCross: TextView? = null
+    private var lastDrawnState = -1
     private var background: GradientDrawable? = null
     private var params: WindowManager.LayoutParams? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -124,7 +127,14 @@ class ThrottleBubbleService : Service() {
         handler.postDelayed(licenseCheck, CHECK_MS)
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Систему перезапустила службу после убийства процесса (intent == null): «Отмена» выключена, кнопка не нужна.
+        if (intent == null && !ThrottleAuto.enabled) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         isRunning = false
@@ -161,7 +171,6 @@ class ThrottleBubbleService : Service() {
         }
         background = bg
         pill.background = bg
-        pill.elevation = dp(8).toFloat()
 
         val iconView = ImageView(this).apply {
             setImageResource(R.drawable.ic_throttle_bolt)
@@ -199,7 +208,6 @@ class ThrottleBubbleService : Service() {
                 setColor(Color.parseColor("#DC2626"))
                 setStroke(dp(2), Color.WHITE)
             }
-            elevation = dp(6).toFloat()
             visibility = View.GONE
             setOnClickListener {
                 // Взяли заказ: интернет возвращается, через минуту скрипт включится сам.
@@ -212,7 +220,7 @@ class ThrottleBubbleService : Service() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             addView(pill, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(60)))
-            addView(cross, LinearLayout.LayoutParams(dp(34), dp(34)).apply { topMargin = dp(6) })
+            addView(cross, LinearLayout.LayoutParams(dp(34), dp(34)).apply { topMargin = -dp(17) })
         }
         cancelCross = cross
 
@@ -272,6 +280,7 @@ class ThrottleBubbleService : Service() {
             }
         }
 
+        lastDrawnState = -1
         runCatching { windowManager?.addView(root, lp) }
         bubble = root
         spinner = progress
@@ -300,12 +309,20 @@ class ThrottleBubbleService : Service() {
         scope.launch {
             // Спрашиваем сервер (обновит срок по подписанному ответу). Нет связи — решает серверное время,
             // которое мы уже знаем: пока подписка по нему идёт, работаем, закончилась — выключаем.
-            CancelLicense.status(applicationContext)
+            CancelLicense.status(applicationContext, running = ThrottleAuto.enabled, runs = ThrottleAuto.runsTotal(applicationContext))
             val left = CancelLicense.msLeft(applicationContext)
             if (left > 0) {
                 if (!warnedSoon && left in 1..30 * 60_000L) {
                     warnedSoon = true
                     handler.post { notifyLicenseSoon() }
+                }
+                // Долго нет заказов — выключаем, чтобы не работала вхолостую; водителю скажем уведомлением.
+                if (ThrottleAuto.enabled && ThrottleAuto.idleMs() >= AUTO_OFF_MS) {
+                    handler.post {
+                        ThrottleAuto.setEnabled(applicationContext, false)
+                        CancelNotices.autoOff(applicationContext)
+                        stopSelf()
+                    }
                 }
                 return@launch
             }
@@ -374,13 +391,25 @@ class ThrottleBubbleService : Service() {
         val active = ThrottleState.isRunning.value && endsAt > now
         val paused = ThrottleAuto.isPaused()
 
+        // Перерисовываем кнопку только при смене вида: раньше каждые полсекунды заново красились фон и значок,
+        // и поток отрисовки поверх Яндекса работал впустую.
+        val state = if (active) 1 else if (paused) 2 else 0
+        // Идёт отмена: вместо крутящегося индикатора (60 кадров в секунду) — «ОТМЕНЯЮ» и мигающая точка,
+        // раз в секунду. Текст одной длины, окно не пересчитывается; секунды не показываем — лишняя перерисовка.
+        val activeLabel = if (active) (if ((now / 1000) % 2L == 0L) "● ОТМЕНЯЮ" else "○ ОТМЕНЯЮ") else ""
+        if (state == lastDrawnState) {
+            if (active) text.text = activeLabel
+            return
+        }
+        lastDrawnState = state
+
         cancelCross?.visibility = if (active) View.VISIBLE else View.GONE
         when {
             active -> {
-                progress.visibility = View.VISIBLE
+                progress.visibility = View.GONE
                 iconView.visibility = View.GONE
                 text.visibility = View.VISIBLE
-                text.text = "ОТМЕНЯЮ"
+                text.text = activeLabel
                 text.setTextColor(Color.WHITE)
                 bg.colors = intArrayOf(
                     Color.parseColor("#7C3AED"),

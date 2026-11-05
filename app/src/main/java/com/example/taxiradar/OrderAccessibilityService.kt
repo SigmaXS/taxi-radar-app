@@ -132,6 +132,8 @@ class OrderAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         isConnected = true
         instance = this
+        // Процесс могли убить: если «Отмена» была включена, ThrottleAuto сообщит об этом уведомлением.
+        com.example.taxiradar.throttle.ThrottleAuto.ensureLoaded(this)
         Log.d("ORDER_DEBUG", "★★★ Служба ПОДКЛЮЧЕНА системой ★★★")
     }
 
@@ -139,6 +141,15 @@ class OrderAccessibilityService : AccessibilityService() {
         if (event == null) return
 
         val pkg = event.packageName?.toString() ?: ""
+        // «Только Отмена»: ничего, кроме экрана Яндекса Про, не читаем.
+        if (CancelOnly.on(this)) {
+            if (pkg != packageName && pkg != "ru.yandex.taxi" && (pkg.contains("taximeter", true) || pkg.contains("yandex", true))) {
+                com.example.taxiradar.throttle.CancelDiag.yandexSeen(this)
+                handler.removeCallbacks(processScreen)
+                handler.postDelayed(processScreen, 150)
+            }
+            return
+        }
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             pkg != packageName && pkg != "com.android.systemui" && pkg != "android" &&
             !pkg.contains("inputmethod") && !pkg.contains("keyboard")) foregroundPackage = pkg
@@ -160,6 +171,7 @@ if (!RadarServices.yandex(this)) return
         if (!pkg.contains("taximeter", ignoreCase = true) && !pkg.contains("yandex", ignoreCase = true)) {
             return
         }
+        com.example.taxiradar.throttle.CancelDiag.yandexSeen(this)
 
         // Свёрнутый Яндекс Про показывает «Ожидание в очереди ~2 ч» в своём кружке поверх
         // других приложений — читаем прямо из события, экран при этом может быть чужой.
@@ -193,6 +205,15 @@ if (!RadarServices.yandex(this)) return
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private val processScreen = Runnable { processYandexScreen() }
 
+    /** Подпись карточки для «Только Отмена»: только строки-адреса (с запятой, без км/минут/цены) — чтобы отличать заказы. */
+    private fun cancelOnlySignature(texts: List<String>): String? {
+        val addr = texts.flatMap { it.split("\n") }.map { it.trim() }.filter {
+            it.length in 6..80 && it.contains(',') && it.any { c -> c.isLetter() } &&
+                !it.contains("км") && !it.contains("мин") && !it.contains(" L") && !it.contains("%")
+        }.distinct().take(2) // только первые два: А и Б; подписи на мини-карте не должны менять подпись заказа
+        return if (addr.isEmpty()) null else addr.joinToString("|")
+    }
+
     private fun processYandexScreen() {
         if (!RadarServices.yandex(this)) return
         try {
@@ -202,6 +223,16 @@ if (!RadarServices.yandex(this)) return
 
             if (allNodes.isEmpty()) return
             val allTexts = allNodes.map { it.text }
+
+            // «Только Отмена»: есть кнопка «Принять» — включаем «Отмену», остальное не разбираем.
+            if (CancelOnly.on(this)) {
+                val card = allTexts.any { it.contains("Принять", ignoreCase = true) || it.contains("Accept", ignoreCase = true) }
+                if (card) com.example.taxiradar.throttle.CancelDiag.cardSeen(this)
+                if (ThrottleAuto.enabled) {
+                    if (card) ThrottleAuto.onOrderDetected(this, "card", cancelOnlySignature(allTexts), trustSignature = false) else ThrottleAuto.onOrderGone(this)
+                }
+                return
+            }
 
             lastYandexEventAt = System.currentTimeMillis()
             dialerFromYandex = false
@@ -229,6 +260,7 @@ if (!RadarServices.yandex(this)) return
                 TripTracker.onScreen(this, root.packageName?.toString().orEmpty(), allTexts)
                 return
             }
+            com.example.taxiradar.throttle.CancelDiag.cardSeen(this)
             // Полный список текстов — только для карточки заказа (для разбора ошибок).
             // Строка лога обрезается после ~4 КБ — пишем кусками.
             if (!LiteMode.cuts(this, LiteMode.Feature.LOGS)) allTexts.mapIndexed { i, t -> "[$i]\"$t\"" }.joinToString(" | ").chunked(3000).forEachIndexed { i, part ->

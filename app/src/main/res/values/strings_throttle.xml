@@ -30,7 +30,7 @@
     <string name="throttle_started">Тормоз включён</string>
     <string name="throttle_stopped">Тормоз выключен</string>
     <string name="throttle_burst_started">Отмена на 30 секунд</string>
-    <string name="throttle_footnote">Включили — и дальше само: на каждый новый заказ 33 секунды. «Стоп» во время заказа — пауза на минуту, без заказа — пока не нажмёте «Старт».</string>
+    <string name="throttle_footnote">Включили — и дальше само: на каждый новый заказ 30 секунд. «Стоп» во время заказа — пауза на минуту, без заказа — пока не нажмёте «Старт».</string>
 
     <string name="throttle_notification_title">Тормоз включён</string>
     <string name="throttle_notification_text">Интернет для Яндекс Про замедлен</string>

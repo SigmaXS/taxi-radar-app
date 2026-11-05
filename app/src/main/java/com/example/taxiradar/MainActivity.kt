@@ -1442,6 +1442,7 @@ class MainActivity : AppCompatActivity() {
         // Долгое нажатие на плавающую кнопку «Отмены» — сразу вкладка «Отмена».
         if (i?.getStringExtra("open_tab") == "throttle") {
             i.removeExtra("open_tab")
+            com.example.taxiradar.throttle.CancelNotices.clear(this)
             bottomNav.selectedItemId = R.id.nav_throttle
         }
         if (i?.getBooleanExtra(UpdateNotifier.EXTRA_START_UPDATE, false) != true) return
@@ -1513,6 +1514,14 @@ class MainActivity : AppCompatActivity() {
         progressThrottle = findViewById(R.id.progressThrottle)
         viewThrottleDot = findViewById(R.id.viewThrottleDot)
         btnThrottleToggle = findViewById(R.id.btnThrottleToggle)
+        findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.swCancelOnly).apply {
+            isChecked = CancelOnly.on(this@MainActivity)
+            setOnCheckedChangeListener { _, on ->
+                CancelOnly.set(this@MainActivity, on)
+                Toast.makeText(this@MainActivity, if (on) R.string.cancel_only_on else R.string.cancel_only_off, Toast.LENGTH_LONG).show()
+                runCatching { updateWidgetButtonState() }
+            }
+        }
         val sizeSlider = findViewById<Slider>(R.id.sliderThrottleSize)
         // Значение должно попадать в шаг 0,1 от 0,6, иначе Slider падает (было сохранено 0,714).
         sizeSlider.value = (0.6f + Math.round((ThrottleBubbleService.scale(this).coerceIn(0.6f, 1.4f) - 0.6f) / 0.1f) * 0.1f).coerceIn(0.6f, 1.4f)
@@ -1526,6 +1535,9 @@ class MainActivity : AppCompatActivity() {
 
         ThrottleState.ensureLoaded(this)
         ThrottleAuto.load(this)
+        com.example.taxiradar.throttle.CancelNotices.clear(this)
+        findViewById<View>(R.id.cardCancelSetup).setOnClickListener { startActivity(Intent(this, SetupCheckActivity::class.java)) }
+        findViewById<View>(R.id.btnCancelCheck).setOnClickListener { runCancelCheck() }
         restoreThrottleIfEnabled()
 
         btnThrottleToggle.setOnClickListener {
@@ -1641,8 +1653,52 @@ class MainActivity : AppCompatActivity() {
         throttleTicker = null
     }
 
+    private fun mark(ok: Boolean, label: String) = (if (ok) "✓ " else "✗ ") + label
+
+    /** Кнопка «Проверить»: сразу показывает галочки по настройкам и включает живую проверку Яндекса на 25 секунд. */
+    private fun runCancelCheck() {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val left = com.example.taxiradar.throttle.CancelLicense.msLeft(this)
+        val lines = listOf(
+            mark(OrderAccessibilityService.isConnected, getString(R.string.cancel_chk_access)),
+            mark(Settings.canDrawOverlays(this), getString(R.string.cancel_chk_overlay)),
+            mark(pm.isIgnoringBatteryOptimizations(packageName), getString(R.string.cancel_chk_battery)),
+            mark(VpnService.prepare(this) == null, getString(R.string.cancel_chk_vpn)),
+            mark(left > 0, getString(R.string.cancel_chk_license)),
+        )
+        findViewById<TextView>(R.id.tvCancelCheck).apply {
+            text = lines.joinToString("\n") + "\n\n" + getString(R.string.cancel_chk_next)
+            visibility = View.VISIBLE
+        }
+        com.example.taxiradar.throttle.CancelDiag.startTest(this)
+        renderCancelExtras()
+    }
+
+    private fun lastCardText(): String {
+        val at = com.example.taxiradar.throttle.CancelDiag.lastCard(this)
+        if (at == 0L) return getString(R.string.cancel_last_none)
+        val ago = ((System.currentTimeMillis() - at) / 60000).toInt().coerceAtLeast(0)
+        val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(at))
+        return getString(R.string.cancel_last_fmt, time, ago)
+    }
+
+    /** Красный блок «проверьте настройки» и счётчик срабатываний на вкладке «Отмена». */
+    private fun renderCancelExtras() {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val problems = listOf(
+            !OrderAccessibilityService.isConnected,
+            !Settings.canDrawOverlays(this),
+            !pm.isIgnoringBatteryOptimizations(packageName)
+        ).count { it }
+        findViewById<View>(R.id.cardCancelSetup).visibility = if (problems > 0) View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.tvCancelSetupSub).text = getString(R.string.setup_fix_count, problems)
+        findViewById<TextView>(R.id.tvCancelRuns).text =
+            getString(R.string.cancel_runs_fmt, ThrottleAuto.runsToday(this), ThrottleAuto.runsTotal(this)) + "\n" + lastCardText()
+    }
+
     private fun renderThrottle() {
         if (!::tvThrottleState.isInitialized) return
+        renderCancelExtras()
 
         val now = SystemClock.elapsedRealtime()
         val endsAt = ThrottleState.endsAtElapsedRealtime.value
@@ -1696,6 +1752,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startOverlayService() {
+        if (CancelOnly.on(this)) {
+            Toast.makeText(this, R.string.cancel_only_radar_off, Toast.LENGTH_LONG).show()
+            return
+        }
         val serviceIntent = Intent(this, FloatingWidgetService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)

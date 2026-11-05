@@ -146,6 +146,9 @@ class ThrottleVpnService : VpnService(), VpnPacketSink {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        // Сразу выходим на передний план, до onStartCommand: shutdown() шлёт «стоп» и тут же останавливает службу,
+        // и без этого Android убивал приложение (ForegroundServiceDidNotStartInTimeException).
+        runCatching { startForeground(NOTIF_ID, buildNotification()) }
         ThrottleState.ensureLoaded(applicationContext)
         ThrottleAuto.ensureLoaded(applicationContext)
     }
@@ -341,8 +344,23 @@ class ThrottleVpnService : VpnService(), VpnPacketSink {
 
     private fun readLoop(input: FileInputStream) {
         val buffer = ByteArray(MTU)
+        // С Android 10 дескриптор туннеля неблокирующий: прямой read() сразу возвращал «нет данных», и поток
+        // крутился вхолостую на 100% ядра, пока «Отмена» включена. Ждём пакет через poll — процессор спит.
+        val pfd = android.system.StructPollfd().also {
+            it.fd = input.fd
+            it.events = android.system.OsConstants.POLLIN.toShort()
+        }
+        val bad = android.system.OsConstants.POLLERR or android.system.OsConstants.POLLHUP or android.system.OsConstants.POLLNVAL
         while (running) {
             try {
+                pfd.revents = 0
+                val ready = android.system.Os.poll(arrayOf(pfd), 500)
+                if (ready <= 0) continue // пакетов нет: просто ждём дальше, заодно проверяем running
+                if (pfd.revents.toInt() and bad != 0) {
+                    if (!running || stopped) return
+                    recover()
+                    return
+                }
                 val length = input.read(buffer)
                 if (length < 0) {
                     if (!running || stopped) return
@@ -360,6 +378,8 @@ class ThrottleVpnService : VpnService(), VpnPacketSink {
                 }
             } catch (e: Exception) {
                 if (!running) return
+                // Не крутимся вхолостую, если дескриптор вдруг недоступен.
+                try { Thread.sleep(20) } catch (_: InterruptedException) { return }
             }
         }
     }
