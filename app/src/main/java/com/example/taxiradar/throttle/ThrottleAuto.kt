@@ -123,7 +123,7 @@ object ThrottleAuto {
     fun setEnabled(context: Context, on: Boolean) {
         ensureLoaded(context)
         // Включить можно только с действующей подпиской «Отмены» (виджет и плитка идут этим же путём).
-        val allowed = !on || com.example.taxiradar.throttle.CancelLicense.allowed(context)
+        val allowed = !on || (com.example.taxiradar.UsageMode.cancelAllowed(context) && com.example.taxiradar.throttle.CancelLicense.allowed(context))
         if (!allowed) Log.w(TAG, "enable refused: no active Cancel subscription")
         val on = on && allowed
         enabled = on
@@ -161,9 +161,14 @@ object ThrottleAuto {
      */
     fun isPaused(): Boolean = pausedUntil > SystemClock.elapsedRealtime()
 
+    /** Пауза взята на время заказа (✕ / «Стоп» при идущей отмене): новый заказ её сразу снимает. */
+    @Volatile
+    private var pausedFromOrder = false
+
     /** Временная пауза: VPN снимается, авто остаётся включённым и вернётся само. */
-    fun pause(context: Context, millis: Long = 60_000L) {
+    fun pause(context: Context, millis: Long = 60_000L, fromOrder: Boolean = false) {
         ensureLoaded(context)
+        pausedFromOrder = fromOrder
         pausedUntil = SystemClock.elapsedRealtime() + millis
         ThrottleVpnService.shutdown(context)
         ThrottleWidget.update(context)
@@ -180,12 +185,24 @@ object ThrottleAuto {
     fun onOrderDetected(context: Context, source: String, signature: String? = null, trustSignature: Boolean = true) {
         ensureLoaded(context)
         if (!enabled || !autoOnOrder) return
-        if (isPaused()) {
-            Log.d(TAG, "order via $source ignored: paused")
-            return
-        }
 
         val now = SystemClock.elapsedRealtime()
+        // Новый заказ: прошлая карточка уходила с экрана надолго, либо (при надёжной подписи) адреса другие.
+        // Такой заказ обходит все паузы и защиты, чтобы быстрые заказы подряд не проскакивали без «Отмены».
+        val goneLong = goneSince > 0L && now - goneSince >= CARD_GONE_MS
+        val differs = signature != null && signature != handledSignature
+        val isNew = goneLong || (trustSignature && armed && differs)
+
+        if (isPaused()) {
+            // Пауза взята на время прошлого заказа: пришёл новый — снимаем её и работаем. Обычный «Стоп» без заказа держится.
+            if (pausedFromOrder && isNew) {
+                Log.d(TAG, "new order while paused after the previous one -> resume")
+                resume(context)
+            } else {
+                Log.d(TAG, "order via $source ignored: paused")
+                return
+            }
+        }
 
         // Карточка пропадала с экрана дольше пары секунд (не взяли, она вернулась тем же заказом) —
         // это новое предложение: прошлую подпись забываем. Мигание в доли секунды подпись сохраняет.
@@ -227,18 +244,23 @@ object ThrottleAuto {
                 ThrottleState.responseBlockActive.set(false)
             }
         }
-        if (ThrottleState.isRunning.value) {
+        if (ThrottleState.isRunning.value && !isNew) {
             if (signature != null) handledSignature = signature
             Log.d(TAG, "order via $source ignored: burst running")
             return
         }
-        if (now - lastTriggerAt < MIN_INTERVAL_MS) {
+        if (!isNew && now - lastTriggerAt < MIN_INTERVAL_MS) {
             Log.d(TAG, "order via $source ignored: min interval")
             return
         }
-        if (now - burstEndedAt < BURST_END_GUARD_MS) {
+        if (!isNew && now - burstEndedAt < BURST_END_GUARD_MS) {
             Log.d(TAG, "order via $source ignored: guard after burst")
             return
+        }
+        if (isNew) {
+            // Пауза 15 секунд после ручного «Стоп» тоже не должна съесть новый заказ.
+            ThrottleState.clearUnthrottleHold()
+            if (ThrottleState.isRunning.value) Log.d(TAG, "new order during a running burst -> restart")
         }
 
         lastTriggerAt = now

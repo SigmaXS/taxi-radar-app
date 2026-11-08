@@ -145,8 +145,7 @@ class OrderAccessibilityService : AccessibilityService() {
         if (CancelOnly.on(this)) {
             if (pkg != packageName && pkg != "ru.yandex.taxi" && (pkg.contains("taximeter", true) || pkg.contains("yandex", true))) {
                 com.example.taxiradar.throttle.CancelDiag.yandexSeen(this)
-                handler.removeCallbacks(processScreen)
-                handler.postDelayed(processScreen, 150)
+                scheduleProcess(150L)
             }
             return
         }
@@ -184,9 +183,22 @@ if (!RadarServices.yandex(this)) return
         // Экран Яндекс Про меняется десятки раз в секунду. Разбираем его один
         // раз, когда он «успокоился» (150 мс без новых событий), — иначе служба
         // гоняла процессор и грела телефон.
+        // Лёгкий режим читает экран реже, но не при включённой «Отмене»: ей нужна быстрая реакция.
+        scheduleProcess(if (LiteMode.enabled(this) && !com.example.taxiradar.throttle.ThrottleAuto.enabled) 400L else 150L)
+    }
+
+    private var pendingSince = 0L
+
+    /**
+     * Откладываем разбор экрана, пока идут события, но не дольше 300 мс с первого из них:
+     * Яндекс шлёт события почти без пауз, и разбор (а с ним «Отмена») мог ждать секундами.
+     */
+    private fun scheduleProcess(delay: Long) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (pendingSince == 0L) pendingSince = now
+        if (now - pendingSince >= 300L) return // разбор уже стоит в очереди — не двигаем
         handler.removeCallbacks(processScreen)
-        // Лёгкий режим: ждём дольше, экран разбирается реже.
-        handler.postDelayed(processScreen, if (LiteMode.enabled(this)) 400 else 150)
+        handler.postDelayed(processScreen, delay)
     }
 
     /**
@@ -205,16 +217,35 @@ if (!RadarServices.yandex(this)) return
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private val processScreen = Runnable { processYandexScreen() }
 
+    private val distanceLine = Regex("[0-9]\\s*(км|km|м|m)(?![a-zа-я]).*[0-9]\\s*(мин|min)", RegexOption.IGNORE_CASE)
+
+    /**
+     * Настоящая карточка заказа: отдельной строкой кнопка «Принять» (не слово внутри текста) и строка «N км · M мин».
+     * Слово «принять» встречается и в «Приоритете», и в чате поддержки — по нему «Отмена» срабатывала сама.
+     */
+    private fun isOrderCard(texts: List<String>): Boolean {
+        val lines = texts.flatMap { it.lines() }.map { it.trim() }
+        val accept = lines.any { it.equals("Принять", true) || it.equals("Accept", true) || it.equals("Acceptă", true) }
+        if (accept && lines.any { distanceLine.containsMatchIn(it) }) return true
+        // Плашка над карточкой «Пропустить / Приоритет -4»: есть только у предложения заказа, на экране «Приоритет» её нет.
+        return lines.any { it.equals("Пропустить", true) } && lines.any { skipPriorityLine.matches(it) }
+    }
+
+    private val skipPriorityLine = Regex("Приоритет\\s*[-−–+]?\\s*[0-9]+", RegexOption.IGNORE_CASE)
+
     /** Подпись карточки для «Только Отмена»: только строки-адреса (с запятой, без км/минут/цены) — чтобы отличать заказы. */
     private fun cancelOnlySignature(texts: List<String>): String? {
         val addr = texts.flatMap { it.split("\n") }.map { it.trim() }.filter {
             it.length in 6..80 && it.contains(',') && it.any { c -> c.isLetter() } &&
                 !it.contains("км") && !it.contains("мин") && !it.contains(" L") && !it.contains("%")
         }.distinct().take(2) // только первые два: А и Б; подписи на мини-карте не должны менять подпись заказа
-        return if (addr.isEmpty()) null else addr.joinToString("|")
+        if (addr.isNotEmpty()) return addr.joinToString("|")
+        // Адрес не прочитался — подписью служит строка «700 м · 3 мин», чтобы мигание экрана не запускало «Отмену» повторно.
+        return texts.flatMap { it.lines() }.map { it.trim() }.firstOrNull { distanceLine.containsMatchIn(it) }?.let { "D:$it" }
     }
 
     private fun processYandexScreen() {
+        pendingSince = 0L
         if (!RadarServices.yandex(this)) return
         try {
             val root = yandexRoot() ?: return
@@ -226,12 +257,19 @@ if (!RadarServices.yandex(this)) return
 
             // «Только Отмена»: есть кнопка «Принять» — включаем «Отмену», остальное не разбираем.
             if (CancelOnly.on(this)) {
-                val card = allTexts.any { it.contains("Принять", ignoreCase = true) || it.contains("Accept", ignoreCase = true) }
+                val card = isOrderCard(allTexts)
                 if (card) com.example.taxiradar.throttle.CancelDiag.cardSeen(this)
                 if (ThrottleAuto.enabled) {
                     if (card) ThrottleAuto.onOrderDetected(this, "card", cancelOnlySignature(allTexts), trustSignature = false) else ThrottleAuto.onOrderGone(this)
                 }
                 return
+            }
+
+            // «Отмена» стартует сразу, как только видна карточка заказа, — до разбора адресов, надбавки и цен.
+            // Те же правила, что и в «Только Отмена»: карточка есть — запуск, карточки нет — «разоружаем» до следующей.
+            if (ThrottleAuto.enabled) {
+                if (isOrderCard(allTexts)) ThrottleAuto.onOrderDetected(this, "card", cancelOnlySignature(allTexts), trustSignature = false)
+                else ThrottleAuto.onOrderGone(this)
             }
 
             lastYandexEventAt = System.currentTimeMillis()
@@ -248,8 +286,7 @@ if (!RadarServices.yandex(this)) return
                 it.contains("Принять", ignoreCase = true) || it.contains("Accept", ignoreCase = true)
             }
             if (!hasAccept) {
-                // Карточка ушла — снимаем «тормоз», не дожидаясь таймера.
-                if (ThrottleAuto.enabled) ThrottleAuto.onOrderGone(this)
+                // (Карточка ушла — «Отмена» уже узнала об этом выше, общей проверкой.)
                 // Экран «Ожидание в очереди» в аэропорту — цифры очереди для всех водителей.
                 AirportQueue.onScreen(this, allNodes.flatMap { it.text.split("\n") }.map { it.trim() }.filter { it.isNotEmpty() })
                 // Лёгкий режим выключает только пробки и надбавку в Б; поездки в смену пишутся всегда.
@@ -260,7 +297,7 @@ if (!RadarServices.yandex(this)) return
                 TripTracker.onScreen(this, root.packageName?.toString().orEmpty(), allTexts)
                 return
             }
-            com.example.taxiradar.throttle.CancelDiag.cardSeen(this)
+            if (isOrderCard(allTexts)) com.example.taxiradar.throttle.CancelDiag.cardSeen(this)
             // Полный список текстов — только для карточки заказа (для разбора ошибок).
             // Строка лога обрезается после ~4 КБ — пишем кусками.
             if (!LiteMode.cuts(this, LiteMode.Feature.LOGS)) allTexts.mapIndexed { i, t -> "[$i]\"$t\"" }.joinToString(" | ").chunked(3000).forEachIndexed { i, part ->
@@ -341,7 +378,6 @@ if (!RadarServices.yandex(this)) return
             // тариф и надбавку, посчитаем после «Поехали» по маршруту Яндекса.
             if (addrAIndex >= 0 && allLines.none { isMarkerFor(it, 'Б') }) {
                 // «Отмена» должна сработать и на такой карточке: раньше возврат отсюда её пропускал.
-                if (ThrottleAuto.enabled) ThrottleAuto.onOrderDetected(this, "card", "A:$addrA")
                 rememberNoDestination(root, allTexts, allLines, addrA)
                 return
             }
@@ -368,7 +404,6 @@ if (!RadarServices.yandex(this)) return
             if (addrA.isEmpty() || addrB.isEmpty()) {
                 Log.e("ORDER_DEBUG", "ОСТАНОВКА: addrA или addrB пустые после fallback (addrA=\"$addrA\" addrB=\"$addrB\")")
                 // Карточка есть («Принять» на экране) — тормоз всё равно включаем.
-                if (ThrottleAuto.enabled) ThrottleAuto.onOrderDetected(this, "card", "A:$addrA|B:$addrB")
                 return
             }
 
@@ -400,11 +435,6 @@ if (!RadarServices.yandex(this)) return
 
             lastTriggerTime = now
             lastCapturedOrderKey = orderKey
-            if (ThrottleAuto.enabled) {
-                Log.d("ThrottleAuto", "card seen: ${route.joinToString("|")}")
-                ThrottleAuto.onOrderDetected(this, "card", route.joinToString("|"))
-            }
-
             // По-румынски тарифы — «Econom», «Confort», «Confort+».
             val tariff = when {
                 allTexts.any {
@@ -750,6 +780,25 @@ if (!RadarServices.yandex(this)) return
     private var calcSeq = 0L
 
 
+    /** Городская часть длинной поездки, когда по адресам её не определить: от А до границы города. */
+    private val FALLBACK_CITY_KM = 8.0
+
+    /**
+     * Цена только по км и минутам с карточки Яндекса. Разбивка город/загород — оценка (первые ~8 км в городе),
+     * поэтому цена с «~», а адрес Б помечается как приблизительный.
+     */
+    private fun fareByCard(route: List<String>, tariff: String, surgeBonus: Int, card: CardRoute): RouteFareCalculator.FareResult {
+        val city = minOf(card.km, FALLBACK_CITY_KM)
+        val out = card.km - city
+        val price = RouteFareCalculator.price(tariff, city, out, card.min.toDouble(), surgeBonus)
+        Log.d("FARE_CALC", "По км и минутам с карточки: ${card.km} км (город ~$city) ${card.min} мин → $price L")
+        return RouteFareCalculator.FareResult(
+            price = price, distanceKm = card.km, durationMin = card.min, osrmMin = 0.0,
+            cityKm = city, outOfCityKm = out, stops = maxOf(0, route.size - 2),
+            approxAddresses = listOf(route.last())
+        )
+    }
+
     private suspend fun calculateAndShow(
         route: List<String>, tariff: String, surgeBonus: Int, apiKey: String, pickupKm: Double,
         cardRoute: CardRoute?, calcId: Long
@@ -805,8 +854,13 @@ if (!RadarServices.yandex(this)) return
                 }
                 result = result.copy(price = price, distanceKm = cardRoute.km, durationMin = cardRoute.min)
             } else {
-                Log.d("FARE_CALC", "Маршрут с карточки ${cardRoute.km} км не похож на наш ${"%.1f".format(ourKm)} км — не используем")
+                Log.d("FARE_CALC", "Маршрут с карточки ${cardRoute.km} км не похож на наш ${"%.1f".format(ourKm)} км — наш адрес найден не туда, считаем по Яндексу")
+                result = fareByCard(route, tariff, surgeBonus, cardRoute)
             }
+        } else if (result == null && cardRoute != null) {
+            // Адреса не нашлись вовсе, но Яндекс подписал км и минуты — считаем цену по ним.
+            Log.d("FARE_CALC", "Адреса не найдены, считаем по км и минутам с карточки: ${cardRoute.km} км, ${cardRoute.min} мин")
+            result = fareByCard(route, tariff, surgeBonus, cardRoute)
         } else if (result != null && result.durationMin > MAX_UNLABELED_MIN) {
             // Подписей на карточке нет — значит, по расчёту Яндекса поездка короче
             // 40 минут (длиннее он подписывает км и минуты). Наша оценка вышла
@@ -828,7 +882,7 @@ if (!RadarServices.yandex(this)) return
                 // Учимся только на поездках А→Б без заездов: с заездом навигатор
                 // после «Поехали» ведёт до заезда, а не до Б, и время не сравнить.
                 // Цена с заездами считается как обычно, с той же поправкой.
-                if (route.size == 2) {
+                if (route.size == 2 && result.osrmMin > 0) {
                     rememberTrip(
                         PendingTrip(
                             at = System.currentTimeMillis(),

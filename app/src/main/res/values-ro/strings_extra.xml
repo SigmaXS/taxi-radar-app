@@ -35,4 +35,6 @@
     <string name="widget_bonus">supliment +%1$d</string>
     <string name="road_help_button">🆘 Ajutor pe drum</string>
     <string name="danger_button">🚨 Pericol</string>
+    <string name="road_help_title">Ajutor pe drum</string>
+    <string name="road_help_sub">Șoferii din apropiere vă ajută</string>
 </resources>

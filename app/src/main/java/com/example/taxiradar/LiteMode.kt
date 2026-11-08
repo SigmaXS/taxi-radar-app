@@ -78,6 +78,13 @@ object LiteMode {
             setTextColor(a.getColor(R.color.tr_text_secondary))
             setPadding(0, DriverUi.dp(a, 6), 0, DriverUi.dp(a, 12))
         })
+        body.addView(com.google.android.material.button.MaterialButton(a).apply {
+            text = t("Режим работы: ", "Mod de lucru: ") + UsageMode.label(a) + "  ›"
+            isAllCaps = false; textSize = 14f; cornerRadius = DriverUi.dp(a, 14)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(a.getColor(R.color.tr_surface_high))
+            setTextColor(a.getColor(R.color.tr_text))
+            setOnClickListener { UsageMode.show(a, false) { changed() } }
+        }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = DriverUi.dp(a, 10) })
         // Переключатель включён = функция работает.
         val switches = Feature.values().associateWith { f -> MaterialSwitch(a).apply { isChecked = !cuts(a, f); contentDescription = t(f.title) } }
         fun apply(off: Set<Feature>) = switches.forEach { (f, sw) -> sw.isChecked = f !in off }

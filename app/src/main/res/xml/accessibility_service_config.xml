@@ -5,4 +5,4 @@
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"
     android:canRetrieveWindowContent="true"
     android:description="@string/acc_description"
-    android:notificationTimeout="300" />
+    android:notificationTimeout="100" />

@@ -39,4 +39,6 @@
     <string name="cancel_test_card_ok_text">«Отмена» сработает на заказ.</string>
     <string name="cancel_test_no_yandex">Не вижу Яндекс Про</string>
     <string name="cancel_test_no_yandex_text">Проверьте специальные возможности радара и откройте Яндекс Про.</string>
+    <string name="usage_mode_title">Режим работы</string>
+    <string name="usage_change">Изменить</string>
 </resources>

@@ -95,7 +95,8 @@
     <string name="net_example">Пример: заказ 100 L, 10 км + 1 км подачи → чистыми ~%1$d L</string>
 
     <string name="ref_title">Пригласи друга</string>
-    <string name="ref_caption">Отправьте другу ссылку — он скачает приложение и введёт ваш код. Вам сразу +%1$d дн., а если друг купит ключ — ещё +%2$d дн.</string>
+    <string name="ref_caption">Отправьте другу ссылку — он скачает приложение и введёт ваш код. Вам сразу +%1$d дн. радара и +%3$d дн. «Отмены», а другу +%3$d дн. «Отмены». Если друг купит ключ — вам ещё +%2$d дн. радара.</string>
+    <string name="invite_nudge">Пригласи друга: тебе +%1$d дн. к радару и +%2$d к «Отмене», другу +%2$d к «Отмене». Нажми — покажем код и ссылку.</string>
     <string name="ref_share">Поделиться</string>
     <string name="ref_share_title">Поделиться кодом</string>
     <string name="ref_share_text">Taxi Radar — цена заказа, надбавка и карта прямо поверх Яндекс Про. 7 дней бесплатно.\nСкачать: %2$s\nПри первом запуске введи мой код друга: %1$s</string>
@@ -176,6 +177,7 @@
     <string name="chk_battery">Батарея без ограничений</string>
     <string name="chk_battery_ok">Android не будет усыплять радар</string>
     <string name="chk_battery_fail">Иначе телефон выключит радар в фоне</string>
+    <string name="chk_battery_xiaomi">На Xiaomi система сама сбрасывает этот пункт — это не ошибка. Если радар засыпает, в настройках приложения выберите «Нет ограничений»</string>
     <string name="chk_location">Геолокация</string>
     <string name="chk_location_ok">Разрешена</string>
     <string name="chk_location_fail">Нужна, чтобы показывать надбавку там, где вы стоите</string>
@@ -426,7 +428,8 @@
     <string name="chat_admin_badge">Админ</string>
     <string name="chat_mod_delete">Удалить сообщение</string>
     <string name="chat_mod_mute">Заглушить %1$s (удалит все его сообщения)</string>
-    <string name="header_days">● осталось %1$d дн.</string>
+    <string name="header_days">● Радар: осталось %1$d дн.</string>
+    <string name="header_cancel_days">● Отмена: осталось %1$d дн.</string>
     <string name="intro_map_title">Как пользоваться картой</string>
     <string name="intro_got_it">Понятно</string>
     <string name="intro_map_surge">Надбавка. Нажмите на любое место — флажок покажет надбавку там. Флажок можно перетаскивать.</string>

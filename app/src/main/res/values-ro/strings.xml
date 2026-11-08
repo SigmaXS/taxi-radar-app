@@ -93,7 +93,8 @@
     <string name="net_example">Exemplu: comandă 100 L, 10 km + 1 km până la client → net ~%1$d L</string>
 
     <string name="ref_title">Invită un prieten</string>
-    <string name="ref_caption">Trimiteți prietenului linkul — descarcă aplicația și introduce codul dvs. Primiți imediat +%1$d zile, iar dacă prietenul cumpără o cheie — încă +%2$d zile.</string>
+    <string name="ref_caption">Trimiteți prietenului linkul — descarcă aplicația și introduce codul dvs. Primiți imediat +%1$d zile de radar și +%3$d zile de «Anulare», iar prietenul +%3$d zile de «Anulare». Dacă prietenul cumpără o cheie — încă +%2$d zile de radar.</string>
+    <string name="invite_nudge">Invită un prieten: tu primești +%1$d zile de radar și +%2$d de «Anulare», prietenul +%2$d de «Anulare». Apasă — îți arătăm codul și linkul.</string>
     <string name="ref_share">Distribuie</string>
     <string name="ref_share_title">Distribuie codul</string>
     <string name="ref_share_text">Taxi Radar — prețul comenzii, suprataxa și harta direct peste Yandex Pro. 7 zile gratuit.\nDescarcă: %2$s\nLa prima pornire introdu codul meu de prieten: %1$s</string>
@@ -173,6 +174,7 @@
     <string name="chk_battery">Baterie fără restricții</string>
     <string name="chk_battery_ok">Android nu va adormi radarul</string>
     <string name="chk_battery_fail">Altfel telefonul va opri radarul în fundal</string>
+    <string name="chk_battery_xiaomi">Pe Xiaomi sistemul resetează singur acest punct — nu este o eroare. Dacă radarul adoarme, alegeți în setările aplicației «Fără restricții»</string>
     <string name="chk_location">Localizare</string>
     <string name="chk_location_ok">Permisă</string>
     <string name="chk_location_fail">Necesară pentru a arăta suplimentul acolo unde stați</string>
@@ -423,7 +425,8 @@ Apoi Taxi Radar își va activa singur accesibilitatea. Depanarea se poate dezac
     <string name="chat_admin_badge">Admin</string>
     <string name="chat_mod_delete">Șterge mesajul</string>
     <string name="chat_mod_mute">Blochează pe %1$s (îi șterge toate mesajele)</string>
-    <string name="header_days">● au rămas %1$d zile</string>
+    <string name="header_days">● Radar: au rămas %1$d zile</string>
+    <string name="header_cancel_days">● Anulare: au rămas %1$d zile</string>
     <string name="intro_map_title">Cum folosiți harta</string>
     <string name="intro_got_it">Am înțeles</string>
     <string name="intro_map_surge">Suplimentul. Apăsați oriunde — stegulețul arată suplimentul acolo. Stegulețul se poate trage.</string>

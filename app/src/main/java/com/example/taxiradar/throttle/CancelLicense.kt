@@ -137,10 +137,12 @@ object CancelLicense {
     /** null — сервер недоступен или ответ не подписан (тогда решает allowed()). */
     suspend fun status(context: Context, running: Boolean = false, runs: Int = -1): Status? = withContext(Dispatchers.IO) {
         // running: скрипт «Отмена» сейчас включён — сервер отмечает «работает сейчас» в админке; runs — сколько раз сработал.
-        parse(context, post(context, "/api/cancel/status", JSONObject().apply {
+        val reply = post(context, "/api/cancel/status", JSONObject().apply {
             if (running) put("running", true)
             if (runs >= 0) put("runs", runs)
-        }))
+        })
+        // ping: 1 — сервер отметил «работает», 0 — устройства нет в базе, -1 — ошибка записи.
+        parse(context, reply)
     }
 
     suspend fun startTrial(context: Context): Status? = withContext(Dispatchers.IO) {

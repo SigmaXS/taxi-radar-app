@@ -285,6 +285,14 @@ class MainActivity : AppCompatActivity() {
             true
         }
         bottomNav.selectedItemId = initial
+        // Режим работы: скрыть вкладку «Отмена», если она не нужна; на первом запуске спросить, что используем.
+        UsageMode.listener = { runOnUiThread { applyUsageMode() } }
+        applyUsageMode()
+        if (!UsageMode.chosen(this)) {
+            window.decorView.post {
+                if (!isFinishing && !UsageMode.chosen(this)) UsageMode.show(this, true) { applyUsageMode() }
+            }
+        }
         showTab(initial)
     }
 
@@ -456,6 +464,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        UsageMode.listener = null
         mapController?.destroy()
         super.onDestroy()
     }
@@ -494,7 +503,7 @@ class MainActivity : AppCompatActivity() {
         val problems = listOf(
             !OrderAccessibilityService.isConnected,
             !Settings.canDrawOverlays(this),
-            !pm.isIgnoringBatteryOptimizations(packageName)
+            BatteryCheck.isProblem(this)
         ).count { it }
         // Предупреждение встроено в сам блок «Проверка настроек»: красная рамка и «Исправить».
         // Всё в порядке — блок спокойный, не пропадает.
@@ -627,6 +636,8 @@ class MainActivity : AppCompatActivity() {
     /** Бонус пригласившему: сразу за код и сверху за покупку ключа другом. */
     private var installDays = 2
     private var purchaseDays = 3
+    /** Сколько дней «Отмены» получают и пригласивший, и друг (сервер: CANCEL_REFERRAL_DAYS, по умолчанию 1). */
+    private var cancelReferralDays = 1
 
     private fun setupReferralCard() {
         btnReferralShare.setOnClickListener {
@@ -662,8 +673,9 @@ class MainActivity : AppCompatActivity() {
             }
             purchaseDays = info.optInt("bonus_days", AppConfig.load(this@MainActivity).referralBonusDays)
             installDays = info.optInt("install_days", 2)
+            cancelReferralDays = info.optInt("cancel_days", 1)
             tvReferralCode.text = info.optString("code")
-            tvReferralCaption.text = getString(R.string.ref_caption, installDays, purchaseDays)
+            tvReferralCaption.text = getString(R.string.ref_caption, installDays, purchaseDays, cancelReferralDays)
             tvReferralStats.text = getString(R.string.ref_stats, info.optInt("invited"), info.optInt("rewarded"),
                 info.optInt("pending"), info.optInt("revoked"))
             checkDays = info.optInt("check_days", 7)
@@ -1142,6 +1154,13 @@ class MainActivity : AppCompatActivity() {
             setTextColor(color(if (days <= 3) R.color.tr_warning else R.color.tr_success))
             setOnClickListener { bottomNav.selectedItemId = R.id.nav_profile }
         }
+        val cancelDays = if (CancelLicense.allowed(this)) CancelLicense.daysLeft(this) else 0
+        findViewById<TextView>(R.id.tvHeaderCancelDays).apply {
+            visibility = if (cancelDays > 0) View.VISIBLE else View.GONE
+            this.text = getString(R.string.header_cancel_days, cancelDays)
+            setTextColor(color(if (cancelDays <= 1) R.color.tr_warning else R.color.tr_success))
+            setOnClickListener { bottomNav.selectedItemId = R.id.nav_profile }
+        }
     }
 
     private fun color(@ColorRes res: Int): Int = getColor(res)
@@ -1335,6 +1354,7 @@ class MainActivity : AppCompatActivity() {
     private fun renderUpdateRequired() {
         renderUpdateBanner()
         renderNotice()
+        renderInviteNudge()
         val cfg = AppConfig.load(this)
         if (cfg.minVersionCode <= 0 || currentVersionCode() >= cfg.minVersionCode) return
         tvLicenseStatus.text = getString(R.string.update_required_status)
@@ -1379,6 +1399,22 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putInt("notice_closed", cfg.noticeId).apply()
             findViewById<View>(R.id.cardNotice).visibility = View.GONE
         }
+    }
+
+    /**
+     * «Пригласи друга: +1 день к Отмене, +2 дня к радару» — не чаще раза в сутки.
+     * Тап ведёт в профиль (там код и ссылка); крестик или тап прячут плашку до следующих суток.
+     */
+    private fun renderInviteNudge() {
+        val card = findViewById<View>(R.id.cardInviteNudge)
+        val p = getSharedPreferences("referral", MODE_PRIVATE)
+        val due = System.currentTimeMillis() - p.getLong("nudge_at", 0L) > 24 * 3600_000L
+        card.visibility = if (due && licenseManager.isLicensed()) View.VISIBLE else View.GONE
+        if (card.visibility != View.VISIBLE) return
+        findViewById<TextView>(R.id.tvInviteNudge).text = getString(R.string.invite_nudge, installDays, cancelReferralDays)
+        val hide = { p.edit().putLong("nudge_at", System.currentTimeMillis()).apply(); card.visibility = View.GONE }
+        card.setOnClickListener { hide(); bottomNav.selectedItemId = R.id.nav_profile }
+        findViewById<View>(R.id.btnInviteNudgeClose).setOnClickListener { hide() }
     }
 
     /** Жёлтая плашка «Вышла версия …» — пока есть файл новее установленного. */
@@ -1514,13 +1550,17 @@ class MainActivity : AppCompatActivity() {
         progressThrottle = findViewById(R.id.progressThrottle)
         viewThrottleDot = findViewById(R.id.viewThrottleDot)
         btnThrottleToggle = findViewById(R.id.btnThrottleToggle)
-        findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.swCancelOnly).apply {
-            isChecked = CancelOnly.on(this@MainActivity)
-            setOnCheckedChangeListener { _, on ->
-                CancelOnly.set(this@MainActivity, on)
-                Toast.makeText(this@MainActivity, if (on) R.string.cancel_only_on else R.string.cancel_only_off, Toast.LENGTH_LONG).show()
-                runCatching { updateWidgetButtonState() }
-            }
+        findViewById<View>(R.id.rowUsageMode).setOnClickListener {
+            UsageMode.show(this, false) { runCatching { updateWidgetButtonState() }; renderThrottle() }
+        }
+        // «Когда отмена не сработает» — свёрнуто, по нажатию раскрывается.
+        val noWorkText = findViewById<android.widget.LinearLayout>(R.id.tvNoWorkText)
+        val noWorkChevron = findViewById<View>(R.id.ivNoWorkChevron)
+        findViewById<View>(R.id.rowNoWork).setOnClickListener {
+            val open = noWorkText.visibility != View.VISIBLE
+            if (open && noWorkText.childCount == 0) buildNoWorkList(noWorkText)
+            noWorkText.visibility = if (open) View.VISIBLE else View.GONE
+            noWorkChevron.rotation = if (open) 270f else 90f
         }
         val sizeSlider = findViewById<Slider>(R.id.sliderThrottleSize)
         // Значение должно попадать в шаг 0,1 от 0,6, иначе Slider падает (было сохранено 0,714).
@@ -1653,6 +1693,46 @@ class MainActivity : AppCompatActivity() {
         throttleTicker = null
     }
 
+    /** Список «Когда отмена не сработает»: номер в кружке, жирная причина и серое пояснение под ней. */
+    private fun buildNoWorkList(box: android.widget.LinearLayout) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        resources.getStringArray(R.array.throttle_nowork_items).forEachIndexed { i, raw ->
+            val parts = raw.split("|", limit = 2)
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                setPadding(0, dp(8), 0, dp(8))
+            }
+            val badge = TextView(this).apply {
+                text = (i + 1).toString()
+                gravity = android.view.Gravity.CENTER
+                textSize = 14f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(getColor(R.color.tr_accent))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(getColor(R.color.tr_surface_high))
+                }
+            }
+            row.addView(badge, android.widget.LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginEnd = dp(12) })
+            val col = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL }
+            col.addView(TextView(this).apply {
+                text = parts[0]; textSize = 15f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(getColor(R.color.tr_text))
+            })
+            if (parts.size > 1) col.addView(TextView(this).apply {
+                text = parts[1]; textSize = 13f
+                setLineSpacing(dp(2).toFloat(), 1f)
+                setTextColor(getColor(R.color.tr_text_secondary))
+            }, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
+            row.addView(col, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+            box.addView(row, android.widget.LinearLayout.LayoutParams(-1, -2))
+            if (i < 8) box.addView(View(this).apply { setBackgroundColor(getColor(R.color.tr_stroke)); alpha = 0.5f },
+                android.widget.LinearLayout.LayoutParams(-1, 1).apply { marginStart = dp(42) })
+        }
+    }
+
     private fun mark(ok: Boolean, label: String) = (if (ok) "✓ " else "✗ ") + label
 
     /** Кнопка «Проверить»: сразу показывает галочки по настройкам и включает живую проверку Яндекса на 25 секунд. */
@@ -1662,7 +1742,7 @@ class MainActivity : AppCompatActivity() {
         val lines = listOf(
             mark(OrderAccessibilityService.isConnected, getString(R.string.cancel_chk_access)),
             mark(Settings.canDrawOverlays(this), getString(R.string.cancel_chk_overlay)),
-            mark(pm.isIgnoringBatteryOptimizations(packageName), getString(R.string.cancel_chk_battery)),
+            mark(!BatteryCheck.isProblem(this), getString(R.string.cancel_chk_battery)),
             mark(VpnService.prepare(this) == null, getString(R.string.cancel_chk_vpn)),
             mark(left > 0, getString(R.string.cancel_chk_license)),
         )
@@ -1688,12 +1768,20 @@ class MainActivity : AppCompatActivity() {
         val problems = listOf(
             !OrderAccessibilityService.isConnected,
             !Settings.canDrawOverlays(this),
-            !pm.isIgnoringBatteryOptimizations(packageName)
+            BatteryCheck.isProblem(this)
         ).count { it }
         findViewById<View>(R.id.cardCancelSetup).visibility = if (problems > 0) View.VISIBLE else View.GONE
         findViewById<TextView>(R.id.tvCancelSetupSub).text = getString(R.string.setup_fix_count, problems)
+        findViewById<TextView>(R.id.tvUsageModeSub).text = UsageMode.label(this)
         findViewById<TextView>(R.id.tvCancelRuns).text =
             getString(R.string.cancel_runs_fmt, ThrottleAuto.runsToday(this), ThrottleAuto.runsTotal(this)) + "\n" + lastCardText()
+    }
+
+    /** Режим работы (радар / «Отмена» / оба): вкладка «Отмена» скрыта, если «Отмена» не нужна. */
+    private fun applyUsageMode() {
+        val m = UsageMode.mode(this)
+        bottomNav.menu.findItem(R.id.nav_throttle)?.isVisible = m != UsageMode.RADAR
+        if (m == UsageMode.RADAR && bottomNav.selectedItemId == R.id.nav_throttle) bottomNav.selectedItemId = R.id.nav_radar
     }
 
     private fun renderThrottle() {

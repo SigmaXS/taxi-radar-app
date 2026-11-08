@@ -546,6 +546,9 @@ object RouteFareCalculator {
 
     // Точка дальше этого от центра Кишинёва — почти наверняка Геокодер ошибся
     // («Gara de Nord» он находит в Бухаресте). Лучше без цены, чем с неверной.
+    /** Село, город, коммуна в адресе: такое название искать «в Кишинёве» нельзя — найдётся тёзка улицы и цена выйдет в разы меньше. */
+    private val localityRegex = Regex("(?iu)(^|[\\s,])(село|с\\.|sat|satul|com|comuna|commune|город|г\\.|or|orașul|oraşul|oras|район|raion|r-nul)([\\s.,]|$)")
+
     private const val MAX_DISTANCE_KM = 150.0
 
     // Кишинёв с пригородами (Дурлешты, Яловены, Кричова) — до ~25 км от центра.
@@ -578,7 +581,7 @@ object RouteFareCalculator {
         if (airportRegex.containsMatchIn(clean) && !otherCityRegex.containsMatchIn(clean)) {
             return LatLng(lat = 46.9350, lon = 28.9330)
         }
-        val named = Regex("(?iu)chi[șs]in|кишин").containsMatchIn(clean)
+        val named = Regex("(?iu)chi[șs]in|кишин").containsMatchIn(clean) || localityRegex.containsMatchIn(clean)
         var found = geocodeNear(clean, apiKey, context)
             ?: if (named) null else geocodeNear("Chișinău, $clean", apiKey, context)
         // Улица без названия города нашлась далеко от Кишинёва (бульвар Москова — в 44 км, в другом

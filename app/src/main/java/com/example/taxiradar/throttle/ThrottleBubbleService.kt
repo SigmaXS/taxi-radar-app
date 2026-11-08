@@ -211,7 +211,7 @@ class ThrottleBubbleService : Service() {
             visibility = View.GONE
             setOnClickListener {
                 // Взяли заказ: интернет возвращается, через минуту скрипт включится сам.
-                ThrottleAuto.pause(this@ThrottleBubbleService, PAUSE_ORDER_MS)
+                ThrottleAuto.pause(this@ThrottleBubbleService, PAUSE_ORDER_MS, fromOrder = true)
                 visibility = View.GONE
                 updateBubble()
             }
@@ -299,7 +299,7 @@ class ThrottleBubbleService : Service() {
             ThrottleAuto.resume(this)
         } else {
             val burst = ThrottleState.isRunning.value && ThrottleState.endsAtElapsedRealtime.value > SystemClock.elapsedRealtime()
-            ThrottleAuto.pause(this, if (burst) PAUSE_ORDER_MS else PAUSE_IDLE_MS)
+            ThrottleAuto.pause(this, if (burst) PAUSE_ORDER_MS else PAUSE_IDLE_MS, fromOrder = burst)
         }
         updateBubble()
     }

@@ -39,4 +39,6 @@
     <string name="widget_bonus">надбавка +%1$d</string>
     <string name="road_help_button">🆘 Помощь на дороге</string>
     <string name="danger_button">🚨 Опасность</string>
+    <string name="road_help_title">Помощь на дороге</string>
+    <string name="road_help_sub">Водители рядом помогут</string>
 </resources>

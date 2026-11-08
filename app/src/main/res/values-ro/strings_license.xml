@@ -39,4 +39,18 @@
     <string name="cancel_test_card_ok_text">«Anulare» va funcționa pe comandă.</string>
     <string name="cancel_test_no_yandex">Nu văd Yandex Pro</string>
     <string name="cancel_test_no_yandex_text">Verificați accesibilitatea radarului și deschideți Yandex Pro.</string>
+    <string name="usage_mode_title">Mod de lucru</string>
+    <string name="usage_change">Schimbă</string>
+    <string name="throttle_nowork_title">CÂND «ANULAREA» NU PORNEȘTE</string>
+    <string-array name="throttle_nowork_items">
+        <item>Anularea este oprită|La fiecare pornire a aplicației e oprită: intrați în filă și apăsați «Start». Se oprește singură și după 3 ore fără comenzi.</item>
+        <item>Fără abonament sau alt mod|Abonamentul «Anulare» a expirat sau este ales modul «Doar radar».</item>
+        <item>Pauză|Ați apăsat «Stop» sau ✕: un minut după comandă; fără comandă — până la «Start».</item>
+        <item>Accesibilitatea este oprită|Sistemul a închis-o (economisire baterie Xiaomi, Oppo, Samsung) — veți primi o notificare. Deschideți aplicația și porniți din nou.</item>
+        <item>Cardul nu se vede|Yandex Pro e minimizat, ecranul e stins sau comanda nu e pe ecran.</item>
+        <item>Ceva peste Yandex|Bara de notificări sau o notificare (încărcare, apel, mesaj): sistemul nu dă cardul. Închideți și așteptați să dispară.</item>
+        <item>E pornit alt VPN|Android ține doar unul.</item>
+        <item>Aceeași comandă a doua oară|Nu pornește anularea până nu dispare cardul de pe ecran (până la 3 minute).</item>
+        <item>Nu e comandă|Ecranele «Prioritate» și chatul de suport — acolo anularea nu pornește.</item>
+    </string-array>
 </resources>

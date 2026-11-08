@@ -69,7 +69,21 @@
                         android:background="@drawable/bg_widget_pill"
                         android:backgroundTint="@color/tr_surface_high"
                         android:paddingHorizontal="10dp"
-                        android:paddingVertical="3dp"
+                        android:paddingVertical="2dp"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+
+                    <!-- Срок «Отмены» — строкой ниже срока радара -->
+                    <TextView
+                        android:id="@+id/tvHeaderCancelDays"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:background="@drawable/bg_widget_pill"
+                        android:backgroundTint="@color/tr_surface_high"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="2dp"
                         android:textSize="12sp"
                         android:textStyle="bold"
                         android:visibility="gone" />
@@ -226,6 +240,54 @@
 
                     <ImageButton
                         android:id="@+id/btnNoticeClose"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/notice_close"
+                        android:src="@drawable/ic_close"
+                        app:tint="@color/tr_text_secondary" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Раз в сутки: «Пригласи друга» — тап ведёт в профиль, где код и ссылка -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardInviteNudge"
+                style="@style/TaxiRadar.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/tr_surface_high"
+                app:strokeColor="@color/ic_purple">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎁"
+                        android:textSize="24sp" />
+
+                    <TextView
+                        android:id="@+id/tvInviteNudge"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:lineSpacingExtra="2dp"
+                        android:text="@string/invite_nudge"
+                        android:textColor="@color/tr_text"
+                        android:textSize="14sp" />
+
+                    <ImageButton
+                        android:id="@+id/btnInviteNudgeClose"
                         android:layout_width="44dp"
                         android:layout_height="44dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
@@ -590,8 +652,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                app:contentPaddingBottom="8dp"
-                app:contentPaddingTop="8dp">
+                app:contentPaddingBottom="10dp"
+                app:contentPaddingTop="10dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -599,20 +661,51 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
-                    <!-- Тап по названию — помощь на дороге -->
-                    <TextView
+                    <!-- Тап по значку и названию — помощь на дороге (вид как у чата и клиентов) -->
+                    <LinearLayout
                         android:id="@+id/btnRoadHelp"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:background="?attr/selectableItemBackground"
                         android:clickable="true"
                         android:focusable="true"
                         android:gravity="center_vertical"
-                        android:text="@string/road_help_button"
-                        android:textColor="@color/tr_text"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_status_dot"
+                            android:backgroundTint="@color/ic_orange_bg"
+                            android:contentDescription="@null"
+                            android:padding="10dp"
+                            android:src="@drawable/ic_build"
+                            app:tint="@color/ic_orange" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="14dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/road_help_title"
+                                android:textColor="@color/tr_text"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                style="@style/TaxiRadar.Caption"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/road_help_sub" />
+                        </LinearLayout>
+                    </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnDanger"

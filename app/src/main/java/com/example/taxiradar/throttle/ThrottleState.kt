@@ -118,6 +118,9 @@ object ThrottleState {
     fun isUnthrottleHoldActive(): Boolean =
         SystemClock.elapsedRealtime() < unthrottleHoldUntil.get()
 
+    /** Пришёл новый заказ — пауза после ручного «Стоп» ему не помеха. */
+    fun clearUnthrottleHold() = unthrottleHoldUntil.set(0L)
+
     /** Мгновенно снять ограничение — например, когда водитель нажал «Стоп». */
     fun forceUnthrottleNow(context: Context) {
         activeProfile.set(ThrottleProfile.UNLIMITED)

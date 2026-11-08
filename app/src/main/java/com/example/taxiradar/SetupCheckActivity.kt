@@ -158,14 +158,6 @@ class SetupCheckActivity : AppCompatActivity() {
                 getString(R.string.chk_acc_broken_hint), getString(R.string.setup_open)
             ) { AccessibilityAccess.showWorkarounds(this) }
         }
-        // Поездки не попадают в смену — журнал радара отправить нам (без компьютера).
-        list += Check(
-            DriverUi.t(this, "Журнал радара", "Jurnalul radarului"), State.MANUAL,
-            DriverUi.t(this, "Если поездки не попадают в смену — отправьте журнал разработчику.", "Dacă cursele nu intră în tură — trimiteți jurnalul dezvoltatorului."),
-            DriverUi.t(this, "Отправить", "Trimite")
-        ) {
-            TripLog.share(this)
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list += Check(
                 getString(R.string.chk_restricted), State.MANUAL,
@@ -195,6 +187,10 @@ class SetupCheckActivity : AppCompatActivity() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         list += if (pm.isIgnoringBatteryOptimizations(packageName)) {
             Check(getString(R.string.chk_battery), State.OK, getString(R.string.chk_battery_ok), getString(R.string.setup_open)) {
+                openFirst(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS), appDetailsIntent())
+            }
+        } else if (BatteryCheck.isXiaomi()) {
+            Check(getString(R.string.chk_battery), State.MANUAL, getString(R.string.chk_battery_xiaomi), getString(R.string.setup_open)) {
                 openFirst(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS), appDetailsIntent())
             }
         } else {
@@ -279,6 +275,14 @@ class SetupCheckActivity : AppCompatActivity() {
             getString(R.string.chk_lock), State.MANUAL,
             getString(R.string.chk_lock_hint)
         )
+        // Журнал радара — в самом низу, не среди проверок: поездки не попадают в смену — отправьте нам (без компьютера).
+        list += Check(
+            DriverUi.t(this, "Журнал радара", "Jurnalul radarului"), State.MANUAL,
+            DriverUi.t(this, "Если поездки не попадают в смену — отправьте журнал разработчику.", "Dacă cursele nu intră în tură — trimiteți jurnalul dezvoltatorului."),
+            DriverUi.t(this, "Отправить", "Trimite")
+        ) {
+            TripLog.share(this)
+        }
 
         return list
     }
